@@ -1,0 +1,387 @@
+<div class="space-y-6">
+
+  <!-- ── Header ─────────────────────────────────────────────────────── -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+    <div>
+      <h1 class="text-2xl font-bold text-zinc-900">Gestion des utilisateurs</h1>
+      <p class="text-sm text-zinc-500 mt-0.5">Créez et gérez les membres, comité et administrateurs.</p>
+    </div>
+    <button
+      (click)="openInviteModal()"
+      class="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm"
+    >
+      <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+      Inviter un utilisateur
+    </button>
+  </div>
+
+  <!-- ── Success banner ─────────────────────────────────────────────── -->
+  <div *ngIf="successMessage" class="flex items-center gap-3 px-4 py-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
+    <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+    </svg>
+    {{ successMessage }}
+  </div>
+
+  <!-- ── Stats cards ─────────────────────────────────────────────────── -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div class="bg-white rounded-xl border border-zinc-200 p-4 shadow-sm">
+      <p class="text-xs text-zinc-500 font-medium uppercase tracking-wide">Total</p>
+      <p class="text-2xl font-bold text-zinc-900 mt-1">{{ users.length }}</p>
+    </div>
+    <div class="bg-white rounded-xl border border-zinc-200 p-4 shadow-sm">
+      <p class="text-xs text-red-500 font-medium uppercase tracking-wide">Admins</p>
+      <p class="text-2xl font-bold text-zinc-900 mt-1">{{ adminCount }}</p>
+    </div>
+    <div class="bg-white rounded-xl border border-zinc-200 p-4 shadow-sm">
+      <p class="text-xs text-blue-500 font-medium uppercase tracking-wide">Comité</p>
+      <p class="text-2xl font-bold text-zinc-900 mt-1">{{ committeeCount }}</p>
+    </div>
+    <div class="bg-white rounded-xl border border-zinc-200 p-4 shadow-sm">
+      <p class="text-xs text-green-600 font-medium uppercase tracking-wide">Membres</p>
+      <p class="text-2xl font-bold text-zinc-900 mt-1">{{ memberCount }}</p>
+    </div>
+  </div>
+
+  <!-- ── Tabs ───────────────────────────────────────────────────────── -->
+  <div class="bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
+    <div class="flex border-b border-zinc-200 overflow-x-auto">
+      <button *ngFor="let tab of [
+          { key: 'all',       label: 'Tous',    count: users.length },
+          { key: 'admins',    label: 'Admins',  count: adminCount },
+          { key: 'committee', label: 'Comité',  count: committeeCount },
+          { key: 'members',   label: 'Membres', count: memberCount }
+        ]"
+        (click)="setTab(tab.key)"
+        [ngClass]="{
+          'border-b-2 border-red-600 text-red-600 font-semibold': activeTab === tab.key,
+          'text-zinc-500 hover:text-zinc-700': activeTab !== tab.key
+        }"
+        class="flex items-center gap-1.5 px-5 py-3 text-sm whitespace-nowrap transition-colors"
+      >
+        {{ tab.label }}
+        <span class="inline-flex items-center justify-center h-4.5 min-w-[1.25rem] px-1 rounded-full text-xs"
+          [ngClass]="{
+            'bg-red-100 text-red-700': activeTab === tab.key,
+            'bg-zinc-100 text-zinc-500': activeTab !== tab.key
+          }">
+          {{ tab.count }}
+        </span>
+      </button>
+    </div>
+
+    <!-- Loading -->
+    <div *ngIf="isLoading" class="flex items-center justify-center py-16">
+      <div class="animate-spin h-8 w-8 border-4 border-zinc-200 border-t-red-600 rounded-full"></div>
+    </div>
+
+    <!-- Empty state -->
+    <div *ngIf="!isLoading && filteredUsers.length === 0" class="flex flex-col items-center justify-center py-16 text-zinc-400">
+      <svg class="h-12 w-12 mb-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+      </svg>
+      <p class="text-sm font-medium">Aucun utilisateur dans cette catégorie.</p>
+      <button (click)="openInviteModal()" class="mt-3 text-sm text-red-600 hover:underline">Inviter un utilisateur</button>
+    </div>
+
+    <!-- Table -->
+    <div *ngIf="!isLoading && filteredUsers.length > 0" class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-zinc-50 border-b border-zinc-200">
+          <tr>
+            <th class="text-left px-6 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-wide">Utilisateur</th>
+            <th class="text-left px-4 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-wide">Rôles</th>
+            <th class="text-left px-4 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-wide hidden md:table-cell">Statut</th>
+            <th class="text-left px-4 py-3 text-xs font-semibold text-zinc-500 uppercase tracking-wide hidden lg:table-cell">Depuis le</th>
+            <th class="px-4 py-3"></th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-zinc-100">
+          <tr *ngFor="let user of filteredUsers; trackBy: trackById" class="hover:bg-zinc-50 transition-colors">
+            <!-- Avatar + name + email -->
+            <td class="px-6 py-4">
+              <div class="flex items-center gap-3">
+                <div class="h-9 w-9 rounded-full bg-zinc-700 flex items-center justify-center text-white text-sm font-bold shrink-0">
+                  {{ avatarLetter(user) }}
+                </div>
+                <div>
+                  <p class="font-medium text-zinc-900">{{ user.full_name || '—' }}</p>
+                  <p class="text-xs text-zinc-400">{{ user.email }}</p>
+                </div>
+              </div>
+            </td>
+            <!-- Roles -->
+            <td class="px-4 py-4">
+              <div class="flex flex-wrap gap-1">
+                <span *ngIf="user.roles.length === 0" class="text-zinc-400 text-xs">Aucun rôle</span>
+                <span
+                  *ngFor="let role of user.roles"
+                  [ngClass]="roleBadgeClass(role.name)"
+                  class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                >
+                  {{ roleLabelFr(role.name) }}
+                </span>
+              </div>
+            </td>
+            <!-- Member status -->
+            <td class="px-4 py-4 hidden md:table-cell">
+              <span *ngIf="user.is_member" class="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full text-xs font-medium">
+                <span class="h-1.5 w-1.5 bg-emerald-500 rounded-full"></span>Membre
+              </span>
+              <span *ngIf="!user.is_member" class="text-zinc-400 text-xs">—</span>
+            </td>
+            <!-- Member since -->
+            <td class="px-4 py-4 hidden lg:table-cell text-zinc-500 text-xs">
+              {{ user.member_since ? (user.member_since | date:'dd/MM/yyyy') : '—' }}
+            </td>
+            <!-- Actions -->
+            <td class="px-4 py-4">
+              <div class="flex items-center justify-end gap-1">
+                <!-- Edit profile -->
+                <button
+                  (click)="openEditModal(user)"
+                  title="Modifier le profil"
+                  class="p-1.5 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded-lg transition-colors"
+                >
+                  <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                </button>
+                <!-- Manage roles -->
+                <button
+                  (click)="openRoleModal(user)"
+                  title="Gérer les rôles"
+                  class="p-1.5 text-zinc-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                >
+                  <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/>
+                  </svg>
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════ -->
+<!-- MODAL: Invite user                                              -->
+<!-- ════════════════════════════════════════════════════════════════ -->
+<div *ngIf="showInviteModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+  <!-- Backdrop -->
+  <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" (click)="closeInviteModal()"></div>
+
+  <!-- Panel -->
+  <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+    <!-- Header -->
+    <div class="flex items-center justify-between px-6 py-4 border-b border-zinc-100">
+      <h2 class="text-lg font-bold text-zinc-900">Inviter un utilisateur</h2>
+      <button (click)="closeInviteModal()" class="p-1.5 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded-lg transition-colors">
+        <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Body -->
+    <div class="px-6 py-5 space-y-4 max-h-[70vh] overflow-y-auto">
+      <p class="text-sm text-zinc-500">Supabase enverra un email d'invitation à l'utilisateur. Après confirmation, il pourra définir son mot de passe et se connecter.</p>
+
+      <!-- Error -->
+      <div *ngIf="error" class="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{{ error }}</div>
+
+      <!-- Email -->
+      <div>
+        <label class="block text-sm font-medium text-zinc-700 mb-1">Email <span class="text-red-500">*</span></label>
+        <input type="email" [(ngModel)]="inviteForm.email" placeholder="utilisateur@exemple.com"
+          class="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent" />
+      </div>
+
+      <!-- Full name -->
+      <div>
+        <label class="block text-sm font-medium text-zinc-700 mb-1">Nom complet <span class="text-red-500">*</span></label>
+        <input type="text" [(ngModel)]="inviteForm.fullName" placeholder="Jean Dupont"
+          class="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent" />
+      </div>
+
+      <!-- Phone -->
+      <div>
+        <label class="block text-sm font-medium text-zinc-700 mb-1">Téléphone</label>
+        <input type="tel" [(ngModel)]="inviteForm.phone" placeholder="+33 6 00 00 00 00"
+          class="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent" />
+      </div>
+
+      <!-- Role -->
+      <div>
+        <label class="block text-sm font-medium text-zinc-700 mb-1">Rôle <span class="text-red-500">*</span></label>
+        <select [(ngModel)]="inviteForm.roleId"
+          class="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent bg-white">
+          <option value="">-- Sélectionner un rôle --</option>
+          <option *ngFor="let role of allRoles" [value]="role.id">
+            {{ roleLabelFr(role.name) }}
+            <ng-container *ngIf="role.description"> — {{ role.description }}</ng-container>
+          </option>
+        </select>
+      </div>
+
+    </div>
+
+    <!-- Footer -->
+    <div class="px-6 py-4 border-t border-zinc-100 flex justify-end gap-3">
+      <button (click)="closeInviteModal()" class="px-4 py-2 text-sm text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition-colors">
+        Annuler
+      </button>
+      <button (click)="submitInvite()" [disabled]="isSaving"
+        class="inline-flex items-center gap-2 px-5 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-sm font-semibold rounded-lg transition-colors">
+        <svg *ngIf="isSaving" class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+        </svg>
+        {{ isSaving ? 'Envoi en cours…' : 'Envoyer l\'invitation' }}
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════ -->
+<!-- MODAL: Edit profile                                             -->
+<!-- ════════════════════════════════════════════════════════════════ -->
+<div *ngIf="showEditModal && selectedUser" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+  <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" (click)="closeEditModal()"></div>
+
+  <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-zinc-100">
+      <h2 class="text-lg font-bold text-zinc-900">Modifier le profil</h2>
+      <button (click)="closeEditModal()" class="p-1.5 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded-lg transition-colors">
+        <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="px-6 py-5 space-y-4 max-h-[70vh] overflow-y-auto">
+      <p class="text-xs text-zinc-400">{{ selectedUser.email }}</p>
+      <div *ngIf="error" class="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{{ error }}</div>
+
+      <div>
+        <label class="block text-sm font-medium text-zinc-700 mb-1">Nom complet</label>
+        <input type="text" [(ngModel)]="editForm.full_name"
+          class="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent" />
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-zinc-700 mb-1">Téléphone</label>
+        <input type="tel" [(ngModel)]="editForm.phone"
+          class="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent" />
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-zinc-700 mb-1">Bio</label>
+        <textarea [(ngModel)]="editForm.bio" rows="3"
+          class="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"></textarea>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-zinc-700 mb-1">Membre depuis</label>
+          <input type="date" [(ngModel)]="editForm.member_since"
+            class="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-zinc-700 mb-1">Membre jusqu'au</label>
+          <input type="date" [(ngModel)]="editForm.member_until"
+            class="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent" />
+        </div>
+      </div>
+
+      <div class="flex gap-6">
+        <label class="flex items-center gap-2 text-sm text-zinc-700 cursor-pointer">
+          <input type="checkbox" [(ngModel)]="editForm.is_member" class="h-4 w-4 rounded border-zinc-300 text-red-600 focus:ring-red-500" />
+          Membre actif
+        </label>
+        <label class="flex items-center gap-2 text-sm text-zinc-700 cursor-pointer">
+          <input type="checkbox" [(ngModel)]="editForm.is_pag_artist" class="h-4 w-4 rounded border-zinc-300 text-red-600 focus:ring-red-500" />
+          Artiste PAG
+        </label>
+      </div>
+    </div>
+
+    <div class="px-6 py-4 border-t border-zinc-100 flex justify-end gap-3">
+      <button (click)="closeEditModal()" class="px-4 py-2 text-sm text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition-colors">Annuler</button>
+      <button (click)="submitEdit()" [disabled]="isSaving"
+        class="inline-flex items-center gap-2 px-5 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-sm font-semibold rounded-lg transition-colors">
+        <svg *ngIf="isSaving" class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+        </svg>
+        {{ isSaving ? 'Enregistrement…' : 'Enregistrer' }}
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════ -->
+<!-- MODAL: Manage roles                                             -->
+<!-- ════════════════════════════════════════════════════════════════ -->
+<div *ngIf="showRoleModal && selectedUser" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+  <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" (click)="closeRoleModal()"></div>
+
+  <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-zinc-100">
+      <div>
+        <h2 class="text-lg font-bold text-zinc-900">Gérer les rôles</h2>
+        <p class="text-xs text-zinc-400 mt-0.5">{{ selectedUser.full_name || selectedUser.email }}</p>
+      </div>
+      <button (click)="closeRoleModal()" class="p-1.5 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded-lg transition-colors">
+        <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="px-6 py-5 space-y-3">
+      <div *ngIf="error" class="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{{ error }}</div>
+
+      <div *ngFor="let entry of roleModalRoles" class="flex items-center justify-between p-3 rounded-xl border transition-colors"
+        [ngClass]="entry.assigned ? 'border-blue-200 bg-blue-50' : 'border-zinc-200 bg-zinc-50'"
+      >
+        <div class="flex items-center gap-3">
+          <div class="h-9 w-9 rounded-lg flex items-center justify-center"
+            [ngClass]="entry.assigned ? 'bg-blue-100' : 'bg-zinc-200'">
+            <svg class="h-4 w-4" [ngClass]="entry.assigned ? 'text-blue-600' : 'text-zinc-500'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/>
+            </svg>
+          </div>
+          <div>
+            <p class="text-sm font-semibold text-zinc-900">{{ roleLabelFr(entry.role.name) }}</p>
+            <p class="text-xs text-zinc-500">{{ entry.role.description || entry.role.name }}</p>
+          </div>
+        </div>
+        <button
+          (click)="toggleRole(entry)"
+          [disabled]="isSaving"
+          class="px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors"
+          [ngClass]="entry.assigned
+            ? 'bg-red-100 text-red-700 hover:bg-red-200'
+            : 'bg-blue-600 text-white hover:bg-blue-700'"
+        >
+          {{ entry.assigned ? 'Retirer' : 'Attribuer' }}
+        </button>
+      </div>
+    </div>
+
+    <div class="px-6 py-4 border-t border-zinc-100 flex justify-end">
+      <button (click)="closeRoleModal()" class="px-4 py-2 text-sm text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition-colors">Fermer</button>
+    </div>
+  </div>
+</div>

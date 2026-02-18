@@ -1,0 +1,180 @@
+<div
+  class="backdrop-blur-md py-4 px-4 border-b border-gray-100 shadow-sm sticky top-0 z-50"
+  >
+  <div class="w-5/6 mx-auto">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center">
+        <img
+          src="https://miqomoxyrymlavjthrzc.supabase.co/storage/v1/object/public/images/logo.png"
+          alt="Trempline"
+          class="shadow-md absolute top-4 w-30 h-30"
+          />
+        </div>
+
+
+
+
+
+        <div class="md:hidden ml-auto" (click)="isMenuOpen = !isMenuOpen">
+          <img
+            src="assets/images/icons/menu.svg"
+            alt="Menu Icon"
+            class="w-8 h-8"
+            />
+          </div>
+          <nav class="hidden md:flex items-center space-x-14">
+            <a
+              [routerLink]="'/'"
+          [ngClass]="
+            'text-gray-700 hover:text-pont-green transition-all duration-300 font-medium text-xl relative group ' +
+            getMenuItemClass(1)
+          "
+              >
+              Accueil
+              <span
+                [ngClass]="urlID === 1 ? 'w-full' : 'w-0 group-hover:w-full'"
+                class="absolute -bottom-1 left-0 h-0.5 bg-pont-green transition-all duration-300"
+              ></span>
+            </a>
+
+            <!-- Dropdown Menu -->
+            <div class="relative">
+              <button
+                (click)="isDropdownOpen = !isDropdownOpen"
+                class="cursor-pointer text-gray-700 hover:text-pont-green transition-all duration-300 font-medium text-xl relative group flex items-center space-x-1"
+                >
+                <span>Nous soutenir</span>
+                <svg
+                  class="w-4 h-4 transition-transform duration-300"
+                  [ngClass]="{'rotate-180': isDropdownOpen}"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  >
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+                <span
+                  [ngClass]="isDropdownOpen ? 'w-full' : 'w-0 group-hover:w-full'"
+                  class="absolute -bottom-1 left-0 h-0.5 bg-pont-green transition-all duration-300"
+                ></span>
+              </button>
+
+              <!-- Dropdown Content -->
+              @if (isDropdownOpen) {
+                <div
+                  class="absolute top-full left-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-100 py-2 z-50"
+                  >
+                  <a
+                    [routerLink]="'/nous-soutenir'"
+                    (click)="isDropdownOpen = false"
+                    class="block px-4 py-3 text-gray-700 hover:bg-pont-green/10 hover:text-pont-green transition-all duration-200 font-medium"
+                    >
+                    Particuliers
+                  </a>
+                  <a
+                    [routerLink]="'/enterprises'"
+                    (click)="isDropdownOpen = false"
+                    class="block px-4 py-3 text-gray-700 hover:bg-pont-green/10 hover:text-pont-green transition-all duration-200 font-medium"
+                    >
+                    Entreprises
+                  </a>
+                </div>
+              }
+            </div>
+
+
+
+
+            <a
+              [routerLink]="'/about'"
+          [ngClass]="
+            'text-gray-700 hover:text-pont-green transition-all duration-300 font-medium text-xl relative group ' +
+            getMenuItemClass(5)
+          "
+              >À propos
+
+              <span
+                [ngClass]="urlID === 5 ? 'w-full' : 'w-0 group-hover:w-full'"
+                class="absolute -bottom-1 left-0 h-0.5 bg-pont-green transition-all duration-300"
+              ></span>
+            </a>
+          </nav>
+
+          <div class="hidden md:flex items-center space-x-4">
+
+
+          </div>
+
+          <!-- <div class="hidden md:flex items-center space-x-4" >
+          <Button  *ngIf="urlID == 21"  (click)="logout()"
+          class="bg-pont-rust hover:bg-pont-rust/90 text-white px-8 py-2.5 font-semibold rounded-md shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105">
+          Logout
+        </Button>
+      </div>  -->
+
+      <!-- <button
+      class="md:hidden p-2 text-gray-700 hover:text-pont-green transition-colors rounded-lg hover:bg-pont-green/5"
+    ></button> -->
+  </div>
+
+  @if (isMenuOpen) {
+    <div
+      class="md:hidden mt-6 py-6 border-t border-gray-100 bg-white/95 backdrop-blur-md rounded-2xl shadow-lg mx-4"
+      >
+      <nav class="flex flex-col space-y-6 px-6">
+        <a
+          [routerLink]="'/'"
+          class="text-gray-700 hover:text-pont-green transition-colors font-medium text-lg"
+          (click)="isMenuOpen = false"
+          >
+          Accueil
+        </a>
+        <!-- Mobile Dropdown Menu -->
+        <div class="flex flex-col space-y-2">
+          <button
+            (click)="isMobileDropdownOpen = !isMobileDropdownOpen"
+            class="text-gray-700 hover:text-pont-green transition-colors font-medium text-lg flex items-center justify-between"
+            >
+            <span>Nous soutenir</span>
+            <svg
+              class="w-4 h-4 transition-transform duration-300"
+              [ngClass]="{'rotate-180': isMobileDropdownOpen}"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              >
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          <!-- Mobile Dropdown Content -->
+          @if (isMobileDropdownOpen) {
+            <div class="flex flex-col space-y-3 pl-4">
+              <a
+                [routerLink]="'/nous-soutenir'"
+                class="text-gray-600 hover:text-pont-green transition-colors font-medium text-base"
+                (click)="isMenuOpen = false; isMobileDropdownOpen = false"
+                >
+                Particuliers
+              </a>
+              <a
+                [routerLink]="'/enterprises'"
+                class="text-gray-600 hover:text-pont-green transition-colors font-medium text-base"
+                (click)="isMenuOpen = false; isMobileDropdownOpen = false"
+                >
+                Entreprises
+              </a>
+            </div>
+          }
+        </div>
+        <a
+          [routerLink]="'/about'"
+          class="text-gray-700 hover:text-pont-green transition-colors font-medium text-lg"
+          (click)="isMenuOpen = false"
+          >
+          À propos
+        </a>
+      </nav>
+    </div>
+  }
+</div>
+</div>

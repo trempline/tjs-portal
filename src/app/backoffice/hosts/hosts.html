@@ -1,0 +1,72 @@
+<!-- Page header -->
+<div class="mb-6 flex items-center justify-between">
+  <div>
+    <h1 class="text-2xl font-bold text-zinc-800">Hôtes</h1>
+    <p class="text-sm text-zinc-500 mt-1">Gérez les hôtes qui accueillent des concerts à domicile.</p>
+  </div>
+  <button class="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors duration-200 shadow-sm">
+    <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    Ajouter un hôte
+  </button>
+</div>
+
+<!-- Search bar -->
+<div class="mb-5 relative max-w-sm">
+  <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-zinc-400">
+    <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+  </span>
+  <input
+    type="text"
+    [(ngModel)]="searchQuery"
+    placeholder="Rechercher par nom ou ville…"
+    class="w-full pl-9 pr-4 py-2 text-sm border border-zinc-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-red-200 focus:border-red-400 transition"
+  />
+</div>
+
+<!-- Table -->
+<div class="bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-zinc-50 border-b border-zinc-200">
+      <tr>
+        <th class="text-left px-5 py-3 font-semibold text-zinc-600">Nom</th>
+        <th class="text-left px-5 py-3 font-semibold text-zinc-600">Email</th>
+        <th class="text-left px-5 py-3 font-semibold text-zinc-600">Ville</th>
+        <th class="text-left px-5 py-3 font-semibold text-zinc-600">Capacité</th>
+        <th class="text-left px-5 py-3 font-semibold text-zinc-600">Événements</th>
+        <th class="text-right px-5 py-3 font-semibold text-zinc-600">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let host of filteredHosts" class="border-b border-zinc-100 hover:bg-zinc-50 transition-colors">
+        <td class="px-5 py-3">
+          <div class="flex items-center gap-3">
+            <div class="h-8 w-8 rounded-full bg-emerald-100 flex items-center justify-center text-xs font-bold text-emerald-700 shrink-0">
+              {{ host.name?.charAt(0) }}
+            </div>
+            <span class="font-medium text-zinc-800">{{ host.name }}</span>
+          </div>
+        </td>
+        <td class="px-5 py-3 text-zinc-500">{{ host.email }}</td>
+        <td class="px-5 py-3 text-zinc-500">{{ host.city }}</td>
+        <td class="px-5 py-3 text-zinc-500">{{ host.capacity }} pers.</td>
+        <td class="px-5 py-3 text-zinc-500">{{ host.events ?? 0 }}</td>
+        <td class="px-5 py-3 text-right">
+          <button class="text-zinc-400 hover:text-zinc-700 transition-colors p-1 rounded">
+            <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+          </button>
+        </td>
+      </tr>
+      <!-- Empty state -->
+      <tr *ngIf="filteredHosts.length === 0">
+        <td colspan="6" class="px-5 py-16 text-center text-zinc-400">
+          <svg class="h-12 w-12 mx-auto mb-3 text-zinc-300" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+            <polyline points="9 22 9 12 15 12 15 22"/>
+          </svg>
+          <p class="text-sm font-medium">Aucun hôte</p>
+          <p class="text-xs mt-1">Il n'y a pas encore d'hôtes enregistrés.</p>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>

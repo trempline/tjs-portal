@@ -1,0 +1,93 @@
+<!-- Page header -->
+<div class="mb-6 flex items-center justify-between">
+  <div>
+    <h1 class="text-2xl font-bold text-zinc-800">Demandes d'événements</h1>
+    <p class="text-sm text-zinc-500 mt-1">Gérez les demandes d'organisation de concerts à domicile.</p>
+  </div>
+  <button class="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors duration-200 shadow-sm">
+    <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    Nouvelle demande
+  </button>
+</div>
+
+<!-- Status tabs -->
+<div class="flex gap-1 bg-zinc-100 p-1 rounded-lg w-fit mb-6">
+  <button (click)="setTab('pending')"
+    [class.bg-white]="activeTab === 'pending'"
+    [class.shadow-sm]="activeTab === 'pending'"
+    [class.text-zinc-800]="activeTab === 'pending'"
+    [class.font-semibold]="activeTab === 'pending'"
+    [class.text-zinc-500]="activeTab !== 'pending'"
+    class="px-4 py-1.5 rounded-md text-sm transition-all duration-200">
+    En attente
+  </button>
+  <button (click)="setTab('approved')"
+    [class.bg-white]="activeTab === 'approved'"
+    [class.shadow-sm]="activeTab === 'approved'"
+    [class.text-zinc-800]="activeTab === 'approved'"
+    [class.font-semibold]="activeTab === 'approved'"
+    [class.text-zinc-500]="activeTab !== 'approved'"
+    class="px-4 py-1.5 rounded-md text-sm transition-all duration-200">
+    Approuvées
+  </button>
+  <button (click)="setTab('rejected')"
+    [class.bg-white]="activeTab === 'rejected'"
+    [class.shadow-sm]="activeTab === 'rejected'"
+    [class.text-zinc-800]="activeTab === 'rejected'"
+    [class.font-semibold]="activeTab === 'rejected'"
+    [class.text-zinc-500]="activeTab !== 'rejected'"
+    class="px-4 py-1.5 rounded-md text-sm transition-all duration-200">
+    Refusées
+  </button>
+</div>
+
+<!-- Table -->
+<div class="bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-zinc-50 border-b border-zinc-200">
+      <tr>
+        <th class="text-left px-5 py-3 font-semibold text-zinc-600">Demandeur</th>
+        <th class="text-left px-5 py-3 font-semibold text-zinc-600">Email</th>
+        <th class="text-left px-5 py-3 font-semibold text-zinc-600">Ville</th>
+        <th class="text-left px-5 py-3 font-semibold text-zinc-600">Date souhaitée</th>
+        <th class="text-left px-5 py-3 font-semibold text-zinc-600">Statut</th>
+        <th class="text-right px-5 py-3 font-semibold text-zinc-600">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let req of filteredRequests" class="border-b border-zinc-100 hover:bg-zinc-50 transition-colors">
+        <td class="px-5 py-3 font-medium text-zinc-800">{{ req.name }}</td>
+        <td class="px-5 py-3 text-zinc-500">{{ req.email }}</td>
+        <td class="px-5 py-3 text-zinc-500">{{ req.city }}</td>
+        <td class="px-5 py-3 text-zinc-500">{{ req.date }}</td>
+        <td class="px-5 py-3">
+          <span class="inline-block px-2.5 py-0.5 rounded-full text-xs font-medium"
+            [class.bg-amber-100]="req.status === 'pending'"
+            [class.text-amber-700]="req.status === 'pending'"
+            [class.bg-emerald-100]="req.status === 'approved'"
+            [class.text-emerald-700]="req.status === 'approved'"
+            [class.bg-red-100]="req.status === 'rejected'"
+            [class.text-red-700]="req.status === 'rejected'">
+            {{ req.status === 'pending' ? 'En attente' : req.status === 'approved' ? 'Approuvée' : 'Refusée' }}
+          </span>
+        </td>
+        <td class="px-5 py-3 text-right">
+          <button class="text-zinc-400 hover:text-zinc-700 transition-colors p-1 rounded">
+            <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+          </button>
+        </td>
+      </tr>
+      <!-- Empty state -->
+      <tr *ngIf="filteredRequests.length === 0">
+        <td colspan="6" class="px-5 py-16 text-center text-zinc-400">
+          <svg class="h-12 w-12 mx-auto mb-3 text-zinc-300" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+          </svg>
+          <p class="text-sm font-medium">Aucune demande</p>
+          <p class="text-xs mt-1">Il n'y a pas encore de demandes dans cette catégorie.</p>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
