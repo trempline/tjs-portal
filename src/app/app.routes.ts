@@ -11,6 +11,7 @@ import { Artists } from './backoffice/artists/artists';
 import { Hosts } from './backoffice/hosts/hosts';
 import { Events } from './backoffice/events/events';
 import { UserManagement } from './backoffice/user-management/user-management';
+import { MyHosts } from './backoffice/my-hosts/my-hosts';
 import { AuthCallback } from './auth-callback/auth-callback';
 import { authGuard } from './guards/auth.guard';
 
@@ -52,6 +53,7 @@ export const routes: Routes = [
             { path: 'artists/tjs', component: Artists },
             { path: 'artists/invited', component: Artists },
             { path: 'hosts', component: Hosts },
+            { path: 'my-hosts', component: MyHosts },
             { path: 'events', component: Events },
             { path: 'user-management', component: UserManagement },
         ],

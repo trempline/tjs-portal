@@ -43,6 +43,52 @@ export interface TjsUserWithRoles extends TjsProfile {
   roles: TjsRole[];
 }
 
+export interface TjsHost {
+  id: number;
+  name: string | null;
+  address: string | null;
+  city: string | null;
+  proviance: string | null;
+  zip: string | null;
+  country: string | null;
+  host_per_year: string | null;
+  public_name: string | null;
+  capacity: number | null;
+  id_host_type: number | null;
+  contact_fname: string | null;
+  contact_lname: string | null;
+  contact_phone1: string | null;
+  contact_phone2: string | null;
+  contact_email: string | null;
+  comment: string | null;
+  web_url: string | null;
+  is_host_plus: boolean;
+  photo: string | null;
+  photo_credit: string | null;
+  created_by: string | null;
+  created_on: string | null;
+  last_update: string | null;
+  updated_by: string | null;
+  // Joined data
+  host_type?: SysHostType | null;
+  members?: TjsHostMember[];
+}
+
+export interface SysHostType {
+  id: number;
+  name: string;
+}
+
+export interface TjsHostMember {
+  id: number;
+  host_id: number;
+  profile_id: string;
+  role: string | null;
+  created_on: string | null;
+  // Joined profile data
+  profile?: TjsProfile | null;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -316,6 +362,139 @@ export class SupabaseService {
     const { error } = await this.supabase.auth.updateUser({ password: newPassword });
     if (error) {
       console.error('updateCurrentUserPassword error:', error.message);
+      return error.message;
+    }
+    return null;
+  }
+
+  // ── Hosts ──────────────────────────────────────────────────────────────
+
+  /** Fetch all hosts with their type. */
+  async getHosts(): Promise<TjsHost[]> {
+    const { data, error } = await this.adminSupabase
+      .from('tjs_hosts')
+      .select('*')
+      .order('id', { ascending: false });
+    if (error) {
+      console.error('getHosts error:', error.message);
+      return [];
+    }
+    return data as TjsHost[];
+  }
+
+  /** Fetch host types for the dropdown. */
+  async getHostTypes(): Promise<SysHostType[]> {
+    const { data, error } = await this.adminSupabase
+      .from('sys_host_types')
+      .select('*')
+      .order('name');
+    if (error) {
+      console.error('getHostTypes error:', error.message);
+      return [];
+    }
+    return data as SysHostType[];
+  }
+
+  /** Create a new host. */
+  async createHost(
+    host: Omit<TjsHost, 'id' | 'created_on' | 'last_update' | 'host_type' | 'members'>
+  ): Promise<{ id: number | null; error: string | null }> {
+    const { data, error } = await this.adminSupabase
+      .from('tjs_hosts')
+      .insert(host)
+      .select('id')
+      .single();
+    if (error) {
+      console.error('createHost error:', error.message);
+      return { id: null, error: error.message };
+    }
+    return { id: data.id, error: null };
+  }
+
+  /** Update an existing host. */
+  async updateHost(
+    hostId: number,
+    fields: Partial<Omit<TjsHost, 'id' | 'created_on' | 'host_type' | 'members'>>
+  ): Promise<string | null> {
+    const { error } = await this.adminSupabase
+      .from('tjs_hosts')
+      .update({ ...fields, last_update: new Date().toISOString() })
+      .eq('id', hostId);
+    if (error) {
+      console.error('updateHost error:', error.message);
+      return error.message;
+    }
+    return null;
+  }
+
+  /** Delete a host. */
+  async deleteHost(hostId: number): Promise<string | null> {
+    const { error } = await this.adminSupabase
+      .from('tjs_hosts')
+      .delete()
+      .eq('id', hostId);
+    if (error) {
+      console.error('deleteHost error:', error.message);
+      return error.message;
+    }
+    return null;
+  }
+
+  /** Fetch hosts where the current user is a member (for Host role). */
+  async getMyHosts(profileId: string): Promise<TjsHost[]> {
+    const { data, error } = await this.supabase
+      .from('tjs_host_members')
+      .select('host_id, tjs_hosts(*)')
+      .eq('profile_id', profileId);
+    if (error) {
+      console.error('getMyHosts error:', error.message);
+      return [];
+    }
+    return (data as any[])
+      .map((row: any) => row.tjs_hosts as TjsHost)
+      .filter((h): h is TjsHost => h !== null);
+  }
+
+  // ── Host Members ──────────────────────────────────────────────────────
+
+  /** Fetch members assigned to a host. */
+  async getHostMembers(hostId: number): Promise<TjsHostMember[]> {
+    const { data, error } = await this.adminSupabase
+      .from('tjs_host_members')
+      .select(`*, profile:tjs_profiles(id, email, full_name, phone, avatar_url)`)
+      .eq('host_id', hostId)
+      .order('created_on', { ascending: false });
+    if (error) {
+      console.error('getHostMembers error:', error.message);
+      return [];
+    }
+    return data as TjsHostMember[];
+  }
+
+  /** Assign a profile as a member of a host. */
+  async assignHostMember(
+    hostId: number,
+    profileId: string,
+    role: string = 'member'
+  ): Promise<string | null> {
+    const { error } = await this.adminSupabase
+      .from('tjs_host_members')
+      .insert({ host_id: hostId, profile_id: profileId, role });
+    if (error) {
+      console.error('assignHostMember error:', error.message);
+      return error.message;
+    }
+    return null;
+  }
+
+  /** Remove a member from a host. */
+  async removeHostMember(hostMemberId: number): Promise<string | null> {
+    const { error } = await this.adminSupabase
+      .from('tjs_host_members')
+      .delete()
+      .eq('id', hostMemberId);
+    if (error) {
+      console.error('removeHostMember error:', error.message);
       return error.message;
     }
     return null;
