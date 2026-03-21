@@ -12,6 +12,7 @@ import { Hosts } from './backoffice/hosts/hosts';
 import { Events } from './backoffice/events/events';
 import { UserManagement } from './backoffice/user-management/user-management';
 import { MyHosts } from './backoffice/my-hosts/my-hosts';
+import { CommitteeMembers } from './backoffice/committee-members/committee-members';
 import { AuthCallback } from './auth-callback/auth-callback';
 import { authGuard } from './guards/auth.guard';
 
@@ -56,6 +57,7 @@ export const routes: Routes = [
             { path: 'my-hosts', component: MyHosts },
             { path: 'events', component: Events },
             { path: 'user-management', component: UserManagement },
+            { path: 'committee-members', component: CommitteeMembers },
         ],
     },
 ];

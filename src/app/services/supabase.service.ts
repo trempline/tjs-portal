@@ -264,12 +264,22 @@ export class SupabaseService {
     fullName: string,
     redirectTo: string
   ): Promise<{ userId: string | null; error: string | null }> {
-    const { data, error } = await this.adminSupabase.auth.admin.inviteUserByEmail(email, {
-      redirectTo,
-      data: { full_name: fullName },
-    });
-    if (error) return { userId: null, error: error.message };
-    return { userId: data.user?.id ?? null, error: null };
+    try {
+      const { data, error } = await this.adminSupabase.auth.admin.inviteUserByEmail(email, {
+        redirectTo,
+        data: { full_name: fullName },
+      });
+      
+      if (error) {
+        console.error('inviteUser error:', error);
+        return { userId: null, error: error.message };
+      }
+      
+      return { userId: data.user?.id ?? null, error: null };
+    } catch (error) {
+      console.error('inviteUser exception:', error);
+      return { userId: null, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
   }
 
   /** Upsert profile data (used after invitation to pre-fill profile). */
