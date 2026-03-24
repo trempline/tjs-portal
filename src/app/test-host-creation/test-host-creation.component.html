@@ -1,0 +1,71 @@
+<div class="test-host-creation">
+  <h2>Host Account Creation Test</h2>
+  
+  <div class="test-controls">
+    <button 
+      [disabled]="isLoading" 
+      (click)="createTestHost()"
+      class="btn btn-primary">
+      {{ isLoading ? 'Creating...' : 'Create Test Host Account' }}
+    </button>
+    
+    <button 
+      (click)="clearTest()"
+      class="btn btn-secondary">
+      Clear Results
+    </button>
+  </div>
+
+  <div *ngIf="errorMessage" class="alert alert-danger">
+    <strong>Error:</strong> {{ errorMessage }}
+  </div>
+
+  <div *ngIf="response" class="response-container">
+    <h3>Response:</h3>
+    
+    <div class="response-summary">
+      <div class="status" [class.success]="response?.status === 'SUCCESS'" [class.failure]="response?.status === 'FAILURE'">
+        Status: {{ response?.status }}
+      </div>
+      <div class="host-id">Host ID: {{ response?.host_id }}</div>
+      <div class="assigned-role">Assigned Role: {{ response?.assigned_role }}</div>
+      <div class="manager-assigned">Manager Assigned: {{ response?.host_manager_assigned ? 'Yes' : 'No' }}</div>
+    </div>
+
+    <div class="capabilities">
+      <h4>Enabled Capabilities:</h4>
+      <ul>
+        <li *ngFor="let capability of response?.capabilities_enabled">{{ capability }}</li>
+      </ul>
+    </div>
+
+    <div class="managing-members" *ngIf="response?.managing_members?.length > 0">
+      <h4>Managing Members:</h4>
+      <ul>
+        <li *ngFor="let member of response?.managing_members">
+          Member ID: {{ member.member_id }} (Status: {{ member.status }})
+        </li>
+      </ul>
+    </div>
+
+    <div class="venues-assigned" *ngIf="response?.venues_assigned?.length > 0">
+      <h4>Venues Assigned:</h4>
+      <ul>
+        <li *ngFor="let venue of response?.venues_assigned">
+          Venue ID: {{ venue.venue_id }} (Status: {{ venue.status }})
+        </li>
+      </ul>
+    </div>
+
+    <div class="errors" *ngIf="response?.errors?.length > 0">
+      <h4>Errors:</h4>
+      <ul>
+        <li *ngFor="let error of response?.errors">{{ error }}</li>
+      </ul>
+    </div>
+
+    <div class="message">
+      <strong>Message:</strong> {{ response?.message }}
+    </div>
+  </div>
+</div>

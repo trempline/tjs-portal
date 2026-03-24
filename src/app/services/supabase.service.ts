@@ -377,6 +377,11 @@ export class SupabaseService {
     return null;
   }
 
+  /** Get admin Supabase client for administrative operations */
+  getAdminSupabase(): SupabaseClient {
+    return this.adminSupabase;
+  }
+
   // ── Hosts ──────────────────────────────────────────────────────────────
 
   /** Fetch all hosts with their type. */

@@ -14,6 +14,7 @@ import { UserManagement } from './backoffice/user-management/user-management';
 import { MyHosts } from './backoffice/my-hosts/my-hosts';
 import { CommitteeMembers } from './backoffice/committee-members/committee-members';
 import { AuthCallback } from './auth-callback/auth-callback';
+import { TestHostCreationComponent } from './test-host-creation/test-host-creation.component';
 import { authGuard } from './guards/auth.guard';
 
 export const routes: Routes = [
@@ -41,6 +42,10 @@ export const routes: Routes = [
         // Handles Supabase email invite / password-reset magic links
         path: 'auth/callback',
         component: AuthCallback,
+    },
+    {
+        path: 'test-host-creation',
+        component: TestHostCreationComponent,
     },
     {
         path: 'backoffice',
