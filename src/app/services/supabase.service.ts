@@ -56,6 +56,28 @@ export interface ExistingUserLookup {
   email_confirmed_at: string | null;
 }
 
+export interface AdminEventOverviewItem {
+  id: string;
+  title: string;
+  description: string | null;
+  event_type: 'REQUEST' | 'EVENT_INSTANCE';
+  status: string;
+  origin_website: string;
+  visibility_scope: string[];
+  parent_event_id: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  proposed_dates: string[] | null;
+  department: string | null;
+  city: string | null;
+  creator_name: string;
+  creator_email: string;
+  host_names: string[];
+  host_statuses: string[];
+  selected_dates: string[];
+}
+
 export interface TjsHost {
   id: number;
   name: string | null;
@@ -313,6 +335,127 @@ export class SupabaseService {
       return [];
     }
     return data as TjsRole[];
+  }
+
+  async getAdminEventOverview(): Promise<AdminEventOverviewItem[]> {
+    const { data: events, error: eventsError } = await this.adminSupabase
+      .from('tjs_events')
+      .select(`
+        id,
+        title,
+        description,
+        event_type,
+        status,
+        origin_website,
+        visibility_scope,
+        parent_event_id,
+        created_by,
+        created_at,
+        updated_at,
+        proposed_dates,
+        department,
+        city
+      `)
+      .order('created_at', { ascending: false });
+
+    if (eventsError) {
+      console.error('getAdminEventOverview events error:', eventsError.message);
+      return [];
+    }
+
+    const eventRows = (events ?? []) as any[];
+    if (eventRows.length === 0) {
+      return [];
+    }
+
+    const creatorIds = Array.from(
+      new Set(
+        eventRows
+          .map((event) => event.created_by as string | null)
+          .filter((value): value is string => !!value)
+      )
+    );
+
+    const eventIds = eventRows.map((event) => event.id as string);
+
+    const [profilesResult, hostAssignmentsResult] = await Promise.all([
+      creatorIds.length > 0
+        ? this.adminSupabase
+            .from('tjs_profiles')
+            .select('id, email, full_name')
+            .in('id', creatorIds)
+        : Promise.resolve({ data: [], error: null }),
+      this.adminSupabase
+        .from('tjs_event_hosts')
+        .select(`
+          event_id,
+          host_status,
+          selected_dates,
+          host:tjs_hosts (
+            id,
+            name,
+            public_name,
+            city
+          )
+        `)
+        .in('event_id', eventIds),
+    ]);
+
+    if (profilesResult.error) {
+      console.error('getAdminEventOverview profiles error:', profilesResult.error.message);
+    }
+
+    if (hostAssignmentsResult.error) {
+      console.error('getAdminEventOverview host assignments error:', hostAssignmentsResult.error.message);
+    }
+
+    const profilesById = new Map<string, Partial<TjsProfile>>();
+    for (const profile of ((profilesResult.data ?? []) as Partial<TjsProfile>[])) {
+      if (profile.id) {
+        profilesById.set(profile.id, profile);
+      }
+    }
+
+    const hostsByEventId = new Map<string, any[]>();
+    for (const assignment of ((hostAssignmentsResult.data ?? []) as any[])) {
+      const eventId = assignment.event_id as string;
+      const existing = hostsByEventId.get(eventId) ?? [];
+      existing.push(assignment);
+      hostsByEventId.set(eventId, existing);
+    }
+
+    return eventRows.map((event) => {
+      const profile = event.created_by ? profilesById.get(event.created_by) : null;
+      const assignments = hostsByEventId.get(event.id) ?? [];
+
+      return {
+        id: event.id,
+        title: event.title,
+        description: event.description ?? null,
+        event_type: event.event_type,
+        status: event.status,
+        origin_website: event.origin_website,
+        visibility_scope: event.visibility_scope ?? [],
+        parent_event_id: event.parent_event_id ?? null,
+        created_by: event.created_by ?? null,
+        created_at: event.created_at,
+        updated_at: event.updated_at,
+        proposed_dates: event.proposed_dates ?? null,
+        department: event.department ?? null,
+        city: event.city ?? null,
+        creator_name: profile?.full_name || profile?.email || 'Utilisateur inconnu',
+        creator_email: profile?.email || '',
+        host_names: assignments
+          .map((assignment) => assignment.host?.public_name || assignment.host?.name || assignment.host?.city)
+          .filter((value: string | null | undefined): value is string => !!value),
+        host_statuses: assignments
+          .map((assignment) => assignment.host_status as string | null)
+          .filter((value: string | null): value is string => !!value),
+        selected_dates: assignments.flatMap((assignment) =>
+          Array.isArray(assignment.selected_dates) ? assignment.selected_dates : []
+        ),
+      };
+    });
   }
 
   getInviteRedirectUrl(): string {
