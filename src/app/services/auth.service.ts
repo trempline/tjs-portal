@@ -113,6 +113,24 @@ export class AuthService {
     this.router.navigate(['/admin']);
   }
 
+  async waitForAuthReady(maxAttempts = 50, delayMs = 100): Promise<void> {
+    let attempts = 0;
+    while (this.authState$.getValue().isLoading && attempts < maxAttempts) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      attempts++;
+    }
+  }
+
+  getPostLoginRoute(): string {
+    const roleNames = this.currentRoles.map((role) => role.name.toLowerCase());
+
+    if (roleNames.includes('host') || roleNames.includes('host+')) {
+      return '/backoffice/my-hosts';
+    }
+
+    return '/backoffice/dashboard';
+  }
+
   /** Handy display name: full_name → email prefix → 'Admin' */
   get displayName(): string {
     const state = this.authState$.getValue();

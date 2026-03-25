@@ -3,6 +3,7 @@
 
 export const environment = {
   production: false,
+  appUrl: 'https://your-app-domain.example.com', // Replace with your public frontend URL
   supabase: {
     url: 'https://your-project-id.supabase.co', // Replace with your Supabase project URL
     anonKey: 'your-anon-key-here', // Replace with your Supabase anon key
@@ -19,7 +20,8 @@ To get your Supabase credentials:
 2. Navigate to Settings > API
 3. Copy the "Project URL" and "anon public" key
 4. Copy the "service_role" key (IMPORTANT: Keep this secure!)
-5. Replace the placeholder values in this file
+5. Set appUrl to the exact public site URL used in invite emails
+6. Replace the placeholder values in this file
 
 Security Note:
 - The service-role key bypasses Row Level Security

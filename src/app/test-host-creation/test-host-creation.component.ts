@@ -1,8 +1,10 @@
+import { NgFor, NgIf } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
 import { HostManagementService, CreateHostAccountRequest, CreateHostAccountResponse } from '../services/host-management.service';
 
 @Component({
   selector: 'app-test-host-creation',
+  imports: [NgIf, NgFor],
   templateUrl: './test-host-creation.component.html',
   styleUrls: ['./test-host-creation.component.scss']
 })

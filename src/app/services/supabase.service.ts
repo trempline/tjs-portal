@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { createClient, SupabaseClient, User, Session } from '@supabase/supabase-js';
+import { createClient, SupabaseClient, User, Session, type EmailOtpType } from '@supabase/supabase-js';
 import { environment } from '../../environments/environment';
 
 export interface NewsletterMessage {
@@ -41,6 +41,19 @@ export interface TjsUserRole {
 
 export interface TjsUserWithRoles extends TjsProfile {
   roles: TjsRole[];
+  account_status: 'active' | 'inactive';
+  invited_at: string | null;
+  email_confirmed_at: string | null;
+  last_sign_in_at: string | null;
+}
+
+export interface ExistingUserLookup {
+  id: string;
+  email: string;
+  full_name: string | null;
+  account_status: 'active' | 'inactive';
+  invited_at: string | null;
+  email_confirmed_at: string | null;
 }
 
 export interface TjsHost {
@@ -140,6 +153,23 @@ export class SupabaseService {
     return data.session;
   }
 
+  async verifyEmailOtpToken(
+    tokenHash: string,
+    type: EmailOtpType
+  ): Promise<{ session: Session | null; error: string | null }> {
+    const { data, error } = await this.supabase.auth.verifyOtp({
+      token_hash: tokenHash,
+      type,
+    });
+
+    if (error) {
+      console.error('verifyEmailOtpToken error:', error.message);
+      return { session: null, error: error.message };
+    }
+
+    return { session: data.session ?? null, error: null };
+  }
+
   async getCurrentUser(): Promise<User | null> {
     const { data } = await this.supabase.auth.getUser();
     return data.user;
@@ -228,7 +258,34 @@ export class SupabaseService {
       console.error('listAllUsersWithRoles roles error:', rErr.message);
     }
 
-    // 3. Merge roles into profiles
+    // 3. Fetch auth users to derive activation status
+    const authUsersMap = new Map<string, User>();
+    let page = 1;
+    const perPage = 1000;
+
+    while (true) {
+      const { data: authPage, error: authErr } = await this.adminSupabase.auth.admin.listUsers({
+        page,
+        perPage,
+      });
+
+      if (authErr) {
+        console.error('listAllUsersWithRoles auth users error:', authErr.message);
+        break;
+      }
+
+      for (const authUser of authPage.users ?? []) {
+        authUsersMap.set(authUser.id, authUser);
+      }
+
+      if (!authPage.nextPage) {
+        break;
+      }
+
+      page = authPage.nextPage;
+    }
+
+    // 4. Merge roles and auth state into profiles
     const rolesMap: Record<string, TjsRole[]> = {};
     for (const ur of (userRoles ?? []) as any[]) {
       if (!rolesMap[ur.user_id]) rolesMap[ur.user_id] = [];
@@ -238,6 +295,10 @@ export class SupabaseService {
     return (profiles as TjsProfile[]).map(p => ({
       ...p,
       roles: rolesMap[p.id] ?? [],
+      account_status: authUsersMap.get(p.id)?.email_confirmed_at || authUsersMap.get(p.id)?.confirmed_at ? 'active' : 'inactive',
+      invited_at: authUsersMap.get(p.id)?.invited_at ?? null,
+      email_confirmed_at: authUsersMap.get(p.id)?.email_confirmed_at ?? authUsersMap.get(p.id)?.confirmed_at ?? null,
+      last_sign_in_at: authUsersMap.get(p.id)?.last_sign_in_at ?? null,
     }));
   }
 
@@ -254,6 +315,81 @@ export class SupabaseService {
     return data as TjsRole[];
   }
 
+  getInviteRedirectUrl(): string {
+    const configuredAppUrl = (environment as any).appUrl?.trim();
+    const baseUrl = configuredAppUrl || window.location.origin;
+    return `${baseUrl.replace(/\/$/, '')}/auth/callback`;
+  }
+
+  async findExistingUserByEmail(email: string): Promise<ExistingUserLookup | null> {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) return null;
+
+    const authUsersMap = new Map<string, User>();
+    let page = 1;
+    const perPage = 1000;
+
+    while (true) {
+      const { data: authPage, error: authErr } = await this.adminSupabase.auth.admin.listUsers({
+        page,
+        perPage,
+      });
+
+      if (authErr) {
+        console.error('findExistingUserByEmail auth users error:', authErr.message);
+        break;
+      }
+
+      for (const authUser of authPage.users ?? []) {
+        authUsersMap.set(authUser.id, authUser);
+        if (authUser.email?.trim().toLowerCase() === normalizedEmail) {
+          const { data: profile } = await this.adminSupabase
+            .from('tjs_profiles')
+            .select('id, email, full_name')
+            .eq('id', authUser.id)
+            .maybeSingle();
+
+          return {
+            id: authUser.id,
+            email: authUser.email ?? normalizedEmail,
+            full_name: (profile as Partial<TjsProfile> | null)?.full_name ?? null,
+            account_status: authUser.email_confirmed_at || (authUser as any).confirmed_at ? 'active' : 'inactive',
+            invited_at: (authUser as any).invited_at ?? null,
+            email_confirmed_at: authUser.email_confirmed_at ?? (authUser as any).confirmed_at ?? null,
+          };
+        }
+      }
+
+      if (!authPage.nextPage) break;
+      page = authPage.nextPage;
+    }
+
+    const { data: profileByEmail, error: profileErr } = await this.adminSupabase
+      .from('tjs_profiles')
+      .select('id, email, full_name')
+      .ilike('email', normalizedEmail)
+      .maybeSingle();
+
+    if (profileErr) {
+      console.error('findExistingUserByEmail profile lookup error:', profileErr.message);
+      return null;
+    }
+
+    if (!profileByEmail) {
+      return null;
+    }
+
+    const authUser = authUsersMap.get(profileByEmail.id);
+    return {
+      id: profileByEmail.id,
+      email: profileByEmail.email,
+      full_name: profileByEmail.full_name,
+      account_status: authUser?.email_confirmed_at || (authUser as any)?.confirmed_at ? 'active' : 'inactive',
+      invited_at: (authUser as any)?.invited_at ?? null,
+      email_confirmed_at: authUser?.email_confirmed_at ?? (authUser as any)?.confirmed_at ?? null,
+    };
+  }
+
   /**
    * Invite a new user by email.
    * Supabase sends them a "magic link" email; on click they land on
@@ -265,7 +401,18 @@ export class SupabaseService {
     redirectTo: string
   ): Promise<{ userId: string | null; error: string | null }> {
     try {
-      const { data, error } = await this.adminSupabase.auth.admin.inviteUserByEmail(email, {
+      const normalizedEmail = email.trim().toLowerCase();
+      const existingUser = await this.findExistingUserByEmail(normalizedEmail);
+      if (existingUser) {
+        return {
+          userId: null,
+          error: existingUser.account_status === 'active'
+            ? 'Un compte existe déjà avec cette adresse email.'
+            : 'Un compte invité existe déjà avec cette adresse email. Utilisez le renvoi d’email d’activation.',
+        };
+      }
+
+      const { data, error } = await this.adminSupabase.auth.admin.inviteUserByEmail(normalizedEmail, {
         redirectTo,
         data: { full_name: fullName },
       });
@@ -279,6 +426,41 @@ export class SupabaseService {
     } catch (error) {
       console.error('inviteUser exception:', error);
       return { userId: null, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
+
+  /**
+   * Re-send the invitation / activation email to a user who has not yet activated the account.
+   */
+  async resendInvite(
+    email: string,
+    fullName: string,
+    redirectTo: string
+  ): Promise<string | null> {
+    try {
+      const normalizedEmail = email.trim().toLowerCase();
+      const existingUser = await this.findExistingUserByEmail(normalizedEmail);
+      if (!existingUser) {
+        return 'Aucun compte n’existe avec cette adresse email.';
+      }
+      if (existingUser.account_status === 'active') {
+        return 'Ce compte est déjà activé.';
+      }
+
+      const { error } = await this.adminSupabase.auth.admin.inviteUserByEmail(normalizedEmail, {
+        redirectTo,
+        data: { full_name: fullName },
+      });
+
+      if (error) {
+        console.error('resendInvite error:', error);
+        return error.message;
+      }
+
+      return null;
+    } catch (error) {
+      console.error('resendInvite exception:', error);
+      return error instanceof Error ? error.message : 'Unknown error';
     }
   }
 
@@ -374,6 +556,20 @@ export class SupabaseService {
       console.error('updateCurrentUserPassword error:', error.message);
       return error.message;
     }
+    return null;
+  }
+
+  async sendPasswordResetEmail(email: string, redirectTo: string): Promise<string | null> {
+    const normalizedEmail = email.trim().toLowerCase();
+    const { error } = await this.supabase.auth.resetPasswordForEmail(normalizedEmail, {
+      redirectTo,
+    });
+
+    if (error) {
+      console.error('sendPasswordResetEmail error:', error.message);
+      return error.message;
+    }
+
     return null;
   }
 

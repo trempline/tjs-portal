@@ -5,9 +5,11 @@
 // Environment variables used:
 // - NG_APP_SUPABASE_URL: Supabase project URL
 // - NG_APP_SUPABASE_KEY: Supabase anon/public key
+// - NG_APP_PUBLIC_APP_URL: Canonical frontend URL used in invite/activation emails
 
 export const environment = {
   production: false, // or true for production
+  appUrl: 'localhost:4200',
   supabase: {
     url: 'YOUR_SUPABASE_URL',
     anonKey: 'YOUR_SUPABASE_ANON_KEY'

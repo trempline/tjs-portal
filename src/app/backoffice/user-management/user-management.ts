@@ -1,8 +1,8 @@
-import { Component, inject, OnInit, signal, computed } from '@angular/core';
-import { NgIf, NgFor, NgClass, DatePipe } from '@angular/common';
+import { Component, OnInit, inject } from '@angular/core';
+import { DatePipe, NgClass, NgFor, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../services/auth.service';
-import { SupabaseService, TjsUserWithRoles, TjsRole } from '../../services/supabase.service';
+import { SupabaseService, TjsRole, TjsUserWithRoles } from '../../services/supabase.service';
 
 type UserTab = 'all' | 'admins' | 'committee' | 'members';
 
@@ -11,8 +11,6 @@ interface InviteForm {
   fullName: string;
   phone: string;
   roleId: string;
-  
-  
 }
 
 @Component({
@@ -25,7 +23,6 @@ export class UserManagement implements OnInit {
   private authService = inject(AuthService);
   private supabase = inject(SupabaseService);
 
-  // ── State ────────────────────────────────────────────────────────────────
   isLoading = true;
   isSaving = false;
   error = '';
@@ -44,40 +41,45 @@ export class UserManagement implements OnInit {
   inviteForm: InviteForm = this.blankInvite();
   editForm: Partial<TjsUserWithRoles> = {};
 
-  // Role modal state
   roleModalRoles: { role: TjsRole; assigned: boolean }[] = [];
 
-  // ── Computed / filtered ──────────────────────────────────────────────────
   setTab(key: string) {
     this.activeTab = key as UserTab;
   }
 
   private hasRole(user: TjsUserWithRoles, roleName: string): boolean {
-    return user.roles.some(r => r.name.toLowerCase() === roleName.toLowerCase());
+    return user.roles.some((r) => r.name.toLowerCase() === roleName.toLowerCase());
   }
 
   get filteredUsers(): TjsUserWithRoles[] {
     switch (this.activeTab) {
       case 'admins':
-        return this.users.filter(u => this.hasRole(u, 'admin'));
+        return this.users.filter((u) => this.hasRole(u, 'admin'));
       case 'committee':
-        return this.users.filter(u => this.hasRole(u, 'committee member'));
+        return this.users.filter((u) => this.hasRole(u, 'committee member'));
       case 'members':
-        return this.users.filter(u => this.hasRole(u, 'member'));
+        return this.users.filter((u) => this.hasRole(u, 'member'));
       default:
         return this.users;
     }
   }
 
-  get adminCount() { return this.users.filter(u => this.hasRole(u, 'admin')).length; }
-  get committeeCount() { return this.users.filter(u => this.hasRole(u, 'committee member')).length; }
-  get memberCount() { return this.users.filter(u => this.hasRole(u, 'member')).length; }
+  get adminCount() {
+    return this.users.filter((u) => this.hasRole(u, 'admin')).length;
+  }
+
+  get committeeCount() {
+    return this.users.filter((u) => this.hasRole(u, 'committee member')).length;
+  }
+
+  get memberCount() {
+    return this.users.filter((u) => this.hasRole(u, 'member')).length;
+  }
 
   get currentUserId(): string {
     return this.authService.currentUser?.id ?? '';
   }
 
-  // ── Lifecycle ────────────────────────────────────────────────────────────
   async ngOnInit() {
     await this.loadData();
   }
@@ -94,7 +96,6 @@ export class UserManagement implements OnInit {
     this.isLoading = false;
   }
 
-  // ── Invite ───────────────────────────────────────────────────────────────
   openInviteModal() {
     this.inviteForm = this.blankInvite();
     this.error = '';
@@ -107,41 +108,55 @@ export class UserManagement implements OnInit {
   }
 
   async submitInvite() {
-    if (!this.inviteForm.email || !this.inviteForm.fullName) {
+    const normalizedEmail = this.inviteForm.email.trim().toLowerCase();
+    const fullName = this.inviteForm.fullName.trim();
+
+    if (!normalizedEmail || !fullName) {
       this.error = 'L\'email et le nom complet sont obligatoires.';
       return;
     }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(normalizedEmail)) {
+      this.error = 'Veuillez saisir une adresse email valide.';
+      return;
+    }
+
     if (!this.inviteForm.roleId) {
-      this.error = 'Veuillez sélectionner un rôle.';
+      this.error = 'Veuillez selectionner un role.';
       return;
     }
 
     this.isSaving = true;
     this.error = '';
 
-    // Build the redirect URL: app origin + /auth/callback
-    const redirectTo = `${window.location.origin}/auth/callback`;
-
-    // 1. Invite user (Supabase sends the email)
-    const { userId, error: inviteErr } = await this.supabase.inviteUser(
-      this.inviteForm.email,
-      this.inviteForm.fullName,
-      redirectTo
-    );
-
-    if (inviteErr || !userId) {
-      this.error = inviteErr ?? 'Erreur lors de l\'invitation.';
+    const existingUser = await this.supabase.findExistingUserByEmail(normalizedEmail);
+    if (existingUser) {
+      this.error = existingUser.account_status === 'active'
+        ? 'Un compte existe deja avec cette adresse email.'
+        : 'Cette adresse email a deja ete invitee. Utilisez le renvoi de l email d activation depuis la liste.';
       this.isSaving = false;
       return;
     }
 
-    // 2. Pre-fill profile
+    const redirectTo = this.supabase.getInviteRedirectUrl();
+    const { userId, error: inviteErr } = await this.supabase.inviteUser(
+      normalizedEmail,
+      fullName,
+      redirectTo
+    );
+
+    if (inviteErr || !userId) {
+      this.error = inviteErr ?? 'Erreur lors de l invitation.';
+      this.isSaving = false;
+      return;
+    }
+
     const profileErr = await this.supabase.upsertProfile({
       id: userId,
-      email: this.inviteForm.email,
-      full_name: this.inviteForm.fullName,
-      phone: this.inviteForm.phone || null
-      
+      email: normalizedEmail,
+      full_name: fullName,
+      phone: this.inviteForm.phone || null,
     });
 
     if (profileErr) {
@@ -150,7 +165,6 @@ export class UserManagement implements OnInit {
       return;
     }
 
-    // 3. Assign role
     const roleErr = await this.supabase.assignRole(userId, this.inviteForm.roleId, this.currentUserId);
     if (roleErr) {
       this.error = roleErr;
@@ -158,16 +172,14 @@ export class UserManagement implements OnInit {
       return;
     }
 
-    this.successMessage = `Invitation envoyée à ${this.inviteForm.email} avec succès !`;
+    this.successMessage = `Invitation envoyee a ${normalizedEmail} avec succes !`;
     this.showInviteModal = false;
     this.isSaving = false;
 
-    // Reload list
     await this.loadData();
     setTimeout(() => (this.successMessage = ''), 5000);
   }
 
-  // ── Edit profile ─────────────────────────────────────────────────────────
   openEditModal(user: TjsUserWithRoles) {
     this.selectedUser = user;
     this.editForm = {
@@ -206,7 +218,7 @@ export class UserManagement implements OnInit {
     if (err) {
       this.error = err;
     } else {
-      this.successMessage = 'Profil mis à jour avec succès.';
+      this.successMessage = 'Profil mis a jour avec succes.';
       this.showEditModal = false;
       await this.loadData();
       setTimeout(() => (this.successMessage = ''), 4000);
@@ -214,12 +226,11 @@ export class UserManagement implements OnInit {
     this.isSaving = false;
   }
 
-  // ── Role management ──────────────────────────────────────────────────────
   openRoleModal(user: TjsUserWithRoles) {
     this.selectedUser = user;
-    this.roleModalRoles = this.allRoles.map(role => ({
+    this.roleModalRoles = this.allRoles.map((role) => ({
       role,
-      assigned: user.roles.some(r => r.id === role.id),
+      assigned: user.roles.some((r) => r.id === role.id),
     }));
     this.error = '';
     this.showRoleModal = true;
@@ -237,11 +248,9 @@ export class UserManagement implements OnInit {
 
     let err: string | null;
     if (entry.assigned) {
-      // Remove role
       err = await this.supabase.removeRole(this.selectedUser.id, entry.role.id);
       if (!err) entry.assigned = false;
     } else {
-      // Assign role
       err = await this.supabase.assignRole(this.selectedUser.id, entry.role.id, this.currentUserId);
       if (!err) entry.assigned = true;
     }
@@ -249,34 +258,99 @@ export class UserManagement implements OnInit {
     if (err) this.error = err;
     this.isSaving = false;
     await this.loadData();
-    // Refresh selectedUser reference
-    this.selectedUser = this.users.find(u => u.id === this.selectedUser!.id) ?? null;
+    this.selectedUser = this.users.find((u) => u.id === this.selectedUser!.id) ?? null;
   }
 
-  // ── Helpers ──────────────────────────────────────────────────────────────
+  async resendActivationEmail(user: TjsUserWithRoles) {
+    if (user.account_status === 'active') return;
+
+    this.isSaving = true;
+    this.error = '';
+
+    const redirectTo = this.supabase.getInviteRedirectUrl();
+    const err = await this.supabase.resendInvite(
+      user.email,
+      user.full_name || user.email,
+      redirectTo
+    );
+
+    if (err) {
+      this.error = err;
+    } else {
+      this.successMessage = `Email d activation renvoye a ${user.email}.`;
+      await this.loadData();
+      setTimeout(() => (this.successMessage = ''), 5000);
+    }
+
+    this.isSaving = false;
+  }
+
+  async sendResetPasswordEmail(user: TjsUserWithRoles) {
+    this.isSaving = true;
+    this.error = '';
+
+    const redirectTo = this.supabase.getInviteRedirectUrl();
+    const err = await this.supabase.sendPasswordResetEmail(user.email, redirectTo);
+
+    if (err) {
+      this.error = err;
+    } else {
+      this.successMessage = `Email de reinitialisation envoye a ${user.email}.`;
+      setTimeout(() => (this.successMessage = ''), 5000);
+    }
+
+    this.isSaving = false;
+  }
+
+  accountStatusLabel(user: TjsUserWithRoles): string {
+    return user.account_status === 'active' ? 'Actif' : 'Inactif';
+  }
+
+  accountStatusClass(user: TjsUserWithRoles): string {
+    return user.account_status === 'active'
+      ? 'bg-emerald-50 text-emerald-700'
+      : 'bg-amber-50 text-amber-700';
+  }
+
   roleBadgeClass(roleName: string): string {
     switch (roleName.toLowerCase()) {
-      case 'admin':            return 'bg-red-100 text-red-700';
-      case 'committee member': return 'bg-blue-100 text-blue-700';
-      case 'member':           return 'bg-green-100 text-green-700';
-      case 'host':             return 'bg-orange-100 text-orange-700';
-      case 'host+':            return 'bg-amber-100 text-amber-700';
-      case 'artist':           return 'bg-purple-100 text-purple-700';
-      case 'artist invited':   return 'bg-violet-100 text-violet-700';
-      default:                 return 'bg-zinc-100 text-zinc-600';
+      case 'admin':
+        return 'bg-red-100 text-red-700';
+      case 'committee member':
+        return 'bg-blue-100 text-blue-700';
+      case 'member':
+        return 'bg-green-100 text-green-700';
+      case 'host':
+        return 'bg-orange-100 text-orange-700';
+      case 'host+':
+        return 'bg-amber-100 text-amber-700';
+      case 'artist':
+        return 'bg-purple-100 text-purple-700';
+      case 'artist invited':
+        return 'bg-violet-100 text-violet-700';
+      default:
+        return 'bg-zinc-100 text-zinc-600';
     }
   }
 
   roleLabelFr(roleName: string): string {
     switch (roleName.toLowerCase()) {
-      case 'admin':            return 'Admin';
-      case 'committee member': return 'Comité';
-      case 'member':           return 'Membre';
-      case 'host':             return 'Hôte';
-      case 'host+':            return 'Hôte+';
-      case 'artist':           return 'Artiste';
-      case 'artist invited':   return 'Artiste invité';
-      default:                 return roleName;
+      case 'admin':
+        return 'Admin';
+      case 'committee member':
+        return 'Comite';
+      case 'member':
+        return 'Membre';
+      case 'host':
+        return 'Hote';
+      case 'host+':
+        return 'Hote+';
+      case 'artist':
+        return 'Artiste';
+      case 'artist invited':
+        return 'Artiste invite';
+      default:
+        return roleName;
     }
   }
 

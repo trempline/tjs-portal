@@ -48,7 +48,8 @@ export class AdminLogin {
     );
 
     if (result.success) {
-      this.router.navigate(['/backoffice/dashboard']);
+      await this.authService.waitForAuthReady();
+      this.router.navigate([this.authService.getPostLoginRoute()]);
     } else {
       this.errorMessage = this.mapError(result.error);
     }

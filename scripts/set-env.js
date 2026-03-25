@@ -25,6 +25,7 @@ if (fs.existsSync(envFilePath)) {
 const supabaseUrl     = process.env.NG_APP_SUPABASE_URL     || '';
 const supabaseKey     = process.env.NG_APP_SUPABASE_KEY     || '';
 const serviceRoleKey  = process.env.NG_APP_SUPABASE_SERVICE_ROLE_KEY || '';
+const appUrl          = process.env.NG_APP_PUBLIC_APP_URL || '';
 
 // Fallback to default values if not set (for local development)
 const defaultUrl = 'https://iuvbnejalukjapgnpzzz.supabase.co';
@@ -33,6 +34,8 @@ const defaultKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
 // Development environment file
 const envDevContent = `export const environment = {
   production: false,
+  // Public frontend URL used in invite and activation emails.
+  appUrl: '${appUrl}',
   supabase: {
     url: '${supabaseUrl || defaultUrl}',
     anonKey: '${supabaseKey || defaultKey}',
@@ -46,6 +49,8 @@ const envDevContent = `export const environment = {
 // Production environment file
 const envProdContent = `export const environment = {
   production: true,
+  // Public frontend URL used in invite and activation emails.
+  appUrl: '${appUrl}',
   supabase: {
     url: '${supabaseUrl || defaultUrl}',
     anonKey: '${supabaseKey || defaultKey}',
@@ -69,5 +74,6 @@ fs.writeFileSync(path.join(envDir, 'environment.prod.ts'), envProdContent);
 
 console.log('✅ Environment files generated successfully!');
 console.log(`   - Using Supabase URL: ${supabaseUrl || defaultUrl}`);
+console.log(`   - Public App URL: ${appUrl || '(not set, fallback to current browser origin)'}`);
 console.log(`   - Using Supabase Anon Key: ${supabaseKey ? '***' + supabaseKey.slice(-8) : '***' + defaultKey.slice(-8)}`);
 console.log(`   - Service Role Key: ${serviceRoleKey ? '***' + serviceRoleKey.slice(-8) + ' (set ✓)' : '⚠️  NOT SET — admin invite will not work'}`);
