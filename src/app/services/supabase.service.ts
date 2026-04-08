@@ -41,7 +41,7 @@ export interface TjsUserRole {
 
 export interface TjsUserWithRoles extends TjsProfile {
   roles: TjsRole[];
-  account_status: 'active' | 'inactive';
+  account_status: 'active' | 'pending' | 'inactive';
   invited_at: string | null;
   email_confirmed_at: string | null;
   last_sign_in_at: string | null;
@@ -51,7 +51,7 @@ export interface ExistingUserLookup {
   id: string;
   email: string;
   full_name: string | null;
-  account_status: 'active' | 'inactive';
+  account_status: 'active' | 'pending' | 'inactive';
   invited_at: string | null;
   email_confirmed_at: string | null;
 }
@@ -193,6 +193,35 @@ export interface TjsArtistAuditLog {
   performer_email?: string | null;
 }
 
+export interface PagArtist {
+  id: string;
+  id_profile: string | null;
+  fname: string | null;
+  lname: string | null;
+  email: string | null;
+  phone: string | null;
+  photo: string | null;
+  is_featured: boolean | null;
+  is_active: boolean | null;
+  created_on: string | null;
+}
+
+export interface CreateArtistInput {
+  artist_name: string;
+  is_tjs_artist: boolean;
+  is_invited_artist: boolean;
+  committee_member_id?: string | null;
+}
+
+export interface InviteArtistInput {
+  email: string;
+  full_name: string;
+  phone?: string | null;
+  committee_member_id?: string | null;
+  assigned_by: string;
+  role_name: 'Artist' | 'Artist Invited';
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -201,6 +230,7 @@ export class SupabaseService {
   /** Admin client uses the service-role key – only for server-side-like admin ops. */
   private adminSupabase: SupabaseClient;
   private roleIdCache = new Map<string, string>();
+  private artistAuditLogAvailable: boolean | null = null;
 
   constructor() {
     this.supabase = createClient(
@@ -387,9 +417,9 @@ export class SupabaseService {
     return (profiles as TjsProfile[]).map(p => ({
       ...p,
       roles: rolesMap[p.id] ?? [],
-      account_status: authUsersMap.get(p.id)?.email_confirmed_at || authUsersMap.get(p.id)?.confirmed_at ? 'active' : 'inactive',
+      account_status: this.deriveAccountStatus(authUsersMap.get(p.id)),
       invited_at: authUsersMap.get(p.id)?.invited_at ?? null,
-      email_confirmed_at: authUsersMap.get(p.id)?.email_confirmed_at ?? authUsersMap.get(p.id)?.confirmed_at ?? null,
+      email_confirmed_at: authUsersMap.get(p.id)?.email_confirmed_at ?? null,
       last_sign_in_at: authUsersMap.get(p.id)?.last_sign_in_at ?? null,
     }));
   }
@@ -599,9 +629,9 @@ export class SupabaseService {
             id: authUser.id,
             email: authUser.email ?? normalizedEmail,
             full_name: (profile as Partial<TjsProfile> | null)?.full_name ?? null,
-            account_status: authUser.email_confirmed_at || (authUser as any).confirmed_at ? 'active' : 'inactive',
+            account_status: this.deriveAccountStatus(authUser),
             invited_at: (authUser as any).invited_at ?? null,
-            email_confirmed_at: authUser.email_confirmed_at ?? (authUser as any).confirmed_at ?? null,
+            email_confirmed_at: authUser.email_confirmed_at ?? null,
           };
         }
       }
@@ -630,9 +660,9 @@ export class SupabaseService {
       id: profileByEmail.id,
       email: profileByEmail.email,
       full_name: profileByEmail.full_name,
-      account_status: authUser?.email_confirmed_at || (authUser as any)?.confirmed_at ? 'active' : 'inactive',
+      account_status: this.deriveAccountStatus(authUser),
       invited_at: (authUser as any)?.invited_at ?? null,
-      email_confirmed_at: authUser?.email_confirmed_at ?? (authUser as any)?.confirmed_at ?? null,
+      email_confirmed_at: authUser?.email_confirmed_at ?? null,
     };
   }
 
@@ -1252,9 +1282,7 @@ export class SupabaseService {
       `)
       .order('created_at', { ascending: false });
 
-    if (scope?.committeeMemberId && scope?.createdById) {
-      query = query.or(`committee_member_id.eq.${scope.committeeMemberId},created_by.eq.${scope.createdById}`);
-    } else if (scope?.committeeMemberId) {
+    if (scope?.committeeMemberId) {
       query = query.eq('committee_member_id', scope.committeeMemberId);
     } else if (scope?.createdById) {
       query = query.eq('created_by', scope.createdById);
@@ -1325,6 +1353,21 @@ export class SupabaseService {
     return this.mapArtistsWithAssignments((data as any[]) ?? []);
   }
 
+  /** Fetch legacy PAG artists from public.artists for non-TJS browsing. */
+  async getPagArtists(): Promise<PagArtist[]> {
+    const { data, error } = await this.adminSupabase
+      .from('artists')
+      .select('id, id_profile, fname, lname, email, phone, photo, is_featured, is_active, created_on')
+      .order('fname', { ascending: true });
+
+    if (error) {
+      console.error('getPagArtists error:', error.message);
+      return [];
+    }
+
+    return (data ?? []) as PagArtist[];
+  }
+
   /** Fetch Committee Members that can be assigned to artists. */
   async getCommitteeMembersForAssignment(): Promise<TjsArtistUserSummary[]> {
     const { data: userRoles, error } = await this.adminSupabase
@@ -1375,6 +1418,122 @@ export class SupabaseService {
       }));
   }
 
+  /** Create a lightweight artist record. */
+  async createArtist(input: CreateArtistInput): Promise<{ artist: TjsArtist | null; error: string | null }> {
+    const payload: Record<string, any> = {
+      artist_name: input.artist_name,
+      is_tjs_artist: input.is_tjs_artist,
+      is_invited_artist: input.is_invited_artist,
+      profile_id: null,
+    };
+
+    if (input.committee_member_id) {
+      payload['committee_member_id'] = input.committee_member_id;
+    }
+
+    const { data, error } = await this.adminSupabase
+      .from('tjs_artists')
+      .insert(payload)
+      .select(`
+        *,
+        profile:tjs_profiles (
+          id, email, full_name, phone, bio, avatar_url,
+          is_member, member_since, member_until, is_pag_artist,
+          created_at, updated_at
+        )
+      `)
+      .single();
+
+    if (error) {
+      console.error('createArtist error:', error.message);
+      return { artist: null, error: error.message };
+    }
+
+    const mappedArtists = await this.mapArtistsWithAssignments(data ? [data] : []);
+    return { artist: mappedArtists[0] ?? null, error: null };
+  }
+
+  async inviteArtist(input: InviteArtistInput): Promise<{ artist: TjsArtist | null; error: string | null }> {
+    const normalizedEmail = input.email.trim().toLowerCase();
+    const fullName = input.full_name.trim();
+
+    if (!normalizedEmail || !fullName) {
+      return { artist: null, error: 'Email and full name are required.' };
+    }
+
+    const existingUser = await this.findExistingUserByEmail(normalizedEmail);
+    if (existingUser) {
+      return {
+        artist: null,
+        error: existingUser.account_status === 'active'
+          ? 'An account already exists with this email.'
+          : 'This email has already been invited.',
+      };
+    }
+
+    const redirectTo = this.getInviteRedirectUrl();
+    const { userId, error: inviteError } = await this.inviteUser(normalizedEmail, fullName, redirectTo);
+    if (inviteError || !userId) {
+      return { artist: null, error: inviteError ?? 'Failed to invite artist.' };
+    }
+
+    const profileError = await this.upsertProfile({
+      id: userId,
+      email: normalizedEmail,
+      full_name: fullName,
+      phone: input.phone?.trim() || null,
+    });
+
+    if (profileError) {
+      return { artist: null, error: profileError };
+    }
+
+    const artistRoleId = await this.getRoleIdByName(input.role_name);
+    if (!artistRoleId) {
+      return { artist: null, error: `${input.role_name} role not found.` };
+    }
+
+    const roleError = await this.assignRole(userId, artistRoleId, input.assigned_by);
+    if (roleError) {
+      return { artist: null, error: roleError };
+    }
+
+    const updatePayload: Record<string, any> = {
+      artist_name: fullName,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (input.committee_member_id) {
+      updatePayload['committee_member_id'] = input.committee_member_id;
+    }
+
+    const { data, error } = await this.adminSupabase
+      .from('tjs_artists')
+      .update(updatePayload)
+      .eq('profile_id', userId)
+      .select(`
+        *,
+        profile:tjs_profiles (
+          id, email, full_name, phone, bio, avatar_url,
+          is_member, member_since, member_until, is_pag_artist,
+          created_at, updated_at
+        )
+      `)
+      .maybeSingle();
+
+    if (error) {
+      console.error('inviteArtist update error:', error.message);
+      return { artist: null, error: error.message };
+    }
+
+    if (!data) {
+      return { artist: null, error: 'Artist record was not created.' };
+    }
+
+    const mappedArtists = await this.mapArtistsWithAssignments([data]);
+    return { artist: mappedArtists[0] ?? null, error: null };
+  }
+
   /** Assign or reassign a Committee Member to an artist profile. */
   async assignCommitteeMemberToArtist(
     artistId: string,
@@ -1410,21 +1569,56 @@ export class SupabaseService {
     performedBy: string,
     reason?: string
   ): Promise<{ success: boolean; error: string | null }> {
-    const { data, error } = await this.adminSupabase.rpc('tjs_toggle_artist_featured', {
-      p_artist_id: artistId,
-      p_is_featured: isFeatured,
-      p_performed_by: performedBy,
-      p_reason: reason || null,
-    });
+    const { data: currentArtist, error: fetchError } = await this.adminSupabase
+      .from('tjs_artists')
+      .select('is_featured')
+      .eq('id', artistId)
+      .maybeSingle();
 
-    if (error) {
-      console.error('toggleArtistFeatured error:', error.message);
-      return { success: false, error: error.message };
+    if (fetchError) {
+      console.error('toggleArtistFeatured fetch error:', fetchError.message);
+      return { success: false, error: fetchError.message };
     }
 
-    const result = data?.[0];
-    if (result?.success === false) {
-      return { success: false, error: result.error_message || 'Unknown error' };
+    if (!currentArtist) {
+      return { success: false, error: 'Artist not found.' };
+    }
+
+    const previousFeatured = currentArtist.is_featured;
+
+    const { error: updateError } = await this.adminSupabase
+      .from('tjs_artists')
+      .update({
+        is_featured: isFeatured,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', artistId);
+
+    if (updateError) {
+      console.error('toggleArtistFeatured update error:', updateError.message);
+      return { success: false, error: updateError.message };
+    }
+
+    if (this.artistAuditLogAvailable !== false) {
+      const { error: auditError } = await this.adminSupabase
+        .from('tjs_artist_audit_log')
+        .insert({
+          artist_id: artistId,
+          performed_by: performedBy,
+          previous_featured: previousFeatured,
+          new_featured: isFeatured,
+          reason: reason || null,
+        });
+
+      if (auditError) {
+        if (this.isMissingArtistAuditLogError(auditError)) {
+          this.artistAuditLogAvailable = false;
+        } else {
+          console.warn('toggleArtistFeatured audit log insert failed:', auditError.message);
+        }
+      } else {
+        this.artistAuditLogAvailable = true;
+      }
     }
 
     return { success: true, error: null };
@@ -1432,6 +1626,10 @@ export class SupabaseService {
 
   /** Fetch audit log entries for a specific artist. */
   async getArtistAuditLog(artistId: string): Promise<TjsArtistAuditLog[]> {
+    if (this.artistAuditLogAvailable === false) {
+      return [];
+    }
+
     const { data, error } = await this.adminSupabase
       .from('tjs_artist_audit_log')
       .select('*')
@@ -1439,9 +1637,16 @@ export class SupabaseService {
       .order('performed_at', { ascending: false });
 
     if (error) {
+      if (this.isMissingArtistAuditLogError(error)) {
+        this.artistAuditLogAvailable = false;
+        return [];
+      }
+
       console.error('getArtistAuditLog error:', error.message);
       return [];
     }
+
+    this.artistAuditLogAvailable = true;
 
     const logs = (data as any[]) || [];
     if (logs.length === 0) return [];
@@ -1469,15 +1674,26 @@ export class SupabaseService {
 
   /** Fetch all audit log entries (for admin overview). */
   async getAllArtistAuditLogs(): Promise<TjsArtistAuditLog[]> {
+    if (this.artistAuditLogAvailable === false) {
+      return [];
+    }
+
     const { data, error } = await this.adminSupabase
       .from('tjs_artist_audit_log')
       .select('*')
       .order('performed_at', { ascending: false });
 
     if (error) {
+      if (this.isMissingArtistAuditLogError(error)) {
+        this.artistAuditLogAvailable = false;
+        return [];
+      }
+
       console.error('getAllArtistAuditLogs error:', error.message);
       return [];
     }
+
+    this.artistAuditLogAvailable = true;
 
     const logs = (data as any[]) || [];
     if (logs.length === 0) return [];
@@ -1501,6 +1717,11 @@ export class SupabaseService {
         performer_email: performer?.email ?? null,
       };
     });
+  }
+
+  private isMissingArtistAuditLogError(error: { code?: string; message?: string | null }): boolean {
+    return error.code === 'PGRST205'
+      || error.message?.includes("Could not find the table 'public.tjs_artist_audit_log'") === true;
   }
 
   // ── Newsletter / messages ────────────────────────────────────────────────
@@ -1734,16 +1955,98 @@ export class SupabaseService {
     return new Date().toISOString().slice(0, 10);
   }
 
+  private async getAuthUsersByIds(userIds: string[]): Promise<Map<string, User>> {
+    const authUsersById = new Map<string, User>();
+    if (userIds.length === 0) {
+      return authUsersById;
+    }
+
+    const remainingIds = new Set(userIds);
+    let page = 1;
+    const perPage = 1000;
+
+    while (remainingIds.size > 0) {
+      const { data: authPage, error } = await this.adminSupabase.auth.admin.listUsers({
+        page,
+        perPage,
+      });
+
+      if (error) {
+        console.error('getAuthUsersByIds error:', error.message);
+        break;
+      }
+
+      const users = authPage.users ?? [];
+      for (const authUser of users) {
+        if (remainingIds.has(authUser.id)) {
+          authUsersById.set(authUser.id, authUser);
+          remainingIds.delete(authUser.id);
+        }
+      }
+
+      if (!authPage.nextPage) {
+        break;
+      }
+
+      page = authPage.nextPage;
+    }
+
+    return authUsersById;
+  }
+
+  private deriveArtistActivationStatus(
+    row: any,
+    authUsersById: Map<string, User>
+  ): 'pending' | 'active' | 'inactive' {
+    const profileId = row.profile_id as string | null;
+    if (profileId) {
+      const authUser = authUsersById.get(profileId);
+      if (authUser) {
+        return authUser.email_confirmed_at || authUser.last_sign_in_at ? 'active' : 'pending';
+      }
+    }
+
+    if (row.activation_status === 'active' || row.activation_status === 'inactive' || row.activation_status === 'pending') {
+      return row.activation_status;
+    }
+
+    return 'pending';
+  }
+
+  private deriveAccountStatus(authUser: User | undefined): 'active' | 'pending' | 'inactive' {
+    if (!authUser) {
+      return 'inactive';
+    }
+
+    if (authUser.email_confirmed_at || authUser.last_sign_in_at) {
+      return 'active';
+    }
+
+    if ((authUser as any).invited_at) {
+      return 'pending';
+    }
+
+    return 'inactive';
+  }
+
   private async mapArtistsWithAssignments(rows: any[]): Promise<TjsArtist[]> {
     const relatedProfileIds = Array.from(
       new Set(
         rows
           .flatMap((row) => [row.committee_member_id as string | null, row.created_by as string | null])
+        .filter((value): value is string => !!value)
+      )
+    );
+    const artistProfileIds = Array.from(
+      new Set(
+        rows
+          .map((row) => row.profile_id as string | null)
           .filter((value): value is string => !!value)
       )
     );
 
     const profilesById = new Map<string, Partial<TjsProfile>>();
+    const authUsersById = await this.getAuthUsersByIds(artistProfileIds);
 
     if (relatedProfileIds.length > 0) {
       const { data: relatedProfiles, error } = await this.adminSupabase
@@ -1766,7 +2069,7 @@ export class SupabaseService {
       ...row,
       committee_member_id: row.committee_member_id ?? null,
       created_by: row.created_by ?? null,
-      activation_status: (row.activation_status ?? 'pending') as 'pending' | 'active' | 'inactive',
+      activation_status: this.deriveArtistActivationStatus(row, authUsersById),
       profile: row.profile as TjsProfile | null,
       committee_member: this.mapArtistUserSummary(row.committee_member_id, profilesById),
       created_by_profile: this.mapArtistUserSummary(row.created_by, profilesById),

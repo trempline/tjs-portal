@@ -137,7 +137,7 @@
               >
                 <span
                   class="h-1.5 w-1.5 rounded-full"
-                  [ngClass]="user.account_status === 'active' ? 'bg-emerald-500' : 'bg-amber-500'"
+                  [ngClass]="user.account_status === 'active' ? 'bg-emerald-500' : user.account_status === 'pending' ? 'bg-amber-500' : 'bg-zinc-400'"
                 ></span>
                 {{ accountStatusLabel(user) }}
               </span>
@@ -156,7 +156,7 @@
             <td class="px-4 py-4">
               <div class="flex items-center justify-end gap-1">
                 <button
-                  *ngIf="user.account_status === 'inactive'"
+                  *ngIf="user.account_status !== 'active'"
                   (click)="resendActivationEmail(user)"
                   title="Renvoyer l'email d'activation"
                   class="p-1.5 text-zinc-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"

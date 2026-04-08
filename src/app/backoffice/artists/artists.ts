@@ -42,13 +42,24 @@ export class Artists implements OnInit {
   selectedArtistForAssignment: TjsArtist | null = null;
   selectedCommitteeMemberId = '';
 
+  showCreateArtistModal = false;
+  inviteArtistForm = {
+    email: '',
+    fullName: '',
+    phone: '',
+  };
+
   setTab(tab: ArtistTab) {
     this.activeTab = tab;
   }
 
   get currentArtists(): TjsArtist[] {
     if (this.isCommittee) {
-      return [...this.allArtists].sort((a, b) => {
+      const scopedArtists = this.activeTab === 'invited'
+        ? this.allArtists.filter((artist) => artist.is_invited_artist)
+        : this.allArtists.filter((artist) => artist.is_tjs_artist);
+
+      return [...scopedArtists].sort((a, b) => {
         const priority = { active: 0, pending: 1, inactive: 2 } as const;
         return priority[a.activation_status] - priority[b.activation_status] || a.artist_name.localeCompare(b.artist_name);
       });
@@ -104,6 +115,22 @@ export class Artists implements OnInit {
     return this.isAdmin || this.isCommittee;
   }
 
+  get showFeaturedColumn(): boolean {
+    return this.activeTab !== 'invited';
+  }
+
+  get defaultCommitteeMemberLabel(): string {
+    return this.isCommittee ? this.authService.displayName : 'Not assigned by default';
+  }
+
+  get inviteRoleLabel(): string {
+    return this.activeTab === 'invited' ? 'Artist Invited' : 'Artist';
+  }
+
+  get inviteModalTitle(): string {
+    return this.activeTab === 'invited' ? 'Invite Invited Artist' : 'Invite Artist';
+  }
+
   async ngOnInit() {
     // Set activeTab based on route
     const url = this.router.url;
@@ -122,7 +149,7 @@ export class Artists implements OnInit {
 
     const artistScope = this.isAdmin || !this.currentUserId
       ? undefined
-      : { committeeMemberId: this.currentUserId, createdById: this.currentUserId };
+      : { committeeMemberId: this.currentUserId };
 
     const [artists, committeeMembers] = await Promise.all([
       this.supabase.getArtists(artistScope),
@@ -142,8 +169,8 @@ export class Artists implements OnInit {
 
     const newFeatured = !artist.is_featured;
     const reason = newFeatured
-      ? `Masque du site public par ${this.authService.displayName}`
-      : `Retabli sur le site public par ${this.authService.displayName}`;
+      ? `is_featured enabled by ${this.authService.displayName}`
+      : `is_featured disabled by ${this.authService.displayName}`;
 
     const { error } = await this.supabase.toggleArtistFeatured(
       artist.id,
@@ -157,8 +184,8 @@ export class Artists implements OnInit {
     } else {
       artist.is_featured = newFeatured;
       this.successMessage = newFeatured
-        ? `${artist.artist_name} est maintenant masque du site public.`
-        : `${artist.artist_name} est maintenant visible sur le site public.`;
+        ? `${artist.artist_name} now has Is Featured enabled.`
+        : `${artist.artist_name} now has Is Featured disabled.`;
       setTimeout(() => (this.successMessage = ''), 4000);
     }
 
@@ -179,6 +206,67 @@ export class Artists implements OnInit {
   closeAuditModal() {
     this.showAuditModal = false;
     this.selectedArtist = null;
+  }
+
+  openCreateArtistModal() {
+    if (!this.canManageArtists) return;
+
+    this.inviteArtistForm = {
+      email: '',
+      fullName: '',
+      phone: '',
+    };
+    this.error = '';
+    this.showCreateArtistModal = true;
+  }
+
+  closeCreateArtistModal() {
+    this.showCreateArtistModal = false;
+    this.inviteArtistForm = {
+      email: '',
+      fullName: '',
+      phone: '',
+    };
+  }
+
+  async submitCreateArtist() {
+    if (!this.canManageArtists) return;
+
+    const email = this.inviteArtistForm.email.trim().toLowerCase();
+    const fullName = this.inviteArtistForm.fullName.trim();
+    if (!email || !fullName) {
+      this.error = 'Email and full name are required.';
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      this.error = 'Please enter a valid email address.';
+      return;
+    }
+
+    this.isSaving = true;
+    this.error = '';
+
+    const { artist, error } = await this.supabase.inviteArtist({
+      email,
+      full_name: fullName,
+      phone: this.inviteArtistForm.phone.trim() || null,
+      committee_member_id: this.isCommittee ? this.currentUserId : null,
+      assigned_by: this.currentUserId,
+      role_name: this.activeTab === 'invited' ? 'Artist Invited' : 'Artist',
+    });
+
+    if (error) {
+      this.error = error;
+      this.isSaving = false;
+      return;
+    }
+
+    this.successMessage = `Invitation sent to ${email}.`;
+    this.closeCreateArtistModal();
+    this.isSaving = false;
+    setTimeout(() => (this.successMessage = ''), 4000);
   }
 
   openAssignmentModal(artist: TjsArtist) {
@@ -250,13 +338,13 @@ export class Artists implements OnInit {
   }
 
   featuredLabel(artist: TjsArtist): string {
-    return artist.is_featured ? 'Masque' : 'Visible';
+    return artist.is_featured ? 'Enabled' : 'Disabled';
   }
 
   featuredClass(artist: TjsArtist): string {
     return artist.is_featured
-      ? 'bg-amber-50 text-amber-700'
-      : 'bg-emerald-50 text-emerald-700';
+      ? 'bg-blue-50 text-blue-700'
+      : 'bg-zinc-100 text-zinc-600';
   }
 
   activationStatusLabel(artist: TjsArtist): string {

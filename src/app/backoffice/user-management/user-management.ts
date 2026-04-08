@@ -309,13 +309,25 @@ export class UserManagement implements OnInit {
   }
 
   accountStatusLabel(user: TjsUserWithRoles): string {
-    return user.account_status === 'active' ? 'Actif' : 'Inactif';
+    switch (user.account_status) {
+      case 'active':
+        return 'Actif';
+      case 'pending':
+        return 'En attente';
+      default:
+        return 'Inactif';
+    }
   }
 
   accountStatusClass(user: TjsUserWithRoles): string {
-    return user.account_status === 'active'
-      ? 'bg-emerald-50 text-emerald-700'
-      : 'bg-amber-50 text-amber-700';
+    switch (user.account_status) {
+      case 'active':
+        return 'bg-emerald-50 text-emerald-700';
+      case 'pending':
+        return 'bg-amber-50 text-amber-700';
+      default:
+        return 'bg-zinc-100 text-zinc-600';
+    }
   }
 
   roleBadgeClass(roleName: string): string {

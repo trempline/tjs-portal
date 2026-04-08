@@ -121,27 +121,8 @@ export class CommitteeMemberService {
       return throwError(() => new Error('User not authenticated'));
     }
 
-    return from(
-      this.supabase
-        .from('tjs_artists')
-        .select(`
-          *,
-          profile:tjs_profiles (
-            email,
-            full_name,
-            avatar_url
-          )
-        `)
-        .or(`committee_member_id.eq.${userId},created_by.eq.${userId}`)
-        .order('created_at', { ascending: false })
-    ).pipe(
-      map(({ data, error }) => {
-        if (error) {
-          console.error('getMyArtists error:', error.message);
-          throw new Error(error.message);
-        }
-        return (data ?? []).map(row => this.mapArtistRow(row));
-      }),
+    return from(this.supabaseService.getArtists({ committeeMemberId: userId })).pipe(
+      map((artists) => artists.map((artist) => this.mapArtistRow(artist))),
       catchError(error => {
         console.error('getMyArtists caught error:', error);
         return throwError(() => error);

@@ -8,6 +8,18 @@
           : 'Manage TJS and invited artists, and assign committee owners where needed.' }}
       </p>
     </div>
+    <button
+      *ngIf="canManageArtists"
+      type="button"
+      (click)="openCreateArtistModal()"
+      class="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700"
+    >
+      <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+      </svg>
+      New Artist
+    </button>
   </div>
 
   <div *ngIf="successMessage" class="flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
@@ -112,7 +124,7 @@
             <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Artist</th>
             <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Type</th>
             <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Activation</th>
-            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Visibility</th>
+            <th *ngIf="showFeaturedColumn" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Is Featured</th>
             <th class="hidden px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 md:table-cell">Email</th>
             <th class="hidden px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 xl:table-cell">Committee Owner</th>
             <th class="hidden px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 lg:table-cell">Created</th>
@@ -152,11 +164,35 @@
                 {{ activationStatusLabel(artist) }}
               </span>
             </td>
-            <td class="px-4 py-4">
-              <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium" [ngClass]="featuredClass(artist)">
-                <span class="h-1.5 w-1.5 rounded-full" [ngClass]="artist.is_featured ? 'bg-amber-500' : 'bg-emerald-500'"></span>
+            <td *ngIf="showFeaturedColumn" class="px-4 py-4">
+              <button
+                *ngIf="canManageArtists; else featuredReadOnly"
+                type="button"
+                (click)="toggleFeatured(artist)"
+                [disabled]="isSaving"
+                [attr.aria-pressed]="artist.is_featured"
+                [title]="artist.is_featured ? 'Disable Is Featured' : 'Enable Is Featured'"
+                class="inline-flex items-center gap-3 rounded-full border px-2 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                [ngClass]="artist.is_featured
+                  ? 'border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-300 hover:bg-blue-100'
+                  : 'border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300 hover:bg-zinc-50'"
+              >
+                <span
+                  class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors"
+                  [ngClass]="artist.is_featured ? 'bg-blue-600' : 'bg-zinc-300'"
+                >
+                  <span
+                    class="inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform"
+                    [ngClass]="artist.is_featured ? 'translate-x-4' : 'translate-x-0.5'"
+                  ></span>
+                </span>
                 {{ featuredLabel(artist) }}
-              </span>
+              </button>
+              <ng-template #featuredReadOnly>
+                <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium" [ngClass]="featuredClass(artist)">
+                  {{ featuredLabel(artist) }}
+                </span>
+              </ng-template>
             </td>
             <td class="hidden px-4 py-4 text-xs text-zinc-500 md:table-cell">
               {{ artist.profile?.email || '-' }}
@@ -190,24 +226,6 @@
                 </button>
 
                 <button
-                  *ngIf="canManageArtists"
-                  (click)="toggleFeatured(artist)"
-                  [disabled]="isSaving"
-                  [title]="artist.is_featured ? 'Restore public visibility' : 'Hide from public site'"
-                  class="rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-amber-50 hover:text-amber-600 disabled:opacity-40"
-                >
-                  <svg *ngIf="!artist.is_featured" class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"></path>
-                    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"></path>
-                    <line x1="1" y1="1" x2="23" y2="23"></line>
-                  </svg>
-                  <svg *ngIf="artist.is_featured" class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                    <circle cx="12" cy="12" r="3"></circle>
-                  </svg>
-                </button>
-
-                <button
                   type="button"
                   (click)="openAuditModal(artist)"
                   title="View audit history"
@@ -223,6 +241,87 @@
           </tr>
         </tbody>
       </table>
+    </div>
+  </div>
+</div>
+
+<div *ngIf="showCreateArtistModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+  <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" (click)="closeCreateArtistModal()"></div>
+
+  <div class="relative w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
+    <div class="flex items-center justify-between border-b border-zinc-100 px-6 py-4">
+      <div>
+        <h2 class="text-lg font-bold text-zinc-900">{{ inviteModalTitle }}</h2>
+        <p class="mt-0.5 text-xs text-zinc-400">
+          {{ isCommittee ? 'The invited artist will be assigned to you automatically.' : 'Send an invitation email and create the artist account.' }}
+        </p>
+      </div>
+      <button type="button" (click)="closeCreateArtistModal()" class="rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700">
+        <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+
+    <div class="space-y-5 px-6 py-5">
+      <div class="space-y-2">
+        <label for="artistEmail" class="text-sm font-medium text-zinc-700">Email</label>
+        <input
+          id="artistEmail"
+          [(ngModel)]="inviteArtistForm.email"
+          type="email"
+          placeholder="artist@example.com"
+          class="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100"
+        />
+      </div>
+
+      <div class="space-y-2">
+        <label for="artistFullName" class="text-sm font-medium text-zinc-700">Nom complet</label>
+        <input
+          id="artistFullName"
+          [(ngModel)]="inviteArtistForm.fullName"
+          type="text"
+          placeholder="Enter full name"
+          class="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100"
+        />
+      </div>
+
+      <div class="space-y-2">
+        <label for="artistPhone" class="text-sm font-medium text-zinc-700">Téléphone</label>
+        <input
+          id="artistPhone"
+          [(ngModel)]="inviteArtistForm.phone"
+          type="text"
+          placeholder="Enter phone number"
+          class="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100"
+        />
+      </div>
+
+      <div class="grid gap-4 sm:grid-cols-2">
+        <div class="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+          <p class="text-xs uppercase tracking-wide text-zinc-400">Role</p>
+          <p class="mt-1 text-sm font-medium text-zinc-900">{{ inviteRoleLabel }}</p>
+        </div>
+        <div class="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+          <p class="text-xs uppercase tracking-wide text-zinc-400">Committee Member</p>
+          <p class="mt-1 text-sm font-medium text-zinc-900">{{ defaultCommitteeMemberLabel }}</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex justify-end gap-2 border-t border-zinc-100 px-6 py-4">
+      <button type="button" (click)="closeCreateArtistModal()" class="rounded-lg px-4 py-2 text-sm text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900">
+        Cancel
+      </button>
+      <button
+        type="button"
+        (click)="submitCreateArtist()"
+        [disabled]="isSaving"
+        class="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        Send invitation
+      </button>
     </div>
   </div>
 </div>
