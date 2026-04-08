@@ -25,6 +25,7 @@ export class BackofficeLayout implements OnInit, OnDestroy {
   userRoles: string[] = [];
   isAdmin = false;
   isHost = false;
+  isHostManager = false;
 
   expandedMenus: Set<string> = new Set();
 
@@ -45,8 +46,11 @@ export class BackofficeLayout implements OnInit, OnDestroy {
       this.userEmail = state.user?.email ?? '';
       this.userRoles = state.roles.map(r => r.name);
       this.isAdmin = this.authService.isAdmin;
+      this.isHostManager = state.roles.some(
+        r => r.name === 'Host Manager'
+      );
       this.isHost = state.roles.some(
-        r => r.name === 'Host' || r.name === 'Host+'
+        r => r.name === 'Host' || r.name === 'Host+' || r.name === 'Host Manager'
       );
 
       // Redirect host users to my-hosts on first load

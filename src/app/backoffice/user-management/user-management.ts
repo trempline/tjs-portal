@@ -322,6 +322,8 @@ export class UserManagement implements OnInit {
         return 'bg-green-100 text-green-700';
       case 'host':
         return 'bg-orange-100 text-orange-700';
+      case 'host manager':
+        return 'bg-cyan-100 text-cyan-700';
       case 'host+':
         return 'bg-amber-100 text-amber-700';
       case 'artist':
@@ -343,6 +345,8 @@ export class UserManagement implements OnInit {
         return 'Membre';
       case 'host':
         return 'Hote';
+      case 'host manager':
+        return 'Host Manager';
       case 'host+':
         return 'Hote+';
       case 'artist':

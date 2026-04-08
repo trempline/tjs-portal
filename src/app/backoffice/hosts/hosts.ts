@@ -29,6 +29,7 @@ interface HostForm {
   comment: string;
   web_url: string;
   is_host_plus: boolean;
+  manager_user_id: string | null;
 }
 
 @Component({
@@ -64,6 +65,7 @@ export class Hosts implements OnInit {
   // Members modal
   hostMembers: TjsHostMember[] = [];
   allProfiles: TjsProfile[] = [];
+  hostManagers: TjsProfile[] = [];
   memberSearchQuery = '';
   isLoadingMembers = false;
 
@@ -119,12 +121,16 @@ export class Hosts implements OnInit {
   private async loadData() {
     this.isLoading = true;
     this.error = '';
-    const [hosts, hostTypes] = await Promise.all([
+    const [hosts, hostTypes, users] = await Promise.all([
       this.supabase.getHosts(),
       this.supabase.getHostTypes(),
+      this.supabase.listAllUsersWithRoles(),
     ]);
     this.hosts = hosts;
     this.hostTypes = hostTypes;
+    this.hostManagers = users.filter((user) =>
+      user.roles.some((role) => role.name.toLowerCase() === 'host manager')
+    );
     this.isLoading = false;
   }
 
@@ -171,7 +177,7 @@ export class Hosts implements OnInit {
       is_host_plus: this.hostForm.is_host_plus,
       photo: null,
       photo_credit: null,
-      created_by: this.currentUserId,
+      created_by: this.hostForm.manager_user_id || this.currentUserId,
       updated_by: null,
     });
 
@@ -229,6 +235,7 @@ export class Hosts implements OnInit {
       comment: host.comment ?? '',
       web_url: host.web_url ?? '',
       is_host_plus: host.is_host_plus ?? false,
+      manager_user_id: host.created_by,
     };
     this.error = '';
     this.showEditModal = true;
@@ -268,6 +275,7 @@ export class Hosts implements OnInit {
       comment: this.hostForm.comment || null,
       web_url: this.hostForm.web_url || null,
       is_host_plus: this.hostForm.is_host_plus,
+      created_by: this.hostForm.manager_user_id || this.currentUserId,
       updated_by: this.currentUserId,
     });
 
@@ -398,6 +406,7 @@ export class Hosts implements OnInit {
       comment: '',
       web_url: '',
       is_host_plus: false,
+      manager_user_id: null,
     };
   }
 }

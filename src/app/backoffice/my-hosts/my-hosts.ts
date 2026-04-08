@@ -67,6 +67,10 @@ export class MyHosts implements OnInit {
     return this.authService.currentUser?.id ?? '';
   }
 
+  get isHostManager(): boolean {
+    return this.authService.hasRole('Host Manager');
+  }
+
   // ── Lifecycle ──────────────────────────────────────────────────────────
 
   async ngOnInit() {
@@ -82,7 +86,7 @@ export class MyHosts implements OnInit {
       return;
     }
     const [hosts, hostTypes] = await Promise.all([
-      this.supabase.getMyHosts(userId),
+      this.isHostManager ? this.supabase.getManagedHosts(userId) : this.supabase.getMyHosts(userId),
       this.supabase.getHostTypes(),
     ]);
     this.hosts = hosts;

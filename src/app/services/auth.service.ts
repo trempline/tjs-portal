@@ -124,7 +124,7 @@ export class AuthService {
   getPostLoginRoute(): string {
     const roleNames = this.currentRoles.map((role) => role.name.toLowerCase());
 
-    if (roleNames.includes('host') || roleNames.includes('host+')) {
+    if (roleNames.includes('host') || roleNames.includes('host+') || roleNames.includes('host manager')) {
       return '/backoffice/my-hosts';
     }
 

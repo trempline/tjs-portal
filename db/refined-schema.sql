@@ -18,6 +18,7 @@ CREATE TABLE tjs_roles (
 INSERT INTO tjs_roles (name, description, permissions) VALUES
     ('Admin', 'All rights on TJS website', '{"all": true}'),
     ('Host', 'Can select events created by TJS artists', '{"events": "select", "locations": "manage"}'),
+    ('Host Manager', 'Can manage all hosts assigned by an admin', '{"hosts": "manage_assigned", "dashboard": true}'),
     ('Host+', 'Host with website integration (e.g., PAG)', '{"events": "select", "locations": "manage", "website_integration": true}'),
     ('Committee Member', 'Can invite TJS and Invited artists, access dashboard', '{"artists": "invite", "dashboard": true, "events": "read"}'),
     ('Artist', 'Can update profile and propose events', '{"profile": "write", "events": "create"}'),

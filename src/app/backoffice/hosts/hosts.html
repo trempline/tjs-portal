@@ -235,6 +235,17 @@
             <input type="url" [(ngModel)]="hostForm.web_url" placeholder="https://…"
               class="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent" />
           </div>
+          <div class="md:col-span-2">
+            <label class="block text-sm font-medium text-zinc-700 mb-1">Host Manager</label>
+            <select [(ngModel)]="hostForm.manager_user_id"
+              class="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent bg-white">
+              <option [ngValue]="null">-- Aucun manager assigne --</option>
+              <option *ngFor="let manager of hostManagers" [ngValue]="manager.id">
+                {{ manager.full_name || manager.email }}<span *ngIf="manager.full_name"> ({{ manager.email }})</span>
+              </option>
+            </select>
+            <p class="mt-1 text-xs text-zinc-400">Le Host Manager verra et gerera tous les hotes qui lui sont assignes.</p>
+          </div>
           <div class="flex items-center md:col-span-2 pt-1">
             <label class="flex items-center gap-2 text-sm text-zinc-700 cursor-pointer">
               <input type="checkbox" [(ngModel)]="hostForm.is_host_plus" class="h-4 w-4 rounded border-zinc-300 text-amber-600 focus:ring-amber-500" />

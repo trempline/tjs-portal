@@ -258,6 +258,7 @@ export class CommitteeMembers implements OnInit {
       case 'committee member': return 'bg-blue-100 text-blue-700';
       case 'member':           return 'bg-green-100 text-green-700';
       case 'host':             return 'bg-orange-100 text-orange-700';
+      case 'host manager':     return 'bg-cyan-100 text-cyan-700';
       case 'host+':            return 'bg-amber-100 text-amber-700';
       case 'artist':           return 'bg-purple-100 text-purple-700';
       case 'artist invited':   return 'bg-violet-100 text-violet-700';

@@ -809,6 +809,19 @@ export class SupabaseService {
       .filter((h): h is TjsHost => h !== null);
   }
 
+  async getManagedHosts(managerUserId: string): Promise<TjsHost[]> {
+    const { data, error } = await this.adminSupabase
+      .from('tjs_hosts')
+      .select('*')
+      .eq('created_by', managerUserId)
+      .order('id', { ascending: false });
+    if (error) {
+      console.error('getManagedHosts error:', error.message);
+      return [];
+    }
+    return data as TjsHost[];
+  }
+
   // ── Host Members ──────────────────────────────────────────────────────
 
   /** Fetch members assigned to a host. */
