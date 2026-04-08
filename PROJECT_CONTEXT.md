@@ -1,7 +1,7 @@
 # TJS Portal — Project Context Document
 
 > **Purpose**: Comprehensive reference document for AI agents and developers working on the TJS Portal.
-> **Last Updated**: 2026-04-01
+> **Last Updated**: 2026-04-08
 > **Project Root**: `c:/tjs/tjs-portal`
 
 ---
@@ -272,6 +272,75 @@ interface AdminEventOverviewItem {
   event_type: 'REQUEST' | 'EVENT_INSTANCE'; status: string;
   origin_website: string; visibility_scope: string[];
   creator_name: string; host_names: string[]; selected_dates: string[];
+}
+```
+
+---
+
+## 7b. Artist Featured Flag Management (TJS-7)
+
+### Overview
+The `is_featured` flag on `tjs_artists` controls an artist's **public visibility** without affecting their backoffice record.
+
+| Flag State | Public Visibility | Backoffice Visibility |
+|---|---|---|
+| `is_featured = false` | **Visible** (if also `is_tjs_artist = true` OR `is_invited_artist = true`) | Full access |
+| `is_featured = true` | **Hidden** from all public directories, listings, and search | Full access preserved |
+
+### Public Query Logic
+For an artist to appear on public-facing pages, the compound condition must be satisfied:
+```
+(is_tjs_artist = true OR is_invited_artist = true) AND is_featured = false
+```
+
+### Governance Model
+- **Admin**: Global override — can toggle `is_featured` on any artist across the entire platform.
+- **Committee Member**: Can toggle `is_featured` for all artists (scope restriction can be added later).
+
+### Audit Trail
+Every flag change is logged in `tjs_artist_audit_log`:
+- `performed_by` — user who made the change
+- `previous_featured` — previous state
+- `new_featured` — new state
+- `performed_at` — timestamp
+- `reason` — optional description
+
+### Database Migration
+File: `db/013_artist_featured_flag.sql`
+- Adds `is_featured` column to `tjs_artists`
+- Creates `tjs_artist_audit_log` table with RLS
+- Creates `tjs_toggle_artist_featured()` PostgreSQL function (SECURITY DEFINER)
+- RLS policies for Admin and Committee Member access
+
+### Service Layer
+`SupabaseService` methods:
+- `getArtists()` — fetch all artists with profile data
+- `getTjsArtists()` — fetch TJS artists only
+- `getInvitedArtists()` — fetch invited artists only
+- `toggleArtistFeatured(artistId, isFeatured, performedBy, reason)` — toggle flag via RPC
+- `getArtistAuditLog(artistId)` — fetch audit entries for an artist
+- `getAllArtistAuditLogs()` — fetch all audit entries
+
+### UI Components
+- **Artists** (`/backoffice/artists`) — Full artist listing with TJS/Invited tabs, visibility toggle button, and audit log modal.
+- **Committee Members** (`/backoffice/committee-members`) — Added "Visibilité des artistes" section with search, toggle buttons, and audit log modal.
+
+### Interfaces
+```typescript
+interface TjsArtist {
+  id: string; profile_id: string; artist_name: string;
+  is_tjs_artist: boolean; is_invited_artist: boolean; is_featured: boolean;
+  pag_artist_id: string | null; external_artist_id: string | null;
+  availability_calendar: Record<string, any> | null;
+  created_at: string; updated_at: string;
+  profile?: TjsProfile | null;
+}
+
+interface TjsArtistAuditLog {
+  id: string; artist_id: string; performed_by: string;
+  previous_featured: boolean; new_featured: boolean;
+  performed_at: string; reason: string | null;
+  performer_name?: string | null; performer_email?: string | null;
 }
 ```
 

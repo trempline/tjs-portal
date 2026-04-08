@@ -26,7 +26,7 @@
   </div>
 
   <!-- Stats cards -->
-  <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
     <div class="bg-white rounded-xl border border-zinc-200 p-4 shadow-sm">
       <p class="text-xs text-zinc-500 font-medium uppercase tracking-wide">Total</p>
       <p class="text-2xl font-bold text-zinc-900 mt-1">{{ users.length }}</p>
@@ -40,6 +40,10 @@
       <p class="text-2xl font-bold text-zinc-900 mt-1">{{ committeeCount }}</p>
     </div>
     <div class="bg-white rounded-xl border border-zinc-200 p-4 shadow-sm">
+      <p class="text-xs text-cyan-600 font-medium uppercase tracking-wide">Host Managers</p>
+      <p class="text-2xl font-bold text-zinc-900 mt-1">{{ hostManagerCount }}</p>
+    </div>
+    <div class="bg-white rounded-xl border border-zinc-200 p-4 shadow-sm">
       <p class="text-xs text-green-600 font-medium uppercase tracking-wide">Membres</p>
       <p class="text-2xl font-bold text-zinc-900 mt-1">{{ memberCount }}</p>
     </div>
@@ -49,10 +53,11 @@
   <div class="bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
     <div class="flex border-b border-zinc-200 overflow-x-auto">
       <button *ngFor="let tab of [
-          { key: 'all',       label: 'Tous',    count: users.length },
-          { key: 'admins',    label: 'Admins',  count: adminCount },
-          { key: 'committee', label: 'Comité',  count: committeeCount },
-          { key: 'members',   label: 'Membres', count: memberCount }
+          { key: 'all',          label: 'Tous',           count: users.length },
+          { key: 'admins',       label: 'Admins',         count: adminCount },
+          { key: 'committee',    label: 'Comité',         count: committeeCount },
+          { key: 'hostManagers', label: 'Host Managers',  count: hostManagerCount },
+          { key: 'members',      label: 'Membres',        count: memberCount }
         ]"
         (click)="setTab(tab.key)"
         [ngClass]="{

@@ -2,9 +2,31 @@ import { Component, OnInit, inject } from '@angular/core';
 import { DatePipe, NgClass, NgFor, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
-import { AdminEventOverviewItem, SupabaseService } from '../../services/supabase.service';
+import { AuthService } from '../../services/auth.service';
+import { AdminEventOverviewItem, SupabaseService, TjsUserWithRoles } from '../../services/supabase.service';
 
 type OverviewTab = 'all' | 'requests' | 'events';
+type RequestStatusKey = 'PENDING' | 'APPROVED' | 'AVAILABLE';
+type RequestStatusFilter = 'ALL' | RequestStatusKey;
+
+interface RequestStatusMetric {
+  status: RequestStatusKey;
+  label: string;
+  description: string;
+  count: number;
+  share: number;
+  barWidth: number;
+  dotClass: string;
+  barClass: string;
+}
+
+interface UpcomingEventInsight {
+  item: AdminEventOverviewItem;
+  date: string;
+  hostName: string | null;
+  primaryArtist: string | null;
+  artistCount: number;
+}
 
 @Component({
   selector: 'app-dashboard',
@@ -14,12 +36,17 @@ type OverviewTab = 'all' | 'requests' | 'events';
 })
 export class Dashboard implements OnInit {
   private supabase = inject(SupabaseService);
+  private authService = inject(AuthService);
 
   isLoading = true;
   error = '';
   activeTab: OverviewTab = 'all';
+  selectedRequestStatus: RequestStatusFilter = 'ALL';
   searchQuery = '';
   items: AdminEventOverviewItem[] = [];
+  membershipUsers: TjsUserWithRoles[] = [];
+  private readonly trackedRequestStatuses: RequestStatusKey[] = ['PENDING', 'APPROVED', 'AVAILABLE'];
+  private readonly monthFormatter = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' });
   readonly dummyItems: AdminEventOverviewItem[] = [
     {
       id: 'demo-request-1',
@@ -41,6 +68,9 @@ export class Dashboard implements OnInit {
       host_names: [],
       host_statuses: [],
       selected_dates: [],
+      artist_ids: ['demo-artist-1'],
+      artist_names: ['Lea Moreau'],
+      artist_roles: ['PRIMARY'],
     },
     {
       id: 'demo-request-2',
@@ -62,6 +92,9 @@ export class Dashboard implements OnInit {
       host_names: [],
       host_statuses: [],
       selected_dates: [],
+      artist_ids: ['demo-artist-2'],
+      artist_names: ['Thomas Garnier'],
+      artist_roles: ['PRIMARY'],
     },
     {
       id: 'demo-request-3',
@@ -83,6 +116,9 @@ export class Dashboard implements OnInit {
       host_names: ['Maison du Port'],
       host_statuses: ['CONFIRMED'],
       selected_dates: ['2026-06-21'],
+      artist_ids: ['demo-artist-3'],
+      artist_names: ['Sophie Laurent Quartet'],
+      artist_roles: ['PRIMARY'],
     },
     {
       id: 'demo-event-1',
@@ -104,6 +140,9 @@ export class Dashboard implements OnInit {
       host_names: ['Maison du Port'],
       host_statuses: ['CONFIRMED'],
       selected_dates: ['2026-06-21'],
+      artist_ids: ['demo-artist-3', 'demo-artist-4'],
+      artist_names: ['Sophie Laurent Quartet', 'Emilie Bernard'],
+      artist_roles: ['PRIMARY', 'ACCOMPANIST'],
     },
     {
       id: 'demo-event-2',
@@ -125,6 +164,9 @@ export class Dashboard implements OnInit {
       host_names: ['Hotel des Artistes'],
       host_statuses: ['PENDING'],
       selected_dates: ['2026-05-03'],
+      artist_ids: ['demo-artist-5'],
+      artist_names: ['Nathan Roche'],
+      artist_roles: ['PRIMARY'],
     },
     {
       id: 'demo-event-3',
@@ -146,6 +188,9 @@ export class Dashboard implements OnInit {
       host_names: ['Chateau Rive Gauche'],
       host_statuses: ['CONFIRMED'],
       selected_dates: ['2026-01-30'],
+      artist_ids: ['demo-artist-6'],
+      artist_names: ['Camille Petit'],
+      artist_roles: ['PRIMARY'],
     },
   ];
 
@@ -156,13 +201,40 @@ export class Dashboard implements OnInit {
   async loadOverview() {
     this.isLoading = true;
     this.error = '';
-    const liveItems = await this.supabase.getAdminEventOverview();
+    const currentUserId = this.authService.currentUser?.id ?? '';
+    if (currentUserId) {
+      const syncResult = await this.supabase.syncExpiredMemberships(currentUserId);
+      if (syncResult.error) {
+        this.error = syncResult.error;
+      }
+    }
+
+    const [liveItems, membershipUsers] = await Promise.all([
+      this.supabase.getAdminEventOverview(),
+      this.supabase.listAllUsersWithRoles(),
+    ]);
     this.items = liveItems.length > 0 ? liveItems : this.dummyItems;
+    this.membershipUsers = membershipUsers;
     this.isLoading = false;
   }
 
   setTab(tab: OverviewTab) {
     this.activeTab = tab;
+  }
+
+  setRequestStatusFilter(status: RequestStatusFilter) {
+    if (status === 'ALL') {
+      this.selectedRequestStatus = 'ALL';
+      return;
+    }
+
+    this.selectedRequestStatus = this.selectedRequestStatus === status ? 'ALL' : status;
+    this.activeTab = 'requests';
+  }
+
+  focusUpcomingEvents() {
+    this.selectedRequestStatus = 'ALL';
+    this.activeTab = 'events';
   }
 
   get stats() {
@@ -197,15 +269,65 @@ export class Dashboard implements OnInit {
     ];
   }
 
-  get statusSummary() {
-    const summary = new Map<string, number>();
-    for (const item of this.items) {
-      summary.set(item.status, (summary.get(item.status) ?? 0) + 1);
-    }
+  get membershipSummary() {
+    const active = this.membershipUsers.filter((user) => this.membershipStatus(user) === 'active').length;
+    const expired = this.membershipUsers.filter((user) => this.membershipStatus(user) === 'expired').length;
+    const nonMember = this.membershipUsers.filter((user) => this.membershipStatus(user) === 'non-member').length;
+    const blocked = this.membershipUsers.filter((user) => this.isMembershipBlocked(user)).length;
 
-    return Array.from(summary.entries())
-      .map(([status, count]) => ({ status, count }))
-      .sort((a, b) => b.count - a.count || a.status.localeCompare(b.status));
+    return { active, expired, nonMember, blocked };
+  }
+
+  get membershipAttentionUsers() {
+    return this.membershipUsers
+      .filter((user) => this.isMembershipBlocked(user))
+      .sort((a, b) => a.email.localeCompare(b.email))
+      .slice(0, 5);
+  }
+
+  get requestItems() {
+    return this.items.filter((item) => item.event_type === 'REQUEST');
+  }
+
+  get requestStatusMetrics(): RequestStatusMetric[] {
+    const counts = this.trackedRequestStatuses.map((status) => ({
+      status,
+      count: this.requestItems.filter((item) => item.status === status).length,
+    }));
+    const trackedTotal = counts.reduce((sum, entry) => sum + entry.count, 0);
+    const maxCount = Math.max(...counts.map((entry) => entry.count), 1);
+
+    return counts.map(({ status, count }) => ({
+      status,
+      count,
+      label: this.requestStatusLabel(status),
+      description: this.requestStatusDescription(status),
+      share: trackedTotal === 0 ? 0 : Math.round((count / trackedTotal) * 100),
+      barWidth: count === 0 ? 0 : (count / maxCount) * 100,
+      dotClass: this.requestStatusDotClass(status),
+      barClass: this.requestStatusBarClass(status),
+    }));
+  }
+
+  get trackedRequestCount() {
+    return this.requestStatusMetrics.reduce((sum, entry) => sum + entry.count, 0);
+  }
+
+  get currentMonthLabel() {
+    return this.monthFormatter.format(new Date());
+  }
+
+  get nextUpcomingEvent(): UpcomingEventInsight | null {
+    return this.upcomingEventInsights[0] ?? null;
+  }
+
+  get upcomingEventsThisMonthCount() {
+    const now = new Date();
+
+    return this.upcomingEventInsights.filter((entry) => {
+      const date = this.parseDateOnly(entry.date);
+      return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+    }).length;
   }
 
   get filteredItems() {
@@ -221,6 +343,10 @@ export class Dashboard implements OnInit {
         return false;
       }
 
+      if (this.selectedRequestStatus !== 'ALL' && (item.event_type !== 'REQUEST' || item.status !== this.selectedRequestStatus)) {
+        return false;
+      }
+
       if (!q) {
         return true;
       }
@@ -228,12 +354,15 @@ export class Dashboard implements OnInit {
       const haystacks = [
         item.title,
         item.status,
+        this.displayStatus(item),
         item.origin_website,
         item.creator_name,
         item.creator_email,
         item.city ?? '',
         item.department ?? '',
         item.host_names.join(' '),
+        this.displayHostStatuses(item).join(' '),
+        item.artist_names.join(' '),
       ];
 
       return haystacks.some((value) => value.toLowerCase().includes(q));
@@ -270,8 +399,161 @@ export class Dashboard implements OnInit {
     }
   }
 
+  displayStatus(item: AdminEventOverviewItem): string {
+    if (item.event_type !== 'EVENT_INSTANCE') {
+      return item.status;
+    }
+
+    switch (item.status) {
+      case 'APPROVED':
+        return 'Upcoming';
+      case 'SELECTED':
+        return 'Pending';
+      case 'COMPLETED':
+        return 'Completed';
+      default:
+        return item.status;
+    }
+  }
+
+  displayHostStatuses(item: AdminEventOverviewItem): string[] {
+    if (item.event_type !== 'EVENT_INSTANCE') {
+      return item.host_statuses;
+    }
+
+    return item.host_statuses.map((status) => {
+      switch (status) {
+        case 'CONFIRMED':
+          return 'Published';
+        case 'PENDING':
+          return 'Draft';
+        default:
+          return status;
+      }
+    });
+  }
+
   typeLabel(item: AdminEventOverviewItem): string {
     return item.event_type === 'REQUEST' ? 'Request' : 'Event';
+  }
+
+  membershipStatus(user: TjsUserWithRoles): 'active' | 'expired' | 'non-member' {
+    if (!user.is_member) {
+      return 'non-member';
+    }
+
+    if (!user.member_until) {
+      return 'active';
+    }
+
+    return this.parseDateOnly(user.member_until).getTime() >= this.parseDateOnly(this.todayDateString()).getTime()
+      ? 'active'
+      : 'expired';
+  }
+
+  membershipStatusLabel(user: TjsUserWithRoles): string {
+    switch (this.membershipStatus(user)) {
+      case 'active':
+        return 'Active';
+      case 'expired':
+        return 'Expired';
+      default:
+        return 'Non-Member';
+    }
+  }
+
+  membershipStatusClass(user: TjsUserWithRoles): string {
+    switch (this.membershipStatus(user)) {
+      case 'active':
+        return 'bg-emerald-50 text-emerald-700 border border-emerald-200';
+      case 'expired':
+        return 'bg-amber-50 text-amber-700 border border-amber-200';
+      default:
+        return 'bg-zinc-100 text-zinc-700 border border-zinc-200';
+    }
+  }
+
+  isMembershipBlocked(user: TjsUserWithRoles): boolean {
+    const workspaceRoles = ['Artist', 'Host', 'Host+', 'Host Manager'];
+    const privilegedRoles = ['Admin', 'Committee Member'];
+
+    return user.roles.some((role) => workspaceRoles.includes(role.name)) &&
+      !user.roles.some((role) => privilegedRoles.includes(role.name)) &&
+      this.membershipStatus(user) !== 'active';
+  }
+
+  requestStatusLabel(status: RequestStatusFilter): string {
+    if (status === 'ALL') {
+      return 'All';
+    }
+
+    switch (status) {
+      case 'PENDING':
+        return 'Pending';
+      case 'APPROVED':
+        return 'Approved';
+      case 'AVAILABLE':
+        return 'Available';
+      default:
+        return status;
+    }
+  }
+
+  requestStatusDescription(status: RequestStatusKey): string {
+    switch (status) {
+      case 'PENDING':
+        return 'Needs committee review before it can move forward.';
+      case 'APPROVED':
+        return 'Validated and ready for host coordination.';
+      case 'AVAILABLE':
+        return 'Open for hosts to pick up and schedule.';
+      default:
+        return status;
+    }
+  }
+
+  requestStatusDotClass(status: RequestStatusKey): string {
+    switch (status) {
+      case 'PENDING':
+        return 'bg-amber-500';
+      case 'APPROVED':
+        return 'bg-blue-600';
+      case 'AVAILABLE':
+        return 'bg-emerald-500';
+      default:
+        return 'bg-zinc-400';
+    }
+  }
+
+  requestStatusBarClass(status: RequestStatusKey): string {
+    switch (status) {
+      case 'PENDING':
+        return 'bg-amber-500';
+      case 'APPROVED':
+        return 'bg-blue-600';
+      case 'AVAILABLE':
+        return 'bg-emerald-500';
+      default:
+        return 'bg-zinc-400';
+    }
+  }
+
+  primaryArtistName(item: AdminEventOverviewItem): string | null {
+    const primaryIndex = item.artist_roles.findIndex((role) => role === 'PRIMARY');
+    if (primaryIndex >= 0 && item.artist_names[primaryIndex]) {
+      return item.artist_names[primaryIndex];
+    }
+
+    return item.artist_names[0] ?? null;
+  }
+
+  preferredHostName(item: AdminEventOverviewItem): string | null {
+    const confirmedIndex = item.host_statuses.findIndex((status) => status === 'CONFIRMED');
+    if (confirmedIndex >= 0 && item.host_names[confirmedIndex]) {
+      return item.host_names[confirmedIndex];
+    }
+
+    return item.host_names[0] ?? null;
   }
 
   primaryDate(item: AdminEventOverviewItem): string | null {
@@ -280,5 +562,43 @@ export class Dashboard implements OnInit {
     }
 
     return item.selected_dates[0] ?? null;
+  }
+
+  private get upcomingEventInsights(): UpcomingEventInsight[] {
+    return this.items
+      .filter((item) => item.event_type === 'EVENT_INSTANCE' && !['CANCELLED', 'COMPLETED'].includes(item.status))
+      .map((item) => {
+        const date = this.nextUpcomingSelectedDate(item);
+        if (!date) {
+          return null;
+        }
+
+        return {
+          item,
+          date,
+          hostName: this.preferredHostName(item),
+          primaryArtist: this.primaryArtistName(item),
+          artistCount: item.artist_names.length,
+        };
+      })
+      .filter((entry): entry is UpcomingEventInsight => entry !== null)
+      .sort((a, b) => this.parseDateOnly(a.date).getTime() - this.parseDateOnly(b.date).getTime());
+  }
+
+  private nextUpcomingSelectedDate(item: AdminEventOverviewItem): string | null {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return [...item.selected_dates]
+      .sort((a, b) => this.parseDateOnly(a).getTime() - this.parseDateOnly(b).getTime())
+      .find((date) => this.parseDateOnly(date).getTime() >= today.getTime()) ?? null;
+  }
+
+  private parseDateOnly(value: string): Date {
+    return new Date(`${value}T00:00:00`);
+  }
+
+  private todayDateString(): string {
+    return new Date().toISOString().slice(0, 10);
   }
 }

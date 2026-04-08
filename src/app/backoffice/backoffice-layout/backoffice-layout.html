@@ -1,344 +1,423 @@
-<div class="flex h-screen bg-zinc-100 overflow-hidden">
-
-  <!-- ── SIDEBAR ──────────────────────────────────────────── -->
+<div class="flex h-screen overflow-hidden bg-zinc-100">
   <aside
     [class.w-64]="!sidebarCollapsed"
     [class.w-16]="sidebarCollapsed"
-    class="flex flex-col bg-zinc-900 text-zinc-300 transition-all duration-300 ease-in-out shrink-0 relative z-20"
+    class="relative z-20 flex shrink-0 flex-col bg-zinc-900 text-zinc-300 transition-all duration-300 ease-in-out"
   >
-    <!-- Logo / brand -->
-    <div class="flex items-center gap-3 px-4 py-5 border-b border-zinc-700">
+    <div class="flex items-center gap-3 border-b border-zinc-700 px-4 py-5">
       <img src="assets/images/logo/logo.png" alt="TJS" class="h-8 w-8 shrink-0 rounded" />
-      <span *ngIf="!sidebarCollapsed" class="font-bold text-white text-sm leading-tight">
-        TJS<br /><span class="text-red-500 font-semibold">{{ isAdmin ? 'Admin' : 'Espace Hôte' }}</span>
+      <span *ngIf="!sidebarCollapsed" class="text-sm font-bold leading-tight text-white">
+        TJS<br />
+        <span class="font-semibold text-red-500">{{ workspaceLabel }}</span>
       </span>
     </div>
 
-    <!-- Navigation -->
     <nav class="flex-1 overflow-y-auto py-4">
       <ul class="space-y-1 px-2">
+        <ng-container *ngIf="isAdmin">
+          <li>
+            <a
+              routerLink="/backoffice/dashboard"
+              routerLinkActive="bg-zinc-700 text-white"
+              class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+            >
+              <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+              </svg>
+              <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Dashboard</span>
+            </a>
+          </li>
+          <li>
+            <a
+              routerLink="/backoffice/event-requests"
+              routerLinkActive="bg-zinc-700 text-white"
+              class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+            >
+              <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/>
+                <line x1="9" y1="15" x2="15" y2="15"/>
+              </svg>
+              <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Event Requests</span>
+            </a>
+          </li>
+          <li>
+            <button
+              type="button"
+              (click)="toggleSubmenu('artists')"
+              class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+              [class.bg-zinc-700]="isExpanded('artists')"
+              [class.text-white]="isExpanded('artists')"
+            >
+              <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
+              </svg>
+              <span *ngIf="!sidebarCollapsed" class="flex-1 text-left text-sm font-medium">Artists</span>
+              <svg *ngIf="!sidebarCollapsed" class="h-4 w-4 transition-transform duration-200" [class.rotate-180]="isExpanded('artists')" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+            <ul *ngIf="isExpanded('artists') && !sidebarCollapsed" class="ml-8 mt-1 space-y-1">
+              <li>
+                <a
+                  routerLink="/backoffice/artists/tjs"
+                  routerLinkActive="font-semibold text-red-400"
+                  class="block rounded-lg px-3 py-2 text-sm transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+                >
+                  TJS Artists
+                </a>
+              </li>
+              <li>
+                <a
+                  routerLink="/backoffice/artists/invited"
+                  routerLinkActive="font-semibold text-red-400"
+                  class="block rounded-lg px-3 py-2 text-sm transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+                >
+                  Invited Artists
+                </a>
+              </li>
+            </ul>
+          </li>
+          <li>
+            <a
+              routerLink="/backoffice/hosts"
+              routerLinkActive="bg-zinc-700 text-white"
+              class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+            >
+              <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                <polyline points="9 22 9 12 15 12 15 22"/>
+              </svg>
+              <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Hosts</span>
+            </a>
+          </li>
+          <li>
+            <a
+              routerLink="/backoffice/events"
+              routerLinkActive="bg-zinc-700 text-white"
+              class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+            >
+              <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+              <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Events</span>
+            </a>
+          </li>
+          <li>
+            <a
+              routerLink="/backoffice/committee-members"
+              routerLinkActive="bg-zinc-700 text-white"
+              class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+            >
+              <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+              <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Committee</span>
+            </a>
+          </li>
+          <li>
+            <a
+              routerLink="/backoffice/membership"
+              routerLinkActive="bg-zinc-700 text-white"
+              class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+            >
+              <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20 21V19a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                <circle cx="12" cy="7" r="4"/>
+                <path d="M7 11h10"/>
+              </svg>
+              <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Membership</span>
+            </a>
+          </li>
+          <li><div class="mx-3 my-2 border-t border-zinc-700"></div></li>
+          <li>
+            <a
+              routerLink="/backoffice/user-management"
+              routerLinkActive="bg-zinc-700 text-white"
+              class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+            >
+              <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+              <div *ngIf="!sidebarCollapsed" class="flex flex-1 items-center justify-between">
+                <span class="text-sm font-medium">Users</span>
+                <span class="inline-flex items-center rounded bg-red-600 px-1.5 py-0.5 text-xs font-bold leading-none text-white">Admin</span>
+              </div>
+            </a>
+          </li>
+        </ng-container>
 
-        <!-- ══════════════════════════════════════════════ -->
-        <!-- ADMIN MENU                                     -->
-        <!-- ══════════════════════════════════════════════ -->
+        <ng-container *ngIf="isCommitteeMember && !isAdmin">
+          <li>
+            <a
+              routerLink="/backoffice/committee-dashboard"
+              routerLinkActive="bg-zinc-700 text-white"
+              class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+            >
+              <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+              </svg>
+              <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Dashboard</span>
+            </a>
+          </li>
+          <li>
+            <a
+              routerLink="/backoffice/artists"
+              routerLinkActive="bg-zinc-700 text-white"
+              class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+            >
+              <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
+              </svg>
+              <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Artists (Mine)</span>
+            </a>
+          </li>
+          <li>
+            <a
+              routerLink="/backoffice/events"
+              routerLinkActive="bg-zinc-700 text-white"
+              class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+            >
+              <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+              <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Events</span>
+            </a>
+          </li>
+          <li>
+            <a
+              routerLink="/backoffice/event-requests"
+              routerLinkActive="bg-zinc-700 text-white"
+              class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+            >
+              <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/>
+                <line x1="9" y1="15" x2="15" y2="15"/>
+              </svg>
+              <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Event Requests</span>
+            </a>
+          </li>
+          <li>
+            <a
+              routerLink="/backoffice/account-settings"
+              routerLinkActive="bg-zinc-700 text-white"
+              class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+            >
+              <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 0 0-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+              <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Account Settings</span>
+            </a>
+          </li>
+        </ng-container>
 
-        <!-- Dashboard (Admin) -->
-        <li *ngIf="isAdmin">
-          <a
-            routerLink="/backoffice/dashboard"
-            routerLinkActive="bg-zinc-700 text-white"
-            class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-zinc-700 hover:text-white transition-colors duration-200 group"
-          >
-            <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-              <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
-            </svg>
-            <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Tableau de bord</span>
-          </a>
-        </li>
-
-        <!-- Event Requests (Admin) -->
-        <li *ngIf="isAdmin">
-          <a
-            routerLink="/backoffice/event-requests"
-            routerLinkActive="bg-zinc-700 text-white"
-            class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-zinc-700 hover:text-white transition-colors duration-200"
-          >
-            <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/>
-              <line x1="9" y1="15" x2="15" y2="15"/>
-            </svg>
-            <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Demandes d'événements</span>
-          </a>
-        </li>
-
-        <!-- Artists (Admin, with submenu) -->
-        <li *ngIf="isAdmin">
-          <button
-            (click)="toggleSubmenu('artists')"
-            class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-zinc-700 hover:text-white transition-colors duration-200"
-            [class.bg-zinc-700]="isExpanded('artists')"
-            [class.text-white]="isExpanded('artists')"
-          >
-            <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
-            </svg>
-            <span *ngIf="!sidebarCollapsed" class="text-sm font-medium flex-1 text-left">Artistes</span>
-            <svg *ngIf="!sidebarCollapsed" class="h-4 w-4 transition-transform duration-200" [class.rotate-180]="isExpanded('artists')" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="6 9 12 15 18 9"/>
-            </svg>
-          </button>
-          <ul *ngIf="isExpanded('artists') && !sidebarCollapsed" class="mt-1 ml-8 space-y-1">
-            <li>
-              <a routerLink="/backoffice/artists/tjs" routerLinkActive="text-red-400 font-semibold"
-                class="block text-sm px-3 py-2 rounded-lg hover:bg-zinc-700 hover:text-white transition-colors duration-200">
-                Artistes TJS
-              </a>
-            </li>
-            <li>
-              <a routerLink="/backoffice/artists/invited" routerLinkActive="text-red-400 font-semibold"
-                class="block text-sm px-3 py-2 rounded-lg hover:bg-zinc-700 hover:text-white transition-colors duration-200">
-                Artistes invités
-              </a>
-            </li>
-          </ul>
-        </li>
-
-        <!-- Hosts (Admin) -->
-        <li *ngIf="isAdmin">
-          <a
-            routerLink="/backoffice/hosts"
-            routerLinkActive="bg-zinc-700 text-white"
-            class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-zinc-700 hover:text-white transition-colors duration-200"
-          >
-            <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-              <polyline points="9 22 9 12 15 12 15 22"/>
-            </svg>
-            <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Hôtes</span>
-          </a>
-        </li>
-
-        <!-- Events (Admin) -->
-        <li *ngIf="isAdmin">
-          <a
-            routerLink="/backoffice/events"
-            routerLinkActive="bg-zinc-700 text-white"
-            class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-zinc-700 hover:text-white transition-colors duration-200"
-          >
-            <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-              <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
-              <line x1="3" y1="10" x2="21" y2="10"/>
-            </svg>
-            <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Événements</span>
-          </a>
-        </li>
-
-        <!-- Committee Members (Admin) -->
-        <li *ngIf="isAdmin">
-          <a
-            routerLink="/backoffice/committee-members"
-            routerLinkActive="bg-zinc-700 text-white"
-            class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-zinc-700 hover:text-white transition-colors duration-200"
-          >
-            <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-              <circle cx="9" cy="7" r="4"/>
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-            </svg>
-            <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Comité</span>
-          </a>
-        </li>
-
-        <!-- Admin-only: User Management -->
-        <li *ngIf="isAdmin">
-          <div class="mx-3 my-2 border-t border-zinc-700"></div>
-        </li>
-        <li *ngIf="isAdmin">
-          <a
-            routerLink="/backoffice/user-management"
-            routerLinkActive="bg-zinc-700 text-white"
-            class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-zinc-700 hover:text-white transition-colors duration-200"
-          >
-            <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-              <circle cx="9" cy="7" r="4"/>
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-            </svg>
-            <div *ngIf="!sidebarCollapsed" class="flex flex-1 items-center justify-between">
-              <span class="text-sm font-medium">Utilisateurs</span>
-              <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold bg-red-600 text-white leading-none">Admin</span>
-            </div>
-          </a>
-        </li>
-
-        <!-- ══════════════════════════════════════════════ -->
-        <!-- HOST MENU                                      -->
-        <!-- ══════════════════════════════════════════════ -->
-
-        <!-- My Hosts -->
-        <li *ngIf="isHost && !isAdmin">
-          <a
-            routerLink="/backoffice/my-hosts"
-            routerLinkActive="bg-zinc-700 text-white"
-            class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-zinc-700 hover:text-white transition-colors duration-200"
-          >
-            <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-              <polyline points="9 22 9 12 15 12 15 22"/>
-            </svg>
-            <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Mes hôtes</span>
-          </a>
-        </li>
-
-        <!-- Events (Host) -->
-        <li *ngIf="isHost && !isAdmin">
-          <a
-            routerLink="/backoffice/events"
-            routerLinkActive="bg-zinc-700 text-white"
-            class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-zinc-700 hover:text-white transition-colors duration-200"
-          >
-            <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-              <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
-              <line x1="3" y1="10" x2="21" y2="10"/>
-            </svg>
-            <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Événements</span>
-          </a>
-        </li>
-
-        <!-- Requests (Host) -->
-        <li *ngIf="isHost && !isAdmin">
-          <a
-            routerLink="/backoffice/event-requests"
-            routerLinkActive="bg-zinc-700 text-white"
-            class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-zinc-700 hover:text-white transition-colors duration-200"
-          >
-            <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/>
-              <line x1="9" y1="15" x2="15" y2="15"/>
-            </svg>
-            <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Demandes</span>
-          </a>
-        </li>
-
-        <!-- Artists (Host) -->
-        <li *ngIf="isHost && !isAdmin">
-          <a
-            routerLink="/backoffice/artists"
-            routerLinkActive="bg-zinc-700 text-white"
-            class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-zinc-700 hover:text-white transition-colors duration-200"
-          >
-            <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
-            </svg>
-            <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Artistes</span>
-          </a>
-        </li>
-
-        <!-- Change password (Host) -->
-        <li *ngIf="isHost && !isAdmin">
-          <div class="mx-3 my-2 border-t border-zinc-700"></div>
-        </li>
-        <li *ngIf="isHost && !isAdmin">
-          <button
-            (click)="openChangePasswordModal()"
-            class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-zinc-700 hover:text-white transition-colors duration-200"
-          >
-            <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-            </svg>
-            <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Changer mot de passe</span>
-          </button>
-        </li>
-
+        <ng-container *ngIf="isHost && !isAdmin && !isCommitteeMember">
+          <li>
+            <a
+              routerLink="/backoffice/my-hosts"
+              routerLinkActive="bg-zinc-700 text-white"
+              class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+            >
+              <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                <polyline points="9 22 9 12 15 12 15 22"/>
+              </svg>
+              <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">My Hosts</span>
+            </a>
+          </li>
+          <li>
+            <a
+              routerLink="/backoffice/events"
+              routerLinkActive="bg-zinc-700 text-white"
+              class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+            >
+              <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+              <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Events</span>
+            </a>
+          </li>
+          <li>
+            <a
+              routerLink="/backoffice/event-requests"
+              routerLinkActive="bg-zinc-700 text-white"
+              class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+            >
+              <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/>
+                <line x1="9" y1="15" x2="15" y2="15"/>
+              </svg>
+              <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Requests</span>
+            </a>
+          </li>
+          <li>
+            <a
+              routerLink="/backoffice/artists"
+              routerLinkActive="bg-zinc-700 text-white"
+              class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+            >
+              <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
+              </svg>
+              <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Artists</span>
+            </a>
+          </li>
+          <li><div class="mx-3 my-2 border-t border-zinc-700"></div></li>
+          <li>
+            <button
+              type="button"
+              (click)="openChangePasswordModal()"
+              class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+            >
+              <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
+              <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Change Password</span>
+            </button>
+          </li>
+        </ng-container>
       </ul>
     </nav>
 
-    <!-- Bottom: collapse toggle + logout -->
-    <div class="border-t border-zinc-700 px-2 py-3 space-y-1">
+    <div class="space-y-1 border-t border-zinc-700 px-2 py-3">
       <button
+        type="button"
         (click)="toggleSidebar()"
-        class="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-zinc-700 hover:text-white transition-colors duration-200 text-sm"
+        class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
       >
         <svg class="h-5 w-5 shrink-0 transition-transform duration-300" [class.rotate-180]="sidebarCollapsed" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="15 18 9 12 15 6"/>
         </svg>
-        <span *ngIf="!sidebarCollapsed" class="text-sm">Réduire</span>
+        <span *ngIf="!sidebarCollapsed" class="text-sm">Collapse</span>
       </button>
-      <a
-        routerLink="/admin"
-        class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-red-700 hover:text-white transition-colors duration-200 text-sm text-zinc-400"
+      <button
+        type="button"
+        (click)="logout()"
+        class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-zinc-400 transition-colors duration-200 hover:bg-red-700 hover:text-white"
       >
-        <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
           <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
         </svg>
-        <span *ngIf="!sidebarCollapsed">Déconnexion</span>
-      </a>
+        <span *ngIf="!sidebarCollapsed">Logout</span>
+      </button>
     </div>
   </aside>
 
-  <!-- ── MAIN AREA ─────────────────────────────────────────── -->
-  <div class="flex flex-col flex-1 overflow-hidden">
-
-    <!-- Top bar -->
-    <header class="bg-white border-b border-zinc-200 flex items-center justify-between px-6 py-3 shrink-0 shadow-sm">
+  <div class="flex flex-1 flex-col overflow-hidden">
+    <header class="flex shrink-0 items-center justify-between border-b border-zinc-200 bg-white px-6 py-3 shadow-sm">
       <div class="flex items-center gap-4">
-        <span class="text-sm text-zinc-500">Tremplin Jeunes Solistes — {{ isAdmin ? 'Administration' : 'Espace Hôte' }}</span>
+        <span class="text-sm text-zinc-500">Tremplin Jeunes Solistes - {{ workspaceHeaderLabel }}</span>
       </div>
       <div class="flex items-center gap-3">
-        <div *ngFor="let role of userRoles" class="hidden md:inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">
+        <div *ngFor="let role of userRoles" class="hidden rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 md:inline-flex">
           {{ role }}
         </div>
         <div class="flex items-center gap-2">
-          <div class="h-8 w-8 rounded-full bg-red-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
+          <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-600 text-xs font-bold text-white">
             {{ avatarLetter }}
           </div>
-          <div class="hidden sm:block text-right">
-            <p class="text-sm font-semibold text-zinc-800 leading-tight">{{ displayName }}</p>
-            <p *ngIf="userEmail" class="text-xs text-zinc-400 leading-tight">{{ userEmail }}</p>
+          <div class="hidden text-right sm:block">
+            <p class="text-sm font-semibold leading-tight text-zinc-800">{{ displayName }}</p>
+            <p *ngIf="userEmail" class="text-xs leading-tight text-zinc-400">{{ userEmail }}</p>
           </div>
         </div>
       </div>
     </header>
 
-    <!-- Page content -->
     <main class="flex-1 overflow-y-auto p-6">
+      <div *ngIf="showMembershipBanner" class="mb-6 rounded-2xl border px-4 py-3" [ngClass]="membershipBannerTone">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <p class="text-sm font-semibold">{{ membershipBannerTitle }}</p>
+            <p class="mt-1 text-sm opacity-90">{{ membershipBannerBody }}</p>
+          </div>
+          <button
+            *ngIf="membershipNotification"
+            type="button"
+            (click)="dismissMembershipNotification()"
+            class="rounded-full border border-current/20 px-3 py-1 text-xs font-semibold transition-colors hover:bg-white/40"
+          >
+            Dismiss
+          </button>
+        </div>
+      </div>
+
       <router-outlet></router-outlet>
     </main>
   </div>
 </div>
 
-<!-- ════════════════════════════════════════════════════════════════ -->
-<!-- MODAL: Change password                                          -->
-<!-- ════════════════════════════════════════════════════════════════ -->
 <div *ngIf="showChangePasswordModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
   <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" (click)="closeChangePasswordModal()"></div>
 
-  <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
-    <div class="flex items-center justify-between px-6 py-4 border-b border-zinc-100">
-      <h2 class="text-lg font-bold text-zinc-900">Changer le mot de passe</h2>
-      <button (click)="closeChangePasswordModal()" class="p-1.5 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded-lg transition-colors">
-        <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <div class="relative w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-2xl">
+    <div class="flex items-center justify-between border-b border-zinc-100 px-6 py-4">
+      <h2 class="text-lg font-bold text-zinc-900">Change Password</h2>
+      <button type="button" (click)="closeChangePasswordModal()" class="rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700">
+        <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
         </svg>
       </button>
     </div>
 
-    <div class="px-6 py-5 space-y-4">
-      <div *ngIf="passwordError" class="px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{{ passwordError }}</div>
-      <div *ngIf="passwordSuccess" class="px-4 py-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">{{ passwordSuccess }}</div>
+    <div class="space-y-4 px-6 py-5">
+      <div *ngIf="passwordError" class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ passwordError }}</div>
+      <div *ngIf="passwordSuccess" class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{{ passwordSuccess }}</div>
 
       <div>
-        <label class="block text-sm font-medium text-zinc-700 mb-1">Nouveau mot de passe</label>
-        <input type="password" [(ngModel)]="newPassword" placeholder="Min. 6 caractères"
-          class="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent" />
+        <label class="mb-1 block text-sm font-medium text-zinc-700">New password</label>
+        <input
+          type="password"
+          [(ngModel)]="newPassword"
+          placeholder="Min. 6 characters"
+          class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20"
+        />
       </div>
       <div>
-        <label class="block text-sm font-medium text-zinc-700 mb-1">Confirmer le mot de passe</label>
-        <input type="password" [(ngModel)]="confirmPassword" placeholder="Répétez le mot de passe"
-          class="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent" />
+        <label class="mb-1 block text-sm font-medium text-zinc-700">Confirm password</label>
+        <input
+          type="password"
+          [(ngModel)]="confirmPassword"
+          placeholder="Repeat the password"
+          class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20"
+        />
       </div>
     </div>
 
-    <div class="px-6 py-4 border-t border-zinc-100 flex justify-end gap-3">
-      <button (click)="closeChangePasswordModal()" class="px-4 py-2 text-sm text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition-colors">
-        Annuler
+    <div class="flex justify-end gap-3 border-t border-zinc-100 px-6 py-4">
+      <button type="button" (click)="closeChangePasswordModal()" class="rounded-lg px-4 py-2 text-sm text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900">
+        Cancel
       </button>
-      <button (click)="submitChangePassword()" [disabled]="isSavingPassword"
-        class="inline-flex items-center gap-2 px-5 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-sm font-semibold rounded-lg transition-colors">
-        <svg *ngIf="isSavingPassword" class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+      <button
+        type="button"
+        (click)="submitChangePassword()"
+        [disabled]="isSavingPassword"
+        class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-60"
+      >
+        <svg *ngIf="isSavingPassword" class="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
         </svg>
-        {{ isSavingPassword ? 'Enregistrement…' : 'Enregistrer' }}
+        {{ isSavingPassword ? 'Saving...' : 'Save' }}
       </button>
     </div>
   </div>

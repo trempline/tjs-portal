@@ -1,0 +1,63 @@
+// Committee Dashboard Styles
+// Scoped styles for the Committee Member workspace
+
+// Table styles
+table {
+  th, td {
+    padding: 0.75rem 1rem;
+    text-align: left;
+  }
+  
+  th {
+    font-weight: 600;
+    white-space: nowrap;
+  }
+}
+
+// Card hover effects
+.bg-white.rounded-lg.shadow-sm {
+  transition: box-shadow 0.2s ease-in-out;
+  
+  &:hover {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  }
+}
+
+// Status badge transitions - using a more SCSS-friendly selector
+.status-badge {
+  transition: background-color 0.15s ease-in-out;
+}
+
+// Button focus states
+button {
+  &:focus-visible {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
+  }
+}
+
+// Checkbox focus states
+input[type="checkbox"] {
+  &:focus {
+    ring: 2px;
+    ring-color: #3b82f6;
+  }
+}
+
+// Responsive adjustments
+@media (max-width: 768px) {
+  .flex {
+    flex-direction: column;
+  }
+  
+  nav {
+    width: 100% !important;
+    min-h: auto !important;
+    border-r: none !important;
+    border-b: 1px solid #e5e7eb;
+  }
+  
+  main {
+    padding: 1rem !important;
+  }
+}

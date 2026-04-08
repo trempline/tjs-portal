@@ -1,15 +1,15 @@
 import { Component, inject, OnInit, OnDestroy } from '@angular/core';
 import { Router, RouterModule } from '@angular/router';
-import { NgIf, NgFor } from '@angular/common';
+import { NgClass, NgIf, NgFor } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
 import { AuthService } from '../../services/auth.service';
-import { SupabaseService } from '../../services/supabase.service';
+import { MembershipNotification, SupabaseService } from '../../services/supabase.service';
 
 @Component({
   selector: 'app-backoffice-layout',
   standalone: true,
-  imports: [RouterModule, NgIf, NgFor, FormsModule],
+  imports: [RouterModule, NgIf, NgFor, NgClass, FormsModule],
   templateUrl: './backoffice-layout.html',
 })
 export class BackofficeLayout implements OnInit, OnDestroy {
@@ -26,6 +26,8 @@ export class BackofficeLayout implements OnInit, OnDestroy {
   isAdmin = false;
   isHost = false;
   isHostManager = false;
+  isCommitteeMember = false;
+  membershipNotification: MembershipNotification | null = null;
 
   expandedMenus: Set<string> = new Set();
 
@@ -46,6 +48,7 @@ export class BackofficeLayout implements OnInit, OnDestroy {
       this.userEmail = state.user?.email ?? '';
       this.userRoles = state.roles.map(r => r.name);
       this.isAdmin = this.authService.isAdmin;
+      this.isCommitteeMember = this.authService.isCommitteeMember;
       this.isHostManager = state.roles.some(
         r => r.name === 'Host Manager'
       );
@@ -53,8 +56,14 @@ export class BackofficeLayout implements OnInit, OnDestroy {
         r => r.name === 'Host' || r.name === 'Host+' || r.name === 'Host Manager'
       );
 
-      // Redirect host users to my-hosts on first load
-      if (!this.initialRedirectDone && !state.isLoading && this.isHost && !this.isAdmin) {
+      // Redirect scoped workspaces to their entry points on first load.
+      if (!this.initialRedirectDone && !state.isLoading && this.isCommitteeMember && !this.isAdmin) {
+        this.initialRedirectDone = true;
+        const currentUrl = this.router.url;
+        if (currentUrl === '/backoffice' || currentUrl === '/backoffice/dashboard') {
+          this.router.navigate(['/backoffice/committee-dashboard']);
+        }
+      } else if (!this.initialRedirectDone && !state.isLoading && this.isHost && !this.isAdmin) {
         this.initialRedirectDone = true;
         const currentUrl = this.router.url;
         if (currentUrl === '/backoffice' || currentUrl === '/backoffice/dashboard') {
@@ -64,6 +73,8 @@ export class BackofficeLayout implements OnInit, OnDestroy {
       if (!this.initialRedirectDone && !state.isLoading) {
         this.initialRedirectDone = true;
       }
+
+      void this.loadMembershipNotification();
     });
   }
 
@@ -73,6 +84,30 @@ export class BackofficeLayout implements OnInit, OnDestroy {
 
   toggleSidebar() {
     this.sidebarCollapsed = !this.sidebarCollapsed;
+  }
+
+  get workspaceLabel(): string {
+    if (this.isAdmin) {
+      return 'Admin';
+    }
+
+    if (this.isCommitteeMember) {
+      return 'Committee Workspace';
+    }
+
+    return 'Host Workspace';
+  }
+
+  get workspaceHeaderLabel(): string {
+    if (this.isAdmin) {
+      return 'Administration';
+    }
+
+    if (this.isCommitteeMember) {
+      return 'Committee Workspace';
+    }
+
+    return 'Host Workspace';
   }
 
   toggleSubmenu(label: string) {
@@ -89,6 +124,51 @@ export class BackofficeLayout implements OnInit, OnDestroy {
 
   async logout() {
     await this.authService.signOut();
+  }
+
+  get isMembershipGated(): boolean {
+    return this.authService.isMembershipGated;
+  }
+
+  get showMembershipBanner(): boolean {
+    return !!this.membershipNotification || this.isMembershipGated;
+  }
+
+  get membershipBannerTone(): string {
+    return this.isMembershipGated
+      ? 'border-red-200 bg-red-50 text-red-800'
+      : 'border-blue-200 bg-blue-50 text-blue-800';
+  }
+
+  get membershipBannerTitle(): string {
+    if (this.isMembershipGated) {
+      return this.authService.membershipStatus === 'expired'
+        ? 'Membership expired'
+        : 'Membership required';
+    }
+
+    return this.membershipNotification?.subject ?? 'Membership update';
+  }
+
+  get membershipBannerBody(): string {
+    if (this.membershipNotification) {
+      return this.membershipNotification.body;
+    }
+
+    if (this.authService.membershipStatus === 'expired') {
+      return 'Your workspace access is suspended until an admin records your renewal payment.';
+    }
+
+    return 'Your workspace access will open as soon as an admin records your first membership payment.';
+  }
+
+  async dismissMembershipNotification() {
+    if (!this.membershipNotification) {
+      return;
+    }
+
+    await this.supabase.markMembershipNotificationRead(this.membershipNotification.id);
+    this.membershipNotification = null;
   }
 
   // ── Change password ──────────────────────────────────────────────────
@@ -128,5 +208,14 @@ export class BackofficeLayout implements OnInit, OnDestroy {
       }, 2000);
     }
     this.isSavingPassword = false;
+  }
+
+  private async loadMembershipNotification() {
+    if (!this.authService.isAuthenticated || this.isAdmin) {
+      this.membershipNotification = null;
+      return;
+    }
+
+    this.membershipNotification = await this.supabase.getLatestMembershipNotification();
   }
 }

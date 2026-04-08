@@ -1,0 +1,78 @@
+<div class="host-manager-hosts">
+  <!-- Header -->
+  <div class="page-header">
+    <div class="header-content">
+      <h1>My Assigned Hosts</h1>
+      <p class="subtitle">Manage and monitor your portfolio of hosts</p>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  @if (isLoading) {
+    <div class="loading-container">
+      <div class="spinner"></div>
+      <p>Loading hosts...</p>
+    </div>
+  }
+
+  <!-- Error State -->
+  @if (error) {
+    <div class="error-container">
+      <p class="error-message">{{ error }}</p>
+      <button class="btn btn-primary" (click)="loadData()">Retry</button>
+    </div>
+  }
+
+  <!-- Content -->
+  @if (!isLoading && !error) {
+    @if (hosts.length === 0) {
+      <div class="empty-state">
+        <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l8-4 8 4v14"/><path d="M17 21v-8.5a1.5 1.5 0 0 0-1.5-1.5h-5a1.5 1.5 0 0 0-1.5 1.5V21"/></svg>
+        <h2>No Hosts Assigned</h2>
+        <p>You haven't been assigned any hosts yet. Contact your administrator.</p>
+        <a routerLink="/backoffice/host-manager" class="btn btn-primary">Back to Dashboard</a>
+      </div>
+    } @else {
+      <div class="hosts-grid">
+        @for (host of hosts; track host.id) {
+          <a [routerLink]="['/backoffice/host-manager/hosts', host.id]" class="host-card">
+            <div class="host-avatar">{{ host.name ? host.name.charAt(0).toUpperCase() : '?' }}</div>
+            <div class="host-content">
+              <div class="host-header">
+                <h3>{{ host.name || 'Unnamed Host' }}</h3>
+                <span class="host-status active">Active</span>
+              </div>
+              <div class="host-details">
+                @if (host.city) {
+                  <div class="detail-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                    <span>{{ host.city }}</span>
+                  </div>
+                }
+                @if (host.contact_email) {
+                  <div class="detail-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+                    <span>{{ host.contact_email }}</span>
+                  </div>
+                }
+              </div>
+              <div class="host-stats">
+                <div class="stat">
+                  <span class="stat-value">0</span>
+                  <span class="stat-label">Events</span>
+                </div>
+                <div class="stat">
+                  <span class="stat-value">0</span>
+                  <span class="stat-label">Artists</span>
+                </div>
+              </div>
+            </div>
+            <div class="host-arrow">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+            </div>
+          </a>
+        }
+      </div>
+    }
+  }
+</div>

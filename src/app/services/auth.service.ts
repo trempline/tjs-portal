@@ -17,6 +17,7 @@ export interface AuthState {
 export class AuthService {
   private supabaseService = inject(SupabaseService);
   private router = inject(Router);
+  private membershipRefreshHandle?: number;
 
   private authState$ = new BehaviorSubject<AuthState>({
     user: null,
@@ -27,6 +28,12 @@ export class AuthService {
 
   constructor() {
     this.init();
+
+    if (typeof window !== 'undefined') {
+      this.membershipRefreshHandle = window.setInterval(() => {
+        void this.refreshCurrentUserData();
+      }, 60 * 60 * 1000);
+    }
   }
 
   private async init() {
@@ -53,6 +60,7 @@ export class AuthService {
   }
 
   private async loadUserData(user: User) {
+    await this.supabaseService.syncExpiredMemberships();
     this.authState$.next({ user, profile: null, roles: [], isLoading: true });
 
     const [profile, roles] = await Promise.all([
@@ -95,8 +103,59 @@ export class AuthService {
     );
   }
 
+  hasAnyRole(roleNames: string[]): boolean {
+    return roleNames.some((roleName) => this.hasRole(roleName));
+  }
+
   get isAdmin(): boolean {
     return this.hasRole('admin');
+  }
+
+  get isCommitteeMember(): boolean {
+    return this.hasRole('Committee Member');
+  }
+
+  get isHostManager(): boolean {
+    return this.hasRole('Host Manager');
+  }
+
+  get hasValidMembership(): boolean {
+    const profile = this.currentProfile;
+    if (!profile?.is_member) {
+      return false;
+    }
+
+    if (!profile.member_until) {
+      return true;
+    }
+
+    return new Date(`${profile.member_until}T00:00:00`).getTime() >= new Date().setHours(0, 0, 0, 0);
+  }
+
+  get requiresMembershipForWorkspace(): boolean {
+    return this.hasRole('Member') && !this.isAdmin && !this.isCommitteeMember;
+  }
+
+  get isMembershipGated(): boolean {
+    return this.requiresMembershipForWorkspace && !this.hasValidMembership;
+  }
+
+  get membershipStatus(): 'active' | 'expired' | 'non-member' {
+    const profile = this.currentProfile;
+    if (!profile?.is_member) {
+      return 'non-member';
+    }
+
+    return this.hasValidMembership ? 'active' : 'expired';
+  }
+
+  async refreshCurrentUserData(): Promise<void> {
+    const user = this.currentUser;
+    if (!user) {
+      return;
+    }
+
+    await this.loadUserData(user);
   }
 
   async signIn(email: string, password: string): Promise<{ success: boolean; error: string | null }> {
@@ -124,7 +183,17 @@ export class AuthService {
   getPostLoginRoute(): string {
     const roleNames = this.currentRoles.map((role) => role.name.toLowerCase());
 
-    if (roleNames.includes('host') || roleNames.includes('host+') || roleNames.includes('host manager')) {
+    // Committee Member gets their own dedicated dashboard
+    if (roleNames.includes('committee member')) {
+      return '/backoffice/committee-dashboard';
+    }
+
+    // Host Manager gets their own dedicated dashboard
+    if (roleNames.includes('host manager')) {
+      return '/backoffice/host-manager';
+    }
+
+    if (roleNames.includes('host') || roleNames.includes('host+')) {
       return '/backoffice/my-hosts';
     }
 

@@ -13,9 +13,13 @@ import { Events } from './backoffice/events/events';
 import { UserManagement } from './backoffice/user-management/user-management';
 import { MyHosts } from './backoffice/my-hosts/my-hosts';
 import { CommitteeMembers } from './backoffice/committee-members/committee-members';
+import { CommitteeDashboard } from './backoffice/committee-dashboard/committee-dashboard.component';
+import { Membership } from './backoffice/membership/membership';
+import { AccountSettings } from './backoffice/account-settings/account-settings';
 import { AuthCallback } from './auth-callback/auth-callback';
 import { TestHostCreationComponent } from './test-host-creation/test-host-creation.component';
-import { authGuard } from './guards/auth.guard';
+import { HostManagerHosts } from './backoffice/host-manager-hosts/host-manager-hosts';
+import { authGuard, roleGuard } from './guards/auth.guard';
 
 export const routes: Routes = [
     {
@@ -53,16 +57,25 @@ export const routes: Routes = [
         canActivate: [authGuard],
         children: [
             { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
-            { path: 'dashboard', component: Dashboard },
+            { path: 'dashboard', component: Dashboard, canActivate: [roleGuard(['Admin'])] },
             { path: 'event-requests', component: EventRequests },
             { path: 'artists', component: Artists },
             { path: 'artists/tjs', component: Artists },
             { path: 'artists/invited', component: Artists },
-            { path: 'hosts', component: Hosts },
+            { path: 'hosts', component: Hosts, canActivate: [roleGuard(['Admin'])] },
             { path: 'my-hosts', component: MyHosts },
             { path: 'events', component: Events },
-            { path: 'user-management', component: UserManagement },
-            { path: 'committee-members', component: CommitteeMembers },
+            { path: 'membership', component: Membership, canActivate: [roleGuard(['Admin'])] },
+            { path: 'user-management', component: UserManagement, canActivate: [roleGuard(['Admin'])] },
+            { path: 'committee-members', component: CommitteeMembers, canActivate: [roleGuard(['Admin'])] },
+            { path: 'committee-dashboard', component: CommitteeDashboard, canActivate: [roleGuard(['Committee Member'])] },
+            { path: 'account-settings', component: AccountSettings },
+            { path: 'host-manager', redirectTo: 'my-hosts', pathMatch: 'full' },
+            { path: 'host-manager/hosts', component: HostManagerHosts },
+            { path: 'host-manager/hosts/:id', component: HostManagerHosts },
+            { path: 'host-manager/messages', redirectTo: 'my-hosts', pathMatch: 'full' },
+            { path: 'host-manager/messages/:userId', redirectTo: 'my-hosts', pathMatch: 'full' },
+            { path: 'host-manager/suggest', redirectTo: 'my-hosts', pathMatch: 'full' },
         ],
     },
 ];

@@ -1,0 +1,109 @@
+<div class="space-y-6">
+  <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-zinc-900">Committee Workspace</h1>
+      <p class="mt-1 text-sm text-zinc-500">
+        Your scoped home base for assigned artists, read-only event coordination, and account access.
+      </p>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <a routerLink="/backoffice/artists" class="inline-flex items-center rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-zinc-50">
+        Artists (Mine)
+      </a>
+      <a routerLink="/backoffice/events" class="inline-flex items-center rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-zinc-50">
+        Events
+      </a>
+      <a routerLink="/backoffice/event-requests" class="inline-flex items-center rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-zinc-50">
+        Event Requests
+      </a>
+      <a routerLink="/backoffice/account-settings" class="inline-flex items-center rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-zinc-50">
+        Account Settings
+      </a>
+    </div>
+  </div>
+
+  <div *ngIf="error" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+    {{ error }}
+  </div>
+
+  <div *ngIf="isLoading" class="flex items-center justify-center py-16">
+    <div class="h-8 w-8 animate-spin rounded-full border-4 border-zinc-200 border-t-red-600"></div>
+  </div>
+
+  <ng-container *ngIf="!isLoading">
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-wide text-zinc-400">My Artists</p>
+        <p class="mt-2 text-3xl font-bold text-zinc-900">{{ stats.totalArtists }}</p>
+        <p class="mt-1 text-sm text-zinc-500">{{ stats.activeArtists }} activated, {{ stats.pendingArtists }} pending</p>
+      </div>
+      <div class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-wide text-zinc-400">Flags</p>
+        <p class="mt-2 text-3xl font-bold text-zinc-900">{{ stats.featuredArtists }}</p>
+        <p class="mt-1 text-sm text-zinc-500">Artists currently marked featured</p>
+      </div>
+      <div class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-wide text-zinc-400">My Coordination</p>
+        <p class="mt-2 text-3xl font-bold text-zinc-900">{{ stats.myEvents }}</p>
+        <p class="mt-1 text-sm text-zinc-500">{{ stats.myRequests }} request records in scope</p>
+      </div>
+      <div class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-wide text-zinc-400">Platform Read Only</p>
+        <p class="mt-2 text-3xl font-bold text-zinc-900">{{ stats.platformEvents }}</p>
+        <p class="mt-1 text-sm text-zinc-500">{{ stats.platformRequests }} requests available for browsing</p>
+      </div>
+    </div>
+
+    <div class="grid gap-5 xl:grid-cols-[1.3fr_1fr]">
+      <section class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <h2 class="text-lg font-semibold text-zinc-900">Assigned Artists</h2>
+            <p class="text-sm text-zinc-500">The artists currently in your portfolio.</p>
+          </div>
+          <a routerLink="/backoffice/artists" class="text-sm font-semibold text-red-600 transition-colors hover:text-red-700">
+            Open list
+          </a>
+        </div>
+
+        <div *ngIf="recentArtists.length === 0" class="mt-6 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-8 text-center text-sm text-zinc-500">
+          No artists have been assigned to you yet.
+        </div>
+
+        <div *ngIf="recentArtists.length > 0" class="mt-5 space-y-3">
+          <div *ngFor="let artist of recentArtists; trackBy: trackById" class="flex items-center justify-between gap-4 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+            <div>
+              <p class="font-semibold text-zinc-900">{{ displayName(artist) }}</p>
+              <div class="mt-2 flex flex-wrap gap-2">
+                <span *ngFor="let flag of artistFlags(artist)" class="inline-flex rounded-full border border-zinc-200 bg-white px-2 py-0.5 text-xs font-semibold text-zinc-600">
+                  {{ flag }}
+                </span>
+              </div>
+            </div>
+            <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold" [ngClass]="activationStatusClass(artist)">
+              {{ activationStatusLabel(artist) }}
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <section class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <h2 class="text-lg font-semibold text-zinc-900">Workspace Rules</h2>
+        <div class="mt-5 space-y-3 text-sm text-zinc-600">
+          <div class="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+            Artists are scoped to your own portfolio only.
+          </div>
+          <div class="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+            Events and event requests are read only in this workspace.
+          </div>
+          <div class="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+            Admin-only areas such as user management, hosts, membership, and committee administration are gated.
+          </div>
+          <div class="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+            Account management is limited to your own profile and password settings.
+          </div>
+        </div>
+      </section>
+    </div>
+  </ng-container>
+</div>

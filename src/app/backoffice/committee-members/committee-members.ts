@@ -1,8 +1,8 @@
 import { Component, inject, OnInit } from '@angular/core';
-import { NgFor, NgIf } from '@angular/common';
+import { CommonModule, NgFor, NgIf, DatePipe, NgClass } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../services/auth.service';
-import { SupabaseService, TjsUserWithRoles, TjsRole } from '../../services/supabase.service';
+import { SupabaseService, TjsUserWithRoles, TjsRole, TjsArtist, TjsArtistAuditLog } from '../../services/supabase.service';
 
 interface CommitteeMemberForm {
   email: string;
@@ -14,7 +14,7 @@ interface CommitteeMemberForm {
 @Component({
   selector: 'app-committee-members',
   standalone: true,
-  imports: [NgFor, NgIf, FormsModule],
+  imports: [CommonModule, NgFor, NgIf, DatePipe, NgClass, FormsModule],
   templateUrl: './committee-members.html',
 })
 export class CommitteeMembers implements OnInit {
@@ -43,6 +43,28 @@ export class CommitteeMembers implements OnInit {
   // Role modal state
   roleModalRoles: { role: TjsRole; assigned: boolean }[] = [];
 
+  // ── Artist management ────────────────────────────────────────────────────
+  artists: TjsArtist[] = [];
+  artistSearchQuery = '';
+  showAuditModal = false;
+  selectedArtist: TjsArtist | null = null;
+  auditLogs: TjsArtistAuditLog[] = [];
+  auditLoading = false;
+
+  get filteredArtists(): TjsArtist[] {
+    const q = this.artistSearchQuery.toLowerCase().trim();
+    if (!q) return this.artists;
+    return this.artists.filter((a) => {
+      const name = (a.profile?.full_name || a.artist_name || '').toLowerCase();
+      const email = (a.profile?.email || '').toLowerCase();
+      return name.includes(q) || email.includes(q);
+    });
+  }
+
+  get tjsArtistCount() { return this.artists.filter((a) => a.is_tjs_artist).length; }
+  get invitedArtistCount() { return this.artists.filter((a) => a.is_invited_artist).length; }
+  get featuredArtistCount() { return this.artists.filter((a) => a.is_featured).length; }
+
   // ── Computed / filtered ──────────────────────────────────────────────────
   get filteredCommitteeMembers(): TjsUserWithRoles[] {
     return this.committeeMembers.filter(u => 
@@ -70,12 +92,14 @@ export class CommitteeMembers implements OnInit {
   private async loadData() {
     this.isLoading = true;
     this.error = '';
-    const [users, roles] = await Promise.all([
+    const [users, roles, artists] = await Promise.all([
       this.supabase.listAllUsersWithRoles(),
       this.supabase.getAllRoles(),
+      this.supabase.getArtists(),
     ]);
     this.committeeMembers = users;
     this.allRoles = roles;
+    this.artists = artists;
     this.isLoading = false;
   }
 
@@ -286,6 +310,81 @@ export class CommitteeMembers implements OnInit {
 
   private blankForm(): CommitteeMemberForm {
     return { email: '', fullName: '', phone: '', roleId: '' };
+  }
+
+  async toggleArtistFeatured(artist: TjsArtist) {
+    this.isSaving = true;
+    this.error = '';
+
+    const newFeatured = !artist.is_featured;
+    const reason = newFeatured
+      ? `Masqu\u00e9 du site public par ${this.authService.displayName}`
+      : `R\u00e9tabli sur le site public par ${this.authService.displayName}`;
+
+    const { success, error: err } = await this.supabase.toggleArtistFeatured(
+      artist.id,
+      newFeatured,
+      this.currentUserId,
+      reason
+    );
+
+    if (err) {
+      this.error = err;
+    } else {
+      artist.is_featured = newFeatured;
+      this.successMessage = newFeatured
+        ? `${artist.artist_name} est maintenant masqu\u00e9 du site public.`
+        : `${artist.artist_name} est maintenant visible sur le site public.`;
+      setTimeout(() => (this.successMessage = ''), 4000);
+    }
+
+    this.isSaving = false;
+  }
+
+  toggleFeatured(artist: TjsArtist) {
+    void this.toggleArtistFeatured(artist);
+  }
+
+  async openAuditModal(artist: TjsArtist) {
+    this.selectedArtist = artist;
+    this.auditLogs = [];
+    this.auditLoading = true;
+    this.showAuditModal = true;
+
+    const logs = await this.supabase.getArtistAuditLog(artist.id);
+    this.auditLogs = logs;
+    this.auditLoading = false;
+  }
+
+  closeAuditModal() {
+    this.showAuditModal = false;
+    this.selectedArtist = null;
+  }
+
+  artistDisplayName(artist: TjsArtist): string {
+    return artist.profile?.full_name || artist.artist_name || '—';
+  }
+
+  artistAvatarLetter(artist: TjsArtist): string {
+    const name = this.artistDisplayName(artist);
+    return name.charAt(0).toUpperCase();
+  }
+
+  featuredLabel(artist: TjsArtist): string {
+    return artist.is_featured ? 'Masqu\u00e9' : 'Visible';
+  }
+
+  featuredClass(artist: TjsArtist): string {
+    return artist.is_featured
+      ? 'bg-amber-50 text-amber-700'
+      : 'bg-emerald-50 text-emerald-700';
+  }
+
+  artistTypeBadges(artist: TjsArtist): string[] {
+    const badges: string[] = [];
+    if (artist.is_tjs_artist) badges.push('TJS');
+    if (artist.is_invited_artist) badges.push('Invit\u00e9');
+    return badges;
   }
 
   trackById(_: number, item: { id: string }) {

@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../services/auth.service';
 import { SupabaseService, TjsRole, TjsUserWithRoles } from '../../services/supabase.service';
 
-type UserTab = 'all' | 'admins' | 'committee' | 'members';
+type UserTab = 'all' | 'admins' | 'committee' | 'hostManagers' | 'members';
 
 interface InviteForm {
   email: string;
@@ -57,6 +57,8 @@ export class UserManagement implements OnInit {
         return this.users.filter((u) => this.hasRole(u, 'admin'));
       case 'committee':
         return this.users.filter((u) => this.hasRole(u, 'committee member'));
+      case 'hostManagers':
+        return this.users.filter((u) => this.hasRole(u, 'host manager'));
       case 'members':
         return this.users.filter((u) => this.hasRole(u, 'member'));
       default:
@@ -74,6 +76,10 @@ export class UserManagement implements OnInit {
 
   get memberCount() {
     return this.users.filter((u) => this.hasRole(u, 'member')).length;
+  }
+
+  get hostManagerCount() {
+    return this.users.filter((u) => this.hasRole(u, 'host manager')).length;
   }
 
   get currentUserId(): string {
