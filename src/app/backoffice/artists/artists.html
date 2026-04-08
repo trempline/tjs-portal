@@ -213,7 +213,17 @@
             <td class="px-4 py-4">
               <div class="flex items-center justify-end gap-2">
                 <button
-                  *ngIf="isAdmin"
+                  *ngIf="canPromoteInvitedArtist(artist)"
+                  type="button"
+                  (click)="promoteInvitedArtistToTjs(artist)"
+                  [disabled]="isSaving"
+                  class="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700 transition-colors hover:border-blue-300 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Make TJS Artist
+                </button>
+
+                <button
+                  *ngIf="canReassignArtist(artist)"
                   (click)="openAssignmentModal(artist)"
                   class="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 px-2.5 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
                 >
@@ -333,7 +343,7 @@
     <div class="flex items-center justify-between border-b border-zinc-100 px-6 py-4">
       <div>
         <h2 class="text-lg font-bold text-zinc-900">Assign Committee Member</h2>
-        <p class="mt-0.5 text-xs text-zinc-400">The selected owner will see this artist in their scoped workspace.</p>
+        <p class="mt-0.5 text-xs text-zinc-400">The selected owner will see this TJS artist in their scoped workspace.</p>
       </div>
       <button type="button" (click)="closeAssignmentModal()" class="rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700">
         <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

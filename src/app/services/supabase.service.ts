@@ -204,6 +204,7 @@ export interface PagArtist {
   is_featured: boolean | null;
   is_active: boolean | null;
   created_on: string | null;
+  tjs_artist_id?: string | null;
 }
 
 export interface CreateArtistInput {
@@ -1365,7 +1366,108 @@ export class SupabaseService {
       return [];
     }
 
-    return (data ?? []) as PagArtist[];
+    const pagArtists = ((data ?? []) as PagArtist[]);
+
+    const { data: tjsArtists, error: tjsError } = await this.adminSupabase
+      .from('tjs_artists')
+      .select('id, profile_id, artist_name');
+
+    if (tjsError) {
+      console.error('getPagArtists tjs lookup error:', tjsError.message);
+      return pagArtists.map((artist) => ({ ...artist, tjs_artist_id: null }));
+    }
+
+    const tjsRows = (tjsArtists ?? []) as Array<{ id: string; profile_id: string | null; artist_name: string | null }>;
+    const tjsByProfileId = new Map<string, string>();
+    const tjsByName = new Map<string, string>();
+
+    for (const row of tjsRows) {
+      if (row.profile_id) {
+        tjsByProfileId.set(row.profile_id, row.id);
+      }
+
+      const normalizedName = (row.artist_name ?? '').trim().toLowerCase();
+      if (normalizedName) {
+        tjsByName.set(normalizedName, row.id);
+      }
+    }
+
+    return pagArtists.map((artist) => {
+      const normalizedName = `${artist.fname ?? ''} ${artist.lname ?? ''}`.trim().toLowerCase();
+      const matchedTjsId = (artist.id_profile ? tjsByProfileId.get(artist.id_profile) : null)
+        ?? (normalizedName ? tjsByName.get(normalizedName) : null)
+        ?? null;
+
+      return {
+        ...artist,
+        tjs_artist_id: matchedTjsId,
+      };
+    });
+  }
+
+  async promotePagArtistToTjs(
+    pagArtist: PagArtist,
+    committeeMemberId?: string | null
+  ): Promise<{ artist: TjsArtist | null; error: string | null }> {
+    if (!pagArtist.is_active) {
+      return { artist: null, error: 'Only active non-TJS artists can be converted to TJS artists.' };
+    }
+
+    if (pagArtist.tjs_artist_id) {
+      const { data, error } = await this.adminSupabase
+        .from('tjs_artists')
+        .select(`
+          *,
+          profile:tjs_profiles (
+            id, email, full_name, phone, bio, avatar_url,
+            is_member, member_since, member_until, is_pag_artist,
+            created_at, updated_at
+          )
+        `)
+        .eq('id', pagArtist.tjs_artist_id)
+        .maybeSingle();
+
+      if (error) {
+        console.error('promotePagArtistToTjs existing fetch error:', error.message);
+        return { artist: null, error: error.message };
+      }
+
+      const mappedArtists = await this.mapArtistsWithAssignments(data ? [data] : []);
+      return { artist: mappedArtists[0] ?? null, error: null };
+    }
+
+    const artistName = `${pagArtist.fname ?? ''} ${pagArtist.lname ?? ''}`.trim() || 'Unknown Artist';
+    const payload: Record<string, any> = {
+      profile_id: pagArtist.id_profile,
+      artist_name: artistName,
+      is_tjs_artist: true,
+      activation_status: 'active',
+    };
+
+    if (committeeMemberId) {
+      payload['committee_member_id'] = committeeMemberId;
+    }
+
+    const { data, error } = await this.adminSupabase
+      .from('tjs_artists')
+      .insert(payload)
+      .select(`
+        *,
+        profile:tjs_profiles (
+          id, email, full_name, phone, bio, avatar_url,
+          is_member, member_since, member_until, is_pag_artist,
+          created_at, updated_at
+        )
+      `)
+      .single();
+
+    if (error) {
+      console.error('promotePagArtistToTjs insert error:', error.message);
+      return { artist: null, error: error.message };
+    }
+
+    const mappedArtists = await this.mapArtistsWithAssignments(data ? [data] : []);
+    return { artist: mappedArtists[0] ?? null, error: null };
   }
 
   /** Fetch Committee Members that can be assigned to artists. */
@@ -1560,6 +1662,33 @@ export class SupabaseService {
     }
 
     return null;
+  }
+
+  async promoteInvitedArtistToTjs(artistId: string): Promise<{ artist: TjsArtist | null; error: string | null }> {
+    const { data, error } = await this.adminSupabase
+      .from('tjs_artists')
+      .update({
+        is_tjs_artist: true,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', artistId)
+      .select(`
+        *,
+        profile:tjs_profiles (
+          id, email, full_name, phone, bio, avatar_url,
+          is_member, member_since, member_until, is_pag_artist,
+          created_at, updated_at
+        )
+      `)
+      .single();
+
+    if (error) {
+      console.error('promoteInvitedArtistToTjs error:', error.message);
+      return { artist: null, error: error.message };
+    }
+
+    const mappedArtists = await this.mapArtistsWithAssignments(data ? [data] : []);
+    return { artist: mappedArtists[0] ?? null, error: null };
   }
 
   /** Toggle the is_featured flag on an artist and log to audit trail. */

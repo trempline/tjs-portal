@@ -19,6 +19,7 @@ import { AccountSettings } from './backoffice/account-settings/account-settings'
 import { AuthCallback } from './auth-callback/auth-callback';
 import { TestHostCreationComponent } from './test-host-creation/test-host-creation.component';
 import { HostManagerHosts } from './backoffice/host-manager-hosts/host-manager-hosts';
+import { NonTjsArtists } from './backoffice/non-tjs-artists/non-tjs-artists';
 import { authGuard, roleGuard } from './guards/auth.guard';
 
 export const routes: Routes = [
@@ -62,6 +63,7 @@ export const routes: Routes = [
             { path: 'artists', component: Artists },
             { path: 'artists/tjs', component: Artists },
             { path: 'artists/invited', component: Artists },
+            { path: 'artists/non-tjs', component: NonTjsArtists, canActivate: [roleGuard(['Committee Member'])] },
             { path: 'hosts', component: Hosts, canActivate: [roleGuard(['Admin'])] },
             { path: 'my-hosts', component: MyHosts },
             { path: 'events', component: Events },

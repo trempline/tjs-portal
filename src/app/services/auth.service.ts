@@ -163,7 +163,11 @@ export class AuthService {
     if (result.error) {
       return { success: false, error: result.error };
     }
-    // loadUserData will be triggered by onAuthStateChange SIGNED_IN
+
+    if (result.user) {
+      await this.loadUserData(result.user);
+    }
+
     return { success: true, error: null };
   }
 

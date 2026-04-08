@@ -1,6 +1,7 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { DatePipe, NgFor, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { AuthService } from '../../services/auth.service';
 import { PagArtist, SupabaseService } from '../../services/supabase.service';
 
 @Component({
@@ -11,9 +12,13 @@ import { PagArtist, SupabaseService } from '../../services/supabase.service';
 })
 export class NonTjsArtists implements OnInit {
   private supabase = inject(SupabaseService);
+  private authService = inject(AuthService);
 
   isLoading = true;
+  isSaving = false;
   searchTerm = '';
+  error = '';
+  successMessage = '';
   artists: PagArtist[] = [];
 
   async ngOnInit() {
@@ -55,6 +60,40 @@ export class NonTjsArtists implements OnInit {
     return artist.is_active
       ? 'bg-emerald-50 text-emerald-700'
       : 'bg-zinc-100 text-zinc-600';
+  }
+
+  canPromote(artist: PagArtist): boolean {
+    return !!artist.is_active && !artist.tjs_artist_id;
+  }
+
+  async promoteToTjs(artist: PagArtist) {
+    if (!this.canPromote(artist)) {
+      return;
+    }
+
+    this.isSaving = true;
+    this.error = '';
+
+    const { artist: tjsArtist, error } = await this.supabase.promotePagArtistToTjs(
+      artist,
+      this.authService.currentUser?.id ?? null
+    );
+
+    if (error) {
+      this.error = error;
+      this.isSaving = false;
+      return;
+    }
+
+    this.artists = this.artists.map((item) =>
+      item.id === artist.id
+        ? { ...item, tjs_artist_id: tjsArtist?.id ?? item.tjs_artist_id ?? 'linked' }
+        : item
+    );
+
+    this.successMessage = `${this.displayName(artist)} is now available as a TJS artist.`;
+    this.isSaving = false;
+    setTimeout(() => (this.successMessage = ''), 4000);
   }
 
   trackById(_: number, item: PagArtist): string {

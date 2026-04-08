@@ -149,7 +149,9 @@ export class Artists implements OnInit {
 
     const artistScope = this.isAdmin || !this.currentUserId
       ? undefined
-      : { committeeMemberId: this.currentUserId };
+      : this.isCommittee && this.activeTab === 'tjs'
+        ? undefined
+        : { committeeMemberId: this.currentUserId };
 
     const [artists, committeeMembers] = await Promise.all([
       this.supabase.getArtists(artistScope),
@@ -269,8 +271,31 @@ export class Artists implements OnInit {
     setTimeout(() => (this.successMessage = ''), 4000);
   }
 
+  async promoteInvitedArtistToTjs(artist: TjsArtist) {
+    if (!this.canManageArtists || this.activeTab !== 'invited' || artist.is_tjs_artist) return;
+
+    this.isSaving = true;
+    this.error = '';
+
+    const { artist: updatedArtist, error } = await this.supabase.promoteInvitedArtistToTjs(artist.id);
+
+    if (error) {
+      this.error = error;
+      this.isSaving = false;
+      return;
+    }
+
+    if (updatedArtist) {
+      this.allArtists = this.allArtists.map((item) => item.id === artist.id ? updatedArtist : item);
+    }
+
+    this.successMessage = `${this.displayName(artist)} is now also a TJS artist.`;
+    this.isSaving = false;
+    setTimeout(() => (this.successMessage = ''), 4000);
+  }
+
   openAssignmentModal(artist: TjsArtist) {
-    if (!this.isAdmin) return;
+    if (!this.canReassignArtist(artist)) return;
 
     this.selectedArtistForAssignment = artist;
     this.selectedCommitteeMemberId = artist.committee_member_id ?? '';
@@ -285,7 +310,7 @@ export class Artists implements OnInit {
   }
 
   async submitAssignment() {
-    if (!this.isAdmin || !this.selectedArtistForAssignment) return;
+    if (!this.selectedArtistForAssignment || !this.canReassignArtist(this.selectedArtistForAssignment)) return;
 
     if (!this.selectedCommitteeMemberId) {
       this.error = 'Veuillez selectionner un membre du comite.';
@@ -398,6 +423,18 @@ export class Artists implements OnInit {
 
   assignmentButtonLabel(artist: TjsArtist): string {
     return artist.committee_member_id ? 'Reassigner' : 'Assigner';
+  }
+
+  canPromoteInvitedArtist(artist: TjsArtist): boolean {
+    return this.activeTab === 'invited'
+      && artist.activation_status === 'active'
+      && !artist.is_tjs_artist;
+  }
+
+  canReassignArtist(artist: TjsArtist): boolean {
+    return this.canManageArtists
+      && this.activeTab === 'tjs'
+      && artist.is_tjs_artist;
   }
 
   committeeMemberOptionLabel(member: TjsArtistUserSummary): string {

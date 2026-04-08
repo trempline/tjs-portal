@@ -1,0 +1,116 @@
+<div class="space-y-6">
+  <div *ngIf="successMessage" class="flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+    {{ successMessage }}
+  </div>
+
+  <div *ngIf="error" class="flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+    {{ error }}
+  </div>
+
+  <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-zinc-900">Non-TJS Artists</h1>
+      <p class="mt-0.5 text-sm text-zinc-500">
+        Read-only PAG artists coming from the legacy <code>public.artists</code> table.
+      </p>
+    </div>
+    <div class="w-full sm:w-80">
+      <input
+        [(ngModel)]="searchTerm"
+        type="text"
+        placeholder="Search by name, email, or phone"
+        class="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+      />
+    </div>
+  </div>
+
+  <div class="grid grid-cols-2 gap-4 md:grid-cols-3">
+    <div class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+      <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">Total</p>
+      <p class="mt-1 text-2xl font-bold text-zinc-900">{{ artists.length }}</p>
+    </div>
+    <div class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+      <p class="text-xs font-medium uppercase tracking-wide text-emerald-600">Active</p>
+      <p class="mt-1 text-2xl font-bold text-zinc-900">{{ activeCount }}</p>
+    </div>
+    <div class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+      <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">Filtered</p>
+      <p class="mt-1 text-2xl font-bold text-zinc-900">{{ filteredArtists.length }}</p>
+    </div>
+  </div>
+
+  <div class="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
+    <div *ngIf="isLoading" class="flex items-center justify-center py-16">
+      <div class="h-8 w-8 animate-spin rounded-full border-4 border-zinc-200 border-t-red-600"></div>
+    </div>
+
+    <div *ngIf="!isLoading && filteredArtists.length === 0" class="flex flex-col items-center justify-center py-16 text-zinc-400">
+      <p class="text-sm font-medium">No non-TJS artists found</p>
+      <p class="mt-1 text-xs">No PAG artists matched the current filter.</p>
+    </div>
+
+    <div *ngIf="!isLoading && filteredArtists.length > 0" class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="border-b border-zinc-200 bg-zinc-50">
+          <tr>
+            <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Artist</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Email</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Phone</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Status</th>
+            <th class="hidden px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 lg:table-cell">Created</th>
+            <th class="px-4 py-3"></th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-zinc-100">
+          <tr *ngFor="let artist of filteredArtists; trackBy: trackById" class="transition-colors hover:bg-zinc-50">
+            <td class="px-6 py-4">
+              <div class="flex items-center gap-3">
+                <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-zinc-700 text-sm font-bold text-white">
+                  {{ avatarLetter(artist) }}
+                </div>
+                <div>
+                  <p class="font-medium text-zinc-900">{{ displayName(artist) }}</p>
+                  <p class="text-xs text-zinc-400">PAG / Non-TJS</p>
+                </div>
+              </div>
+            </td>
+            <td class="px-4 py-4 text-xs text-zinc-500">{{ artist.email || '-' }}</td>
+            <td class="px-4 py-4 text-xs text-zinc-500">{{ artist.phone || '-' }}</td>
+            <td class="px-4 py-4">
+              <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium" [class]="statusClass(artist)">
+                {{ statusLabel(artist) }}
+              </span>
+            </td>
+            <td class="hidden px-4 py-4 text-xs text-zinc-500 lg:table-cell">
+              {{ artist.created_on ? (artist.created_on | date:'dd/MM/yyyy') : '-' }}
+            </td>
+            <td class="px-4 py-4">
+              <div class="flex justify-end">
+                <button
+                  *ngIf="canPromote(artist); else alreadyHandled"
+                  type="button"
+                  (click)="promoteToTjs(artist)"
+                  [disabled]="isSaving"
+                  class="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Make TJS Artist
+                </button>
+                <ng-template #alreadyHandled>
+                  <span
+                    class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
+                    [class.bg-zinc-100]="!artist.is_active || !artist.tjs_artist_id"
+                    [class.text-zinc-600]="!artist.is_active || !artist.tjs_artist_id"
+                    [class.bg-blue-50]="!!artist.tjs_artist_id"
+                    [class.text-blue-700]="!!artist.tjs_artist_id"
+                  >
+                    {{ artist.tjs_artist_id ? 'Also TJS Artist' : 'Inactive artist' }}
+                  </span>
+                </ng-template>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
