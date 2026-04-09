@@ -36,16 +36,16 @@
         </thead>
         <tbody class="divide-y divide-zinc-100">
           <tr *ngFor="let request of requests; trackBy: trackByRequest" (click)="openExistingRequest(request.id)" class="cursor-pointer transition-colors hover:bg-zinc-50">
-            <td class="px-4 py-3 text-zinc-800">{{ request.event_title }}</td>
-            <td class="px-4 py-3 text-zinc-600">{{ request.event_domain_name || '—' }}</td>
-            <td class="px-4 py-3 text-zinc-600">
-              <span *ngIf="request.request_type === 'period'">
-                {{ request.start_date | date:'mediumDate' }} - {{ request.end_date | date:'mediumDate' }}
-              </span>
-              <span *ngIf="request.request_type === 'day_show'">
-                {{ request.start_date | date:'mediumDate' }}
-              </span>
+            <td class="px-4 py-3 text-zinc-800">
+              <div class="flex items-center gap-2">
+                <span>{{ request.event_title }}</span>
+                <span *ngIf="hasUnreadComments(request)" class="inline-flex rounded-full bg-red-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-red-700">
+                  New Comment
+                </span>
+              </div>
             </td>
+            <td class="px-4 py-3 text-zinc-600">{{ request.event_domain_name || '-' }}</td>
+            <td class="px-4 py-3 text-zinc-600">{{ request.date_summary }}</td>
             <td class="px-4 py-3">
               <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
                 [ngClass]="{
@@ -68,86 +68,178 @@
   </div>
 
   <div *ngIf="isEditorOpen" class="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-4">
-    <div class="mx-auto w-full max-w-6xl rounded-3xl bg-white shadow-2xl">
-      <div class="flex items-start justify-between gap-4 border-b border-zinc-200 px-6 py-5">
-        <div>
-          <h2 class="text-xl font-semibold text-zinc-900">{{ selectedRequestId ? 'Edit Request' : 'New Request' }}</h2>
-          <p class="mt-1 text-sm text-zinc-500">Use the tab flow to complete the full event request.</p>
-        </div>
-        <div class="flex items-center gap-3">
-          <button type="button" (click)="closeEditor()" class="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50">
-            Close
-          </button>
-          <button type="button" (click)="saveRequest()" [disabled]="isSaving" class="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60">
-            {{ isSaving ? 'Saving...' : 'Save Request' }}
-          </button>
+    <div class="mx-auto w-full max-w-6xl overflow-hidden rounded-[2rem] bg-white shadow-2xl">
+      <div class="bg-[linear-gradient(135deg,#18181b_0%,#27272a_45%,#b91c1c_100%)] px-6 py-6 text-white">
+        <div class="flex items-start justify-between gap-4">
+          <div class="space-y-3">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="inline-flex rounded-full bg-white/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white/80">
+                {{ selectedRequestId ? 'Request Details' : 'New Request' }}
+              </span>
+              <span *ngIf="selectedRequestId" class="inline-flex rounded-full px-3 py-1 text-xs font-semibold"
+                [ngClass]="{
+                  'bg-amber-200/20 text-amber-100': request.status === 'pending',
+                  'bg-green-200/20 text-green-100': request.status === 'approved',
+                  'bg-red-200/20 text-red-100': request.status === 'rejected'
+                }"
+              >
+                {{ request.status }}
+              </span>
+            </div>
+            <div>
+              <h2 class="text-2xl font-semibold tracking-tight text-white">
+                {{ request.event_title || (selectedRequestId ? 'Untitled Request' : 'Create a New Event Request') }}
+              </h2>
+              <p class="mt-1 max-w-3xl text-sm text-white/75">
+                Use the tab flow to complete and review the full event request.
+              </p>
+            </div>
+            <div *ngIf="selectedRequestId" class="grid gap-3 text-sm text-white/80 md:grid-cols-3">
+              <div class="rounded-2xl bg-white/10 px-4 py-3 backdrop-blur">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/60">Domain</div>
+                <div class="mt-1 font-medium text-white">{{ selectedDomainName }}</div>
+              </div>
+              <div class="rounded-2xl bg-white/10 px-4 py-3 backdrop-blur">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/60">Artists</div>
+                <div class="mt-1 font-medium text-white">{{ request.artists.length }}</div>
+              </div>
+              <div class="rounded-2xl bg-white/10 px-4 py-3 backdrop-blur">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/60">Dates</div>
+                <div class="mt-1 font-medium text-white">{{ request.dates.length }}</div>
+              </div>
+            </div>
+          </div>
+          <div class="flex flex-wrap items-center justify-end gap-3">
+            <button *ngIf="selectedRequestId" type="button" (click)="duplicateRequest()" class="rounded-2xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20">
+              Duplicate
+            </button>
+            <button *ngIf="canDeleteSelectedRequest()" type="button" (click)="deleteRequest()" class="rounded-2xl border border-red-200/30 bg-red-500/10 px-4 py-2 text-sm font-medium text-red-50 transition-colors hover:bg-red-500/20">
+              Delete
+            </button>
+            <button type="button" (click)="closeEditor()" class="rounded-2xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20">
+              Close
+            </button>
+            <button *ngIf="selectedRequestId && !isEditing" type="button" (click)="startEditing()" class="rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-zinc-900 transition-colors hover:bg-zinc-100">
+              Edit
+            </button>
+            <button *ngIf="isEditing" type="button" (click)="submitRequest()" [disabled]="isSaving" class="rounded-2xl bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60">
+              {{ isSaving ? 'Submitting...' : 'Submit Request' }}
+            </button>
+          </div>
         </div>
       </div>
 
-      <div class="border-b border-zinc-200 px-6 py-3">
+      <div class="border-b border-zinc-200 bg-zinc-50/80 px-6 py-4 backdrop-blur">
         <div class="flex flex-wrap gap-2">
-          <button type="button" (click)="activeTab = 'details'" [ngClass]="activeTab === 'details' ? 'bg-red-600 text-white' : 'bg-zinc-100 text-zinc-600'" class="rounded-full px-4 py-2 text-sm font-medium">Details</button>
-          <button type="button" (click)="activeTab = 'dates'" [ngClass]="activeTab === 'dates' ? 'bg-red-600 text-white' : 'bg-zinc-100 text-zinc-600'" class="rounded-full px-4 py-2 text-sm font-medium">Dates</button>
-          <button type="button" (click)="activeTab = 'image'" [ngClass]="activeTab === 'image' ? 'bg-red-600 text-white' : 'bg-zinc-100 text-zinc-600'" class="rounded-full px-4 py-2 text-sm font-medium">Image</button>
-          <button type="button" (click)="activeTab = 'media'" [ngClass]="activeTab === 'media' ? 'bg-red-600 text-white' : 'bg-zinc-100 text-zinc-600'" class="rounded-full px-4 py-2 text-sm font-medium">Media</button>
-          <button type="button" (click)="activeTab = 'artist'" [ngClass]="activeTab === 'artist' ? 'bg-red-600 text-white' : 'bg-zinc-100 text-zinc-600'" class="rounded-full px-4 py-2 text-sm font-medium">Artist</button>
-          <button type="button" (click)="activeTab = 'comments'" [ngClass]="activeTab === 'comments' ? 'bg-red-600 text-white' : 'bg-zinc-100 text-zinc-600'" class="rounded-full px-4 py-2 text-sm font-medium">Comments</button>
+          <button type="button" (click)="activeTab = 'details'" [ngClass]="activeTab === 'details' ? 'bg-zinc-900 text-white shadow-sm' : 'bg-white text-zinc-600 hover:bg-zinc-100'" class="rounded-full px-4 py-2 text-sm font-medium transition-colors">Details</button>
+          <button type="button" (click)="activeTab = 'dates'" [ngClass]="activeTab === 'dates' ? 'bg-zinc-900 text-white shadow-sm' : 'bg-white text-zinc-600 hover:bg-zinc-100'" class="rounded-full px-4 py-2 text-sm font-medium transition-colors">Dates</button>
+          <button type="button" (click)="activeTab = 'image'" [ngClass]="activeTab === 'image' ? 'bg-zinc-900 text-white shadow-sm' : 'bg-white text-zinc-600 hover:bg-zinc-100'" class="rounded-full px-4 py-2 text-sm font-medium transition-colors">Image</button>
+          <button type="button" (click)="activeTab = 'media'" [ngClass]="activeTab === 'media' ? 'bg-zinc-900 text-white shadow-sm' : 'bg-white text-zinc-600 hover:bg-zinc-100'" class="rounded-full px-4 py-2 text-sm font-medium transition-colors">Media</button>
+          <button type="button" (click)="activeTab = 'artist'" [ngClass]="activeTab === 'artist' ? 'bg-zinc-900 text-white shadow-sm' : 'bg-white text-zinc-600 hover:bg-zinc-100'" class="rounded-full px-4 py-2 text-sm font-medium transition-colors">Artist</button>
+          <button type="button" (click)="activeTab = 'comments'" [ngClass]="activeTab === 'comments' ? 'bg-zinc-900 text-white shadow-sm' : 'bg-white text-zinc-600 hover:bg-zinc-100'" class="rounded-full px-4 py-2 text-sm font-medium transition-colors">Comments</button>
         </div>
       </div>
 
-      <div class="px-6 py-6">
+      <div class="max-h-[calc(100vh-14rem)] overflow-y-auto bg-[radial-gradient(circle_at_top_left,#fafafa_0%,#ffffff_45%,#f4f4f5_100%)] px-6 py-6">
         <div *ngIf="activeTab === 'details'" class="grid gap-5 md:grid-cols-2">
           <div class="space-y-2">
             <label class="text-sm font-medium text-zinc-700">Event Domain</label>
-            <select [(ngModel)]="request.event_domain_id" class="w-full rounded-2xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100">
+            <select [(ngModel)]="request.event_domain_id" [disabled]="!isEditing" class="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none disabled:bg-zinc-100 disabled:text-zinc-500 focus:border-red-500 focus:ring-2 focus:ring-red-100">
               <option [ngValue]="null">Select domain</option>
               <option *ngFor="let domain of eventDomains" [ngValue]="domain.id">{{ domain.name }}</option>
             </select>
           </div>
           <div class="space-y-2">
             <label class="text-sm font-medium text-zinc-700">Event Title</label>
-            <input [(ngModel)]="request.event_title" type="text" class="w-full rounded-2xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+            <input [(ngModel)]="request.event_title" [disabled]="!isEditing" type="text" class="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none disabled:bg-zinc-100 disabled:text-zinc-500 focus:border-red-500 focus:ring-2 focus:ring-red-100" />
           </div>
           <div class="space-y-2 md:col-span-2">
             <label class="text-sm font-medium text-zinc-700">Teaser</label>
-            <input [(ngModel)]="request.teaser" maxlength="200" type="text" class="w-full rounded-2xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+            <input [(ngModel)]="request.teaser" [disabled]="!isEditing" maxlength="200" type="text" class="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none disabled:bg-zinc-100 disabled:text-zinc-500 focus:border-red-500 focus:ring-2 focus:ring-red-100" />
             <div class="text-xs text-zinc-400">{{ request.teaser.length }}/200</div>
           </div>
           <div class="space-y-2 md:col-span-2">
             <label class="text-sm font-medium text-zinc-700">Long Teaser</label>
-            <textarea [(ngModel)]="request.long_teaser" rows="4" class="w-full rounded-2xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100"></textarea>
+            <textarea [(ngModel)]="request.long_teaser" [disabled]="!isEditing" rows="4" class="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none disabled:bg-zinc-100 disabled:text-zinc-500 focus:border-red-500 focus:ring-2 focus:ring-red-100"></textarea>
           </div>
           <div class="space-y-2 md:col-span-2">
             <label class="text-sm font-medium text-zinc-700">Description</label>
-            <textarea [(ngModel)]="request.description" rows="7" class="w-full rounded-2xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100"></textarea>
+            <textarea [(ngModel)]="request.description" [disabled]="!isEditing" rows="7" class="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none disabled:bg-zinc-100 disabled:text-zinc-500 focus:border-red-500 focus:ring-2 focus:ring-red-100"></textarea>
+          </div>
+          <div class="rounded-3xl border border-zinc-200 bg-white/90 p-6 shadow-sm md:col-span-2">
+            <h3 class="text-lg font-semibold text-zinc-900">Artists</h3>
+            <div class="mt-4 grid gap-4 md:grid-cols-2">
+              <div>
+                <div class="text-sm font-medium text-zinc-700">Primary Artist</div>
+                <div class="mt-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-zinc-800">
+                  {{ request.artists[0]?.display_name || 'Primary Artist' }}
+                </div>
+              </div>
+              <div>
+                <div class="text-sm font-medium text-zinc-700">Additional Artists</div>
+                <div *ngIf="additionalArtists.length === 0" class="mt-2 rounded-2xl border border-dashed border-zinc-300 bg-white px-4 py-3 text-sm text-zinc-500">
+                  No additional artists
+                </div>
+                <div *ngIf="additionalArtists.length > 0" class="mt-2 space-y-2">
+                  <div *ngFor="let artist of additionalArtists; trackBy: trackByArtist" class="rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-800">
+                    {{ artist.display_name || 'Additional Artist' }}
+                  </div>
+                </div>
+              </div>
+              <div class="md:col-span-2">
+                <div class="text-sm font-medium text-zinc-700">Invited Artists</div>
+                <div *ngIf="invitedArtists.length === 0" class="mt-2 rounded-2xl border border-dashed border-zinc-300 bg-white px-4 py-3 text-sm text-zinc-500">
+                  No invited artists
+                </div>
+                <div *ngIf="invitedArtists.length > 0" class="mt-2 space-y-2">
+                  <div *ngFor="let invited of invitedArtists; trackBy: trackByArtist" class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm">
+                    <div class="font-medium text-zinc-900">{{ invited.invited_full_name || invited.display_name || 'Invited Artist' }}</div>
+                    <div class="text-amber-800">{{ invited.invited_email || 'Invitation sent' }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div *ngIf="activeTab === 'dates'" class="grid gap-5 md:grid-cols-2">
-          <div class="space-y-2 md:col-span-2">
-            <label class="text-sm font-medium text-zinc-700">Request Type</label>
-            <div class="flex gap-3">
-              <label class="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 px-4 py-3 text-sm">
-                <input [(ngModel)]="request.request_type" type="radio" value="day_show" />
-                Day Show
-              </label>
-              <label class="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 px-4 py-3 text-sm">
-                <input [(ngModel)]="request.request_type" type="radio" value="period" />
-                Period
-              </label>
+        <div *ngIf="activeTab === 'dates'" class="space-y-5">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <h3 class="text-lg font-semibold text-zinc-900">Event Dates</h3>
+              <p class="text-sm text-zinc-500">Add multiple date rows for either day shows or period-based events.</p>
             </div>
+            <button *ngIf="isEditing" type="button" (click)="addDate()" class="rounded-2xl border border-zinc-200 px-4 py-3 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50">
+              Add Date
+            </button>
           </div>
-          <div class="space-y-2">
-            <label class="text-sm font-medium text-zinc-700">Start Date</label>
-            <input [(ngModel)]="request.start_date" type="date" class="w-full rounded-2xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
-          </div>
-          <div *ngIf="request.request_type === 'period'" class="space-y-2">
-            <label class="text-sm font-medium text-zinc-700">End Date</label>
-            <input [(ngModel)]="request.end_date" type="date" class="w-full rounded-2xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
-          </div>
-          <div class="space-y-2">
-            <label class="text-sm font-medium text-zinc-700">Time</label>
-            <input [(ngModel)]="request.event_time" type="text" placeholder="e.g. 19:30" class="w-full rounded-2xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+
+          <div *ngFor="let date of request.dates; let i = index" class="grid gap-4 rounded-3xl border border-zinc-200 bg-zinc-50 p-5 md:grid-cols-2">
+            <div class="space-y-2 md:col-span-2">
+              <label class="text-sm font-medium text-zinc-700">Request Type</label>
+              <div class="flex gap-3">
+                <label class="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm">
+                  <input [(ngModel)]="date.request_type" [disabled]="!isEditing" type="radio" value="day_show" />
+                  Day Show
+                </label>
+                <label class="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm">
+                  <input [(ngModel)]="date.request_type" [disabled]="!isEditing" type="radio" value="period" />
+                  Period
+                </label>
+              </div>
+            </div>
+            <div class="space-y-2">
+              <label class="text-sm font-medium text-zinc-700">Start Date</label>
+              <input [(ngModel)]="date.start_date" [disabled]="!isEditing" type="date" class="w-full rounded-2xl border border-zinc-300 px-3 py-2.5 text-sm outline-none disabled:bg-zinc-100 disabled:text-zinc-500 focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+            </div>
+            <div *ngIf="date.request_type === 'period'" class="space-y-2">
+              <label class="text-sm font-medium text-zinc-700">End Date</label>
+              <input [(ngModel)]="date.end_date" [disabled]="!isEditing" type="date" class="w-full rounded-2xl border border-zinc-300 px-3 py-2.5 text-sm outline-none disabled:bg-zinc-100 disabled:text-zinc-500 focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+            </div>
+            <div *ngIf="isEditing" class="md:col-span-2 flex justify-end">
+              <button type="button" (click)="removeDate(i)" class="rounded-xl border border-red-200 px-4 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50">
+                Remove
+              </button>
+            </div>
           </div>
         </div>
 
@@ -155,114 +247,215 @@
           <div *ngIf="request.image_url" class="overflow-hidden rounded-3xl border border-zinc-200">
             <img [src]="request.image_url" alt="Request image" class="h-72 w-full object-cover" />
           </div>
-          <label class="inline-flex cursor-pointer items-center rounded-2xl bg-zinc-900 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-zinc-800">
+          <div *ngIf="!request.image_url" class="rounded-3xl border border-dashed border-zinc-300 bg-zinc-50 px-6 py-10 text-center text-sm text-zinc-500">
+            No request image uploaded yet.
+          </div>
+          <label *ngIf="isEditing" class="inline-flex cursor-pointer items-center rounded-2xl bg-zinc-900 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-zinc-800">
             {{ isRequestImageUploading ? 'Uploading...' : 'Upload Request Image' }}
             <input type="file" accept="image/*" class="hidden" (change)="onRequestImageSelected($event)" />
           </label>
         </div>
 
         <div *ngIf="activeTab === 'media'" class="space-y-6">
-          <div class="flex gap-3">
+          <div *ngIf="isEditing" class="flex gap-3">
             <button type="button" (click)="addMedia('Video')" class="rounded-2xl border border-zinc-200 px-4 py-3 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50">Add Video</button>
             <button type="button" (click)="addMedia('CD')" class="rounded-2xl border border-zinc-200 px-4 py-3 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50">Add CD</button>
           </div>
 
-          <div *ngFor="let media of request.media; let i = index; trackBy: trackByMedia" class="grid gap-5 rounded-3xl border border-zinc-200 bg-zinc-50 p-5 lg:grid-cols-[220px_minmax(0,1fr)]">
-            <div class="space-y-3">
-              <div class="flex h-40 items-center justify-center overflow-hidden rounded-2xl bg-zinc-200">
-                <img *ngIf="media.image_url" [src]="media.image_url" alt="Media image" class="h-full w-full object-cover" />
-                <span *ngIf="!media.image_url" class="text-sm text-zinc-500">No image</span>
-              </div>
-              <label class="inline-flex cursor-pointer items-center rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-700">
-                Upload Image
-                <input type="file" accept="image/*" class="hidden" (change)="onMediaImageSelected($event, i)" />
-              </label>
-            </div>
+          <div *ngIf="request.media.length > 0" class="overflow-x-auto rounded-3xl border border-zinc-200 bg-white">
+            <table class="min-w-full divide-y divide-zinc-200 text-sm">
+              <thead class="bg-zinc-50">
+                <tr>
+                  <th class="px-4 py-3 text-left font-semibold text-zinc-600">Image</th>
+                  <th class="px-4 py-3 text-left font-semibold text-zinc-600">Type</th>
+                  <th class="px-4 py-3 text-left font-semibold text-zinc-600">Name</th>
+                  <th class="px-4 py-3 text-left font-semibold text-zinc-600">Description</th>
+                  <th class="px-4 py-3 text-left font-semibold text-zinc-600">URL</th>
+                  <th class="px-4 py-3 text-left font-semibold text-zinc-600">Action</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-zinc-100">
+                <tr *ngFor="let media of request.media; let i = index; trackBy: trackByMedia">
+                  <td class="px-4 py-3">
+                    <div class="flex h-16 w-16 items-center justify-center overflow-hidden rounded-xl bg-zinc-200">
+                      <img *ngIf="media.image_url" [src]="media.image_url" alt="Media image" class="h-full w-full object-cover" />
+                      <span *ngIf="!media.image_url" class="text-[11px] text-zinc-500">No image</span>
+                    </div>
+                    <label *ngIf="isEditing" class="mt-2 inline-flex cursor-pointer items-center rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-700">
+                      Upload
+                      <input type="file" accept="image/*" class="hidden" (change)="onMediaImageSelected($event, i)" />
+                    </label>
+                  </td>
+                  <td class="px-4 py-3">
+                    <select [(ngModel)]="media.media_type" [disabled]="!isEditing" class="w-full min-w-28 rounded-2xl border border-zinc-300 px-3 py-2 text-sm outline-none disabled:bg-zinc-100 disabled:text-zinc-500 focus:border-red-500 focus:ring-2 focus:ring-red-100">
+                      <option value="Video">Video</option>
+                      <option value="CD">CD</option>
+                    </select>
+                  </td>
+                  <td class="px-4 py-3">
+                    <input [(ngModel)]="media.name" [disabled]="!isEditing" type="text" class="w-full min-w-40 rounded-2xl border border-zinc-300 px-3 py-2 text-sm outline-none disabled:bg-zinc-100 disabled:text-zinc-500 focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+                  </td>
+                  <td class="px-4 py-3">
+                    <textarea [(ngModel)]="media.description" [disabled]="!isEditing" rows="2" class="w-full min-w-52 rounded-2xl border border-zinc-300 px-3 py-2 text-sm outline-none disabled:bg-zinc-100 disabled:text-zinc-500 focus:border-red-500 focus:ring-2 focus:ring-red-100"></textarea>
+                  </td>
+                  <td class="px-4 py-3">
+                    <div class="space-y-2">
+                      <input [(ngModel)]="media.url" [disabled]="!isEditing" type="text" class="w-full min-w-52 rounded-2xl border border-zinc-300 px-3 py-2 text-sm outline-none disabled:bg-zinc-100 disabled:text-zinc-500 focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+                      <a *ngIf="media.url" [href]="media.url" target="_blank" rel="noopener noreferrer" class="text-sm font-medium text-red-600 hover:text-red-700">
+                        Open
+                      </a>
+                    </div>
+                  </td>
+                  <td class="px-4 py-3">
+                    <button *ngIf="isEditing" type="button" (click)="removeMedia(i)" class="rounded-xl border border-red-200 px-4 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50">
+                      Remove
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
 
-            <div class="grid gap-4 md:grid-cols-2">
-              <div class="space-y-2">
-                <label class="text-sm font-medium text-zinc-700">Type</label>
-                <select [(ngModel)]="media.media_type" class="w-full rounded-2xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100">
-                  <option value="Video">Video</option>
-                  <option value="CD">CD</option>
-                </select>
-              </div>
-              <div class="space-y-2">
-                <label class="text-sm font-medium text-zinc-700">Name</label>
-                <input [(ngModel)]="media.name" type="text" class="w-full rounded-2xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
-              </div>
-              <div class="space-y-2 md:col-span-2">
-                <label class="text-sm font-medium text-zinc-700">Description</label>
-                <textarea [(ngModel)]="media.description" rows="3" class="w-full rounded-2xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100"></textarea>
-              </div>
-              <div class="space-y-2 md:col-span-2">
-                <label class="text-sm font-medium text-zinc-700">URL</label>
-                <input [(ngModel)]="media.url" type="text" class="w-full rounded-2xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
-              </div>
-              <div class="md:col-span-2 flex justify-end">
-                <button type="button" (click)="removeMedia(i)" class="rounded-xl border border-red-200 px-4 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50">Remove</button>
-              </div>
-            </div>
+          <div *ngIf="request.media.length === 0" class="rounded-3xl border border-dashed border-zinc-300 bg-zinc-50 px-6 py-10 text-center text-sm text-zinc-500">
+            No media added yet.
           </div>
         </div>
 
         <div *ngIf="activeTab === 'artist'" class="space-y-6">
           <div class="flex justify-between">
             <h3 class="text-lg font-semibold text-zinc-900">Additional Artists</h3>
-            <button type="button" (click)="addArtistSelection()" class="rounded-2xl border border-zinc-200 px-4 py-3 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50">Add Existing Artist</button>
+            <button *ngIf="isEditing" type="button" (click)="addArtistSelection()" class="rounded-2xl border border-zinc-200 px-4 py-3 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50">Add Existing Artist</button>
           </div>
 
+          <div *ngIf="!isEditing" class="space-y-5">
+            <div class="rounded-3xl border border-red-200 bg-red-50 p-5">
+              <div class="text-sm font-medium text-zinc-700">Primary Artist</div>
+              <div class="mt-2 text-base font-semibold text-zinc-900">{{ request.artists[0]?.display_name || 'Primary Artist' }}</div>
+            </div>
+
+            <div class="rounded-3xl border border-zinc-200 bg-zinc-50 p-5">
+              <div class="text-sm font-medium text-zinc-700">Additional Artists</div>
+              <div *ngIf="additionalArtists.length === 0" class="mt-3 rounded-2xl border border-dashed border-zinc-300 bg-white px-4 py-3 text-sm text-zinc-500">
+                No additional artists added
+              </div>
+              <div *ngIf="additionalArtists.length > 0" class="mt-3 space-y-2">
+                <div *ngFor="let artist of additionalArtists; trackBy: trackByArtist" class="rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-800">
+                  {{ artist.display_name || 'Additional Artist' }}
+                </div>
+              </div>
+            </div>
+
+            <div class="rounded-3xl border border-amber-200 bg-amber-50 p-5">
+              <div class="text-sm font-medium text-zinc-700">Invited Artists</div>
+              <div *ngIf="invitedArtists.length === 0" class="mt-3 rounded-2xl border border-dashed border-amber-300 bg-white px-4 py-3 text-sm text-zinc-500">
+                No invited artists added
+              </div>
+              <div *ngIf="invitedArtists.length > 0" class="mt-3 space-y-2">
+                <div *ngFor="let invited of invitedArtists; trackBy: trackByArtist" class="rounded-2xl border border-amber-200 bg-white px-4 py-3 text-sm">
+                  <div class="font-medium text-zinc-900">{{ invited.invited_full_name || invited.display_name || 'Invited Artist' }}</div>
+                  <div class="text-amber-800">{{ invited.invited_email || 'Invitation sent' }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <ng-container *ngIf="isEditing">
           <div *ngFor="let artist of request.artists; let i = index; trackBy: trackByArtist" class="grid gap-4 rounded-3xl border border-zinc-200 bg-zinc-50 p-5 md:grid-cols-[minmax(0,1fr)_auto]">
             <div class="space-y-2">
-              <label class="text-sm font-medium text-zinc-700">Select TJS Artist</label>
-              <select [(ngModel)]="artist.artist_id" (ngModelChange)="onArtistSelected(i)" class="w-full rounded-2xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100">
+              <div class="flex items-center gap-2">
+                <label class="text-sm font-medium text-zinc-700">
+                  {{ artist.is_primary ? 'Primary Artist' : (artist.invited_email ? 'Invited Artist' : 'Select TJS Artist') }}
+                </label>
+                <span *ngIf="artist.is_primary" class="inline-flex rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700">Primary</span>
+                <span *ngIf="artist.invited_email && !artist.is_primary" class="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">Invited</span>
+              </div>
+              <select *ngIf="!isInvitedArtist(artist)" [(ngModel)]="artist.artist_id" [disabled]="!isEditing || !!artist.is_primary" (ngModelChange)="onArtistSelected(i)" class="w-full rounded-2xl border border-zinc-300 px-3 py-2.5 text-sm outline-none disabled:bg-zinc-100 disabled:text-zinc-500 focus:border-red-500 focus:ring-2 focus:ring-red-100">
                 <option [ngValue]="null">Select artist</option>
                 <option *ngFor="let option of tjsArtists" [ngValue]="option.id">{{ option.artist_name }}</option>
               </select>
+              <div *ngIf="isInvitedArtist(artist)" class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                <div *ngIf="artist.invited_full_name || artist.display_name" class="font-medium text-zinc-900">
+                  {{ artist.invited_full_name || artist.display_name }}
+                </div>
+                <div>
+                  Invitation sent to <span class="font-medium">{{ artist.invited_email || 'invited artist' }}</span>
+                </div>
+              </div>
+              <div *ngIf="!isInvitedArtist(artist) && !isEditing && artist.display_name" class="text-sm text-zinc-500">{{ artist.display_name }}</div>
             </div>
-            <div class="flex items-end">
-              <button type="button" (click)="removeArtistSelection(i)" class="rounded-xl border border-red-200 px-4 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50">Remove</button>
+            <div *ngIf="isEditing" class="flex items-end">
+              <button type="button" (click)="removeArtistSelection(i)" [disabled]="artist.is_primary" class="rounded-xl border border-red-200 px-4 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50">Remove</button>
             </div>
+          </div>
+          </ng-container>
+
+          <div *ngIf="isEditing && request.artists.length === 0" class="rounded-3xl border border-dashed border-zinc-300 bg-zinc-50 px-6 py-10 text-center text-sm text-zinc-500">
+            No additional artists linked yet.
           </div>
 
           <div class="rounded-3xl border border-zinc-200 bg-white p-5">
             <h3 class="text-lg font-semibold text-zinc-900">Invite Artist by Email</h3>
-            <div class="mt-4 grid gap-4 md:grid-cols-2">
-              <div class="space-y-2">
-                <label class="text-sm font-medium text-zinc-700">Email</label>
-                <input [(ngModel)]="inviteArtist.email" type="email" class="w-full rounded-2xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+            <p class="mt-1 text-sm text-zinc-500">You can add invited artists before submitting. The invite email will be sent when you submit the request.</p>
+            <div *ngIf="isEditing && !showInviteArtistForm" class="mt-4 flex justify-end">
+              <button type="button" (click)="showInviteArtistForm = true" class="rounded-2xl bg-zinc-900 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-zinc-800">
+                Add Invite Artist
+              </button>
+            </div>
+            <div *ngIf="showInviteArtistForm" class="mt-4 space-y-4">
+              <div class="grid gap-4 md:grid-cols-2">
+                <div class="space-y-2">
+                  <label class="text-sm font-medium text-zinc-700">Email</label>
+                  <input [(ngModel)]="inviteArtist.email" [disabled]="!isEditing" type="email" class="w-full rounded-2xl border border-zinc-300 px-3 py-2.5 text-sm outline-none disabled:bg-zinc-100 disabled:text-zinc-500 focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+                </div>
+                <div class="space-y-2">
+                  <label class="text-sm font-medium text-zinc-700">Full Name</label>
+                  <input [(ngModel)]="inviteArtist.fullName" [disabled]="!isEditing" type="text" class="w-full rounded-2xl border border-zinc-300 px-3 py-2.5 text-sm outline-none disabled:bg-zinc-100 disabled:text-zinc-500 focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+                </div>
               </div>
-              <div class="space-y-2">
-                <label class="text-sm font-medium text-zinc-700">Full Name</label>
-                <input [(ngModel)]="inviteArtist.fullName" type="text" class="w-full rounded-2xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+              <div class="flex justify-end gap-3">
+                <button type="button" (click)="showInviteArtistForm = false; inviteArtist = { email: '', fullName: '' }" class="rounded-2xl border border-zinc-200 px-4 py-3 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50">
+                  Cancel
+                </button>
+                <button type="button" (click)="inviteAdditionalArtist()" class="rounded-2xl bg-zinc-900 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-zinc-800">
+                  Add Invite Artist
+                </button>
               </div>
             </div>
-            <div class="mt-4 flex justify-end">
-              <button type="button" (click)="inviteAdditionalArtist()" class="rounded-2xl bg-zinc-900 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-zinc-800">
-                Invite Artist
-              </button>
+
+            <div *ngIf="invitedArtists.length > 0" class="mt-5 space-y-3">
+              <div class="text-sm font-medium text-zinc-700">Invited Artists</div>
+              <div *ngFor="let invited of invitedArtists; trackBy: trackByArtist" class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm">
+                <div class="font-medium text-zinc-900">{{ invited.invited_full_name || invited.display_name || 'Invited Artist' }}</div>
+                <div class="text-amber-800">{{ invited.invited_email }}</div>
+              </div>
             </div>
           </div>
         </div>
 
         <div *ngIf="activeTab === 'comments'" class="space-y-6">
           <div class="space-y-4">
+            <div *ngIf="!request.id && initialCommentPreview" class="rounded-3xl border border-amber-200 bg-amber-50 p-4">
+              <div class="text-sm font-semibold text-zinc-900">Initial Comment</div>
+              <div class="mt-1 text-xs text-zinc-500">Will be submitted with this new request</div>
+              <div class="mt-3 whitespace-pre-wrap text-sm leading-6 text-zinc-700">{{ initialCommentPreview }}</div>
+            </div>
             <div *ngFor="let comment of request.comments; trackBy: trackByComment" class="rounded-3xl border border-zinc-200 bg-zinc-50 p-4">
               <div class="text-sm font-semibold text-zinc-900">{{ comment.author_name }}</div>
               <div class="mt-1 text-xs text-zinc-400">{{ comment.created_at | date:'medium' }}</div>
               <div class="mt-3 whitespace-pre-wrap text-sm leading-6 text-zinc-700">{{ comment.body }}</div>
             </div>
-            <div *ngIf="request.comments.length === 0" class="rounded-3xl border border-dashed border-zinc-300 bg-zinc-50 px-6 py-10 text-center text-sm text-zinc-500">
+            <div *ngIf="request.comments.length === 0 && !initialCommentPreview" class="rounded-3xl border border-dashed border-zinc-300 bg-zinc-50 px-6 py-10 text-center text-sm text-zinc-500">
               No comments yet.
             </div>
           </div>
 
           <div class="rounded-3xl border border-zinc-200 bg-white p-5">
-            <label class="text-sm font-medium text-zinc-700">Add Comment</label>
+            <label class="text-sm font-medium text-zinc-700">{{ request.id ? 'Add Comment' : 'Initial Comment' }}</label>
+            <p class="mt-1 text-sm text-zinc-500" *ngIf="!request.id">This comment will be submitted together with the new request.</p>
             <textarea [(ngModel)]="commentDraft" rows="4" class="mt-3 w-full rounded-2xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100"></textarea>
             <div class="mt-4 flex justify-end">
               <button type="button" (click)="addComment()" class="rounded-2xl bg-red-600 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-red-700">
-                Send Comment
+                {{ request.id ? 'Send Comment' : 'Use As Initial Comment' }}
               </button>
             </div>
           </div>

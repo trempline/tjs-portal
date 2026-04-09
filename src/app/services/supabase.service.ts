@@ -314,12 +314,20 @@ export interface ArtistRequestListItem {
   id: string;
   event_title: string;
   status: 'pending' | 'approved' | 'rejected';
-  request_type: 'day_show' | 'period';
-  start_date: string | null;
-  end_date: string | null;
-  event_time: string | null;
+  date_summary: string;
   created_at: string;
   event_domain_name: string | null;
+  comment_count: number;
+  latest_comment_at: string | null;
+  latest_comment_author_profile_id: string | null;
+}
+
+export interface ArtistRequestDateEntry {
+  id?: string;
+  request_type: 'day_show' | 'period';
+  start_date: string;
+  end_date: string;
+  event_time: string;
 }
 
 export interface ArtistRequestMediaEntry {
@@ -337,6 +345,8 @@ export interface ArtistRequestArtistEntry {
   invited_artist_id: string | null;
   invited_email: string;
   display_name: string;
+  invited_full_name?: string;
+  is_primary?: boolean;
 }
 
 export interface ArtistRequestCommentEntry {
@@ -355,12 +365,9 @@ export interface ArtistRequestDetail {
   teaser: string;
   long_teaser: string;
   description: string;
-  request_type: 'day_show' | 'period';
-  start_date: string;
-  end_date: string;
-  event_time: string;
   image_url: string | null;
   status: 'pending' | 'approved' | 'rejected';
+  dates: ArtistRequestDateEntry[];
   media: ArtistRequestMediaEntry[];
   artists: ArtistRequestArtistEntry[];
   comments: ArtistRequestCommentEntry[];
@@ -1667,26 +1674,103 @@ export class SupabaseService {
       return [];
     }
 
-    return ((data ?? []) as any[]).map((row) => ({
+    const requestRows = (data ?? []) as any[];
+    const requestIds = requestRows.map((row) => row.id);
+
+    let datesByRequestId = new Map<string, any[]>();
+    if (requestIds.length > 0) {
+      const { data: datesData, error: datesError } = await this.adminSupabase
+        .from('tjs_artist_request_dates')
+        .select('request_id, request_type, start_date, end_date, event_time')
+        .in('request_id', requestIds)
+        .order('start_date', { ascending: true });
+
+      if (datesError) {
+        if (this.isMissingSchemaError(datesError)) {
+          throw new Error('Artist request tables are missing in the database. Run db/021_artist_workspace_requests.sql.');
+        }
+        console.error('getArtistWorkspaceRequests dates error:', datesError.message);
+      } else {
+        datesByRequestId = (datesData ?? []).reduce((map, row: any) => {
+          const items = map.get(row.request_id) ?? [];
+          items.push(row);
+          map.set(row.request_id, items);
+          return map;
+        }, new Map<string, any[]>());
+      }
+    }
+
+    let commentSummaryByRequestId = new Map<string, { count: number; latestAt: string | null; latestAuthorProfileId: string | null }>();
+    if (requestIds.length > 0) {
+      const { data: commentData, error: commentError } = await this.adminSupabase
+        .from('tjs_artist_request_comments')
+        .select('request_id, author_profile_id, created_at')
+        .in('request_id', requestIds)
+        .order('created_at', { ascending: true });
+
+      if (commentError) {
+        if (this.isMissingSchemaError(commentError)) {
+          throw new Error('Artist request tables are missing in the database. Run db/021_artist_workspace_requests.sql.');
+        }
+        console.error('getArtistWorkspaceRequests comments error:', commentError.message);
+      } else {
+        commentSummaryByRequestId = (commentData ?? []).reduce((map, row: any) => {
+          const current = map.get(row.request_id) ?? {
+            count: 0,
+            latestAt: null,
+            latestAuthorProfileId: null,
+          };
+          current.count += 1;
+          current.latestAt = row.created_at ?? current.latestAt;
+          current.latestAuthorProfileId = row.author_profile_id ?? current.latestAuthorProfileId;
+          map.set(row.request_id, current);
+          return map;
+        }, new Map<string, { count: number; latestAt: string | null; latestAuthorProfileId: string | null }>());
+      }
+    }
+
+    return requestRows.map((row) => ({
+      ...(commentSummaryByRequestId.get(row.id)
+        ? {
+            comment_count: commentSummaryByRequestId.get(row.id)!.count,
+            latest_comment_at: commentSummaryByRequestId.get(row.id)!.latestAt,
+            latest_comment_author_profile_id: commentSummaryByRequestId.get(row.id)!.latestAuthorProfileId,
+          }
+        : {
+            comment_count: 0,
+            latest_comment_at: null,
+            latest_comment_author_profile_id: null,
+          }),
       id: row.id,
       event_title: row.event_title ?? '',
       status: row.status ?? 'pending',
-      request_type: row.request_type ?? 'day_show',
-      start_date: row.start_date ?? null,
-      end_date: row.end_date ?? null,
-      event_time: row.event_time ?? null,
+      date_summary: this.summarizeArtistRequestDates(
+        (datesByRequestId.get(row.id) ?? []).length > 0
+          ? datesByRequestId.get(row.id) ?? []
+          : [{
+              request_type: row.request_type,
+              start_date: row.start_date,
+              end_date: row.end_date,
+              event_time: row.event_time,
+            }].filter((item) => item.start_date)
+      ),
       created_at: row.created_at,
       event_domain_name: row.event_domain?.name ?? null,
     }));
   }
 
   async getArtistWorkspaceRequestDetail(requestId: string): Promise<ArtistRequestDetail | null> {
-    const [requestResult, mediaResult, artistsResult, commentsResult] = await Promise.all([
+    const [requestResult, datesResult, mediaResult, artistsResult, commentsResult] = await Promise.all([
       this.adminSupabase
         .from('tjs_artist_requests')
         .select('*')
         .eq('id', requestId)
         .maybeSingle(),
+      this.adminSupabase
+        .from('tjs_artist_request_dates')
+        .select('*')
+        .eq('request_id', requestId)
+        .order('start_date', { ascending: true }),
       this.adminSupabase
         .from('tjs_artist_request_media')
         .select('*')
@@ -1694,11 +1778,7 @@ export class SupabaseService {
         .order('created_at', { ascending: true }),
       this.adminSupabase
         .from('tjs_artist_request_artists')
-        .select(`
-          *,
-          artist:tjs_artists(id, artist_name),
-          invited_artist:tjs_artists(id, artist_name)
-        `)
+        .select('*')
         .eq('request_id', requestId)
         .order('created_at', { ascending: true }),
       this.adminSupabase
@@ -1723,6 +1803,56 @@ export class SupabaseService {
       return null;
     }
 
+    const artistRows = (artistsResult.data ?? []) as any[];
+    const linkedArtistIds = Array.from(
+      new Set(
+        artistRows
+          .flatMap((row) => [row.artist_id, row.invited_artist_id])
+          .filter((value): value is string => !!value)
+      )
+    );
+
+    const artistsById = new Map<string, any>();
+    const profilesById = new Map<string, any>();
+
+    if (linkedArtistIds.length > 0) {
+      const { data: linkedArtists, error: linkedArtistsError } = await this.adminSupabase
+        .from('tjs_artists')
+        .select('id, artist_name, profile_id')
+        .in('id', linkedArtistIds);
+
+      if (linkedArtistsError) {
+        console.error('getArtistWorkspaceRequestDetail linked artists error:', linkedArtistsError.message);
+      } else {
+        for (const artist of linkedArtists ?? []) {
+          artistsById.set(artist.id, artist);
+        }
+
+        const linkedProfileIds = Array.from(
+          new Set(
+            (linkedArtists ?? [])
+              .map((artist: any) => artist.profile_id as string | null)
+              .filter((value): value is string => !!value)
+          )
+        );
+
+        if (linkedProfileIds.length > 0) {
+          const { data: linkedProfiles, error: linkedProfilesError } = await this.adminSupabase
+            .from('tjs_profiles')
+            .select('id, full_name, email')
+            .in('id', linkedProfileIds);
+
+          if (linkedProfilesError) {
+            console.error('getArtistWorkspaceRequestDetail linked profiles error:', linkedProfilesError.message);
+          } else {
+            for (const profile of linkedProfiles ?? []) {
+              profilesById.set(profile.id, profile);
+            }
+          }
+        }
+      }
+    }
+
     return {
       id: requestResult.data.id,
       event_domain_id: requestResult.data.event_domain_id ?? null,
@@ -1730,12 +1860,23 @@ export class SupabaseService {
       teaser: requestResult.data.teaser ?? '',
       long_teaser: requestResult.data.long_teaser ?? '',
       description: requestResult.data.description ?? '',
-      request_type: requestResult.data.request_type ?? 'day_show',
-      start_date: requestResult.data.start_date ?? '',
-      end_date: requestResult.data.end_date ?? '',
-      event_time: requestResult.data.event_time ?? '',
       image_url: requestResult.data.image_url ?? null,
       status: requestResult.data.status ?? 'pending',
+      dates: (((datesResult.data ?? []) as any[]).length > 0
+        ? (datesResult.data ?? []) as any[]
+        : [{
+            request_type: requestResult.data.request_type ?? 'day_show',
+            start_date: requestResult.data.start_date ?? '',
+            end_date: requestResult.data.end_date ?? '',
+            event_time: requestResult.data.event_time ?? '',
+          }].filter((item) => item.start_date)
+      ).map((row) => ({
+        id: row.id,
+        request_type: row.request_type ?? 'day_show',
+        start_date: row.start_date ?? '',
+        end_date: row.end_date ?? '',
+        event_time: row.event_time ?? '',
+      })),
       media: ((mediaResult.data ?? []) as any[]).map((row) => ({
         id: row.id,
         media_type: row.media_type ?? 'Video',
@@ -1744,13 +1885,20 @@ export class SupabaseService {
         description: row.description ?? '',
         url: row.url ?? '',
       })),
-      artists: ((artistsResult.data ?? []) as any[]).map((row) => ({
-        id: row.id,
-        artist_id: row.artist_id ?? null,
-        invited_artist_id: row.invited_artist_id ?? null,
-        invited_email: row.invited_email ?? '',
-        display_name: row.artist?.artist_name || row.invited_artist?.artist_name || row.invited_email || '',
-      })),
+      artists: artistRows.map((row) => {
+        const selectedArtist = row.artist_id ? artistsById.get(row.artist_id) : null;
+        const invitedArtist = row.invited_artist_id ? artistsById.get(row.invited_artist_id) : null;
+        const invitedProfile = invitedArtist?.profile_id ? profilesById.get(invitedArtist.profile_id) : null;
+
+        return {
+          id: row.id,
+          artist_id: row.artist_id ?? null,
+          invited_artist_id: row.invited_artist_id ?? null,
+          invited_email: row.invited_email ?? invitedProfile?.email ?? '',
+          display_name: selectedArtist?.artist_name || invitedProfile?.full_name || invitedArtist?.artist_name || row.invited_email || '',
+          invited_full_name: invitedProfile?.full_name || invitedArtist?.artist_name || '',
+        };
+      }),
       comments: ((commentsResult.data ?? []) as any[]).map((row) => ({
         id: row.id,
         author_profile_id: row.author_profile_id,
@@ -1784,6 +1932,7 @@ export class SupabaseService {
 
   async saveArtistWorkspaceRequest(profileId: string, request: ArtistRequestDetail): Promise<{ requestId: string | null; error: string | null }> {
     const normalizedTeaser = request.teaser.trim().slice(0, 200);
+    const primaryDate = request.dates.find((item) => item.start_date) ?? null;
     const payload = {
       created_by: profileId,
       event_domain_id: request.event_domain_id,
@@ -1791,10 +1940,10 @@ export class SupabaseService {
       teaser: normalizedTeaser || null,
       long_teaser: request.long_teaser.trim() || null,
       description: request.description.trim() || null,
-      request_type: request.request_type,
-      start_date: request.start_date || null,
-      end_date: request.request_type === 'period' ? (request.end_date || null) : null,
-      event_time: request.event_time.trim() || null,
+      request_type: primaryDate?.request_type ?? 'day_show',
+      start_date: primaryDate?.start_date ?? null,
+      end_date: primaryDate?.request_type === 'period' ? (primaryDate.end_date || null) : null,
+      event_time: null,
       image_url: request.image_url || null,
       status: request.status || 'pending',
       updated_at: new Date().toISOString(),
@@ -1821,6 +1970,34 @@ export class SupabaseService {
     }
 
     const requestId = requestResult.data.id;
+
+    const { error: datesDeleteError } = await this.adminSupabase
+      .from('tjs_artist_request_dates')
+      .delete()
+      .eq('request_id', requestId);
+    if (datesDeleteError) {
+      return { requestId: null, error: datesDeleteError.message };
+    }
+
+    const datePayload = request.dates
+      .filter((item) => item.start_date)
+      .map((item) => ({
+        request_id: requestId,
+        request_type: item.request_type,
+        start_date: item.start_date,
+        end_date: item.request_type === 'period' ? (item.end_date || null) : null,
+        event_time: null,
+        updated_at: new Date().toISOString(),
+      }));
+
+    if (datePayload.length > 0) {
+      const { error: datesInsertError } = await this.adminSupabase
+        .from('tjs_artist_request_dates')
+        .insert(datePayload);
+      if (datesInsertError) {
+        return { requestId: null, error: datesInsertError.message };
+      }
+    }
 
     const { error: mediaDeleteError } = await this.adminSupabase
       .from('tjs_artist_request_media')
@@ -1860,7 +2037,7 @@ export class SupabaseService {
     }
 
     const artistPayload = request.artists
-      .filter((item) => item.artist_id || item.invited_artist_id || item.invited_email.trim())
+      .filter((item) => item.artist_id || item.invited_artist_id)
       .map((item) => ({
         request_id: requestId,
         artist_id: item.artist_id,
@@ -1879,6 +2056,48 @@ export class SupabaseService {
     }
 
     return { requestId, error: null };
+  }
+
+  async deleteArtistWorkspaceRequest(
+    profileId: string,
+    requestId: string
+  ): Promise<string | null> {
+    const { data: existing, error: fetchError } = await this.adminSupabase
+      .from('tjs_artist_requests')
+      .select('id, status, created_by')
+      .eq('id', requestId)
+      .eq('created_by', profileId)
+      .maybeSingle();
+
+    if (fetchError) {
+      if (this.isMissingSchemaError(fetchError)) {
+        return 'Artist request tables are missing in the database. Run db/021_artist_workspace_requests.sql.';
+      }
+      return fetchError.message;
+    }
+
+    if (!existing) {
+      return 'Request not found.';
+    }
+
+    if (existing.status === 'approved') {
+      return 'Approved requests cannot be deleted.';
+    }
+
+    const { error } = await this.adminSupabase
+      .from('tjs_artist_requests')
+      .delete()
+      .eq('id', requestId)
+      .eq('created_by', profileId);
+
+    if (error) {
+      if (this.isMissingSchemaError(error)) {
+        return 'Artist request tables are missing in the database. Run db/021_artist_workspace_requests.sql.';
+      }
+      return error.message;
+    }
+
+    return null;
   }
 
   async addArtistWorkspaceRequestComment(requestId: string, authorProfileId: string, body: string): Promise<string | null> {
@@ -1922,8 +2141,76 @@ export class SupabaseService {
     email: string,
     fullName: string
   ): Promise<{ artistId: string | null; error: string | null }> {
+    const normalizedEmail = email.trim().toLowerCase();
+    const existingUser = await this.findExistingUserByEmail(normalizedEmail);
+
+    if (existingUser) {
+      let existingArtistId: string | null = null;
+      let resolvedName = existingUser.full_name?.trim() || fullName.trim() || normalizedEmail;
+
+      const { data: existingArtist } = await this.adminSupabase
+        .from('tjs_artists')
+        .select('id, artist_name')
+        .eq('profile_id', existingUser.id)
+        .maybeSingle();
+
+      if (existingArtist?.id) {
+        existingArtistId = existingArtist.id;
+        resolvedName = existingUser.full_name?.trim() || existingArtist.artist_name?.trim() || resolvedName;
+      } else {
+        const artistRoleId = await this.getRoleIdByName('Artist Invited');
+        if (!artistRoleId) {
+          return { artistId: null, error: 'Artist Invited role not found.' };
+        }
+
+        const roleError = await this.assignRole(existingUser.id, artistRoleId, assignedBy);
+        if (roleError) {
+          return { artistId: null, error: roleError };
+        }
+
+        const { data: createdArtist, error: createdArtistError } = await this.adminSupabase
+          .from('tjs_artists')
+          .select('id, artist_name')
+          .eq('profile_id', existingUser.id)
+          .maybeSingle();
+
+        if (createdArtistError || !createdArtist?.id) {
+          return { artistId: null, error: createdArtistError?.message ?? 'Artist record was not created.' };
+        }
+
+        existingArtistId = createdArtist.id;
+        resolvedName = existingUser.full_name?.trim() || createdArtist.artist_name?.trim() || resolvedName;
+      }
+
+      const { error: updateError } = await this.adminSupabase
+        .from('tjs_artists')
+        .update({
+          artist_name: resolvedName,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existingArtistId);
+
+      if (updateError) {
+        return { artistId: null, error: updateError.message };
+      }
+
+      const { error: insertExistingError } = await this.adminSupabase
+        .from('tjs_artist_request_artists')
+        .insert({
+          request_id: requestId,
+          invited_artist_id: existingArtistId,
+          invited_email: normalizedEmail,
+        });
+
+      if (insertExistingError) {
+        return { artistId: null, error: insertExistingError.message };
+      }
+
+      return { artistId: existingArtistId, error: null };
+    }
+
     const inviteResult = await this.inviteArtist({
-      email,
+      email: normalizedEmail,
       full_name: fullName,
       assigned_by: assignedBy,
       role_name: 'Artist Invited',
@@ -1938,7 +2225,7 @@ export class SupabaseService {
       .insert({
         request_id: requestId,
         invited_artist_id: inviteResult.artist.id,
-        invited_email: email.trim().toLowerCase(),
+        invited_email: normalizedEmail,
       });
 
     if (error) {
@@ -1946,6 +2233,37 @@ export class SupabaseService {
     }
 
     return { artistId: inviteResult.artist.id, error: null };
+  }
+
+  private summarizeArtistRequestDates(rows: any[]): string {
+    if (!rows.length) {
+      return 'No dates added';
+    }
+
+    const formatDate = (value: string | null | undefined) =>
+      value
+        ? new Intl.DateTimeFormat(undefined, {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+          }).format(new Date(`${value}T00:00:00`))
+        : '';
+
+    const parts = rows.map((row) => {
+      const start = formatDate(row.start_date);
+      const end = formatDate(row.end_date);
+      if (row.request_type === 'period' && end) {
+        return `${start} - ${end}`;
+      }
+
+      return `${start}`;
+    });
+
+    if (parts.length === 1) {
+      return parts[0];
+    }
+
+    return `${parts[0]} +${parts.length - 1} more`;
   }
 
   async getAdminEventOverview(): Promise<AdminEventOverviewItem[]> {
