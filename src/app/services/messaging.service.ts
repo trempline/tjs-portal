@@ -10,7 +10,7 @@ export interface InternalMessage {
   recipient_id: string;
   subject: string | null;
   body: string;
-  related_host_id: string | null;
+  related_host_id: number | null;
   related_request_id: string | null;
   is_read: boolean;
   read_at: string | null;
@@ -39,7 +39,7 @@ export interface SendMessageRequest {
   recipient_id: string;
   subject?: string;
   body: string;
-  related_host_id?: string;
+  related_host_id?: number;
   related_request_id?: string;
 }
 
@@ -92,7 +92,7 @@ export class MessagingService {
   /**
    * Send a message to a specific host (for Host Managers)
    */
-  async sendMessageToHost(hostId: string, subject: string, body: string): Promise<InternalMessage> {
+  async sendMessageToHost(hostId: number, subject: string, body: string): Promise<InternalMessage> {
     const { data: hostData, error: hostError } = await this.adminSupabase
       .from('tjs_hosts')
       .select('profile_id')
@@ -214,7 +214,7 @@ export class MessagingService {
   /**
    * Get conversation with a specific host (for Host Managers)
    */
-  getConversationWithHost(hostId: string): Observable<InternalMessage[]> {
+  getConversationWithHost(hostId: number): Observable<InternalMessage[]> {
     const currentUserId = this.getCurrentUserId();
     if (!currentUserId) {
       return throwError(() => new Error('User not authenticated'));

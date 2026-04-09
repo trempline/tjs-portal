@@ -10,8 +10,8 @@ CREATE TABLE IF NOT EXISTS public.tjs_internal_messages (
     recipient_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE SET NULL,
     subject TEXT,
     body TEXT NOT NULL,
-    related_host_id UUID REFERENCES public.tjs_hosts(id) ON DELETE SET NULL,
-    related_request_id UUID REFERENCES public.tjs_requests(id) ON DELETE SET NULL,
+    related_host_id INTEGER REFERENCES public.tjs_hosts(id) ON DELETE SET NULL,
+    related_request_id UUID,
     is_read BOOLEAN DEFAULT FALSE,
     read_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -71,7 +71,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Function to get conversation with a specific host
-CREATE OR REPLACE FUNCTION tjs_get_conversation_with_host(p_host_id UUID)
+CREATE OR REPLACE FUNCTION tjs_get_conversation_with_host(p_host_id INTEGER)
 RETURNS SETOF public.tjs_internal_messages AS $$
 BEGIN
     RETURN QUERY

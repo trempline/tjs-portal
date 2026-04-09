@@ -8,51 +8,75 @@
     {{ error }}
   </div>
 
-  <div *ngIf="isLoading" class="flex items-center justify-center py-20">
-    <div class="h-8 w-8 animate-spin rounded-full border-4 border-zinc-200 border-t-red-600"></div>
+  <div *ngIf="isLoading" class="flex items-center justify-center py-12">
+    <div class="flex items-center space-x-3">
+      <div class="h-8 w-8 animate-spin rounded-full border-3 border-zinc-200 border-t-red-600"></div>
+      <p class="text-sm font-medium text-zinc-600">Loading notifications...</p>
+    </div>
   </div>
 
-  <div *ngIf="!isLoading && notifications.length === 0" class="rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-6 py-12 text-center text-sm text-zinc-500">
-    No notifications yet.
+  <div *ngIf="!isLoading && notifications.length === 0" class="text-center py-12">
+    <div class="flex items-center justify-center mb-4 h-12 w-12 rounded-full bg-zinc-100">
+      <svg class="h-5 w-5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+    </div>
+    <p class="text-base font-medium text-zinc-800">No notifications yet</p>
+    <p class="mt-2 text-sm text-zinc-500">You'll see notifications here when they're sent to you</p>
   </div>
 
-  <div *ngIf="!isLoading && notifications.length > 0" class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-    <button
-      *ngFor="let notification of notifications; trackBy: trackByNotification"
-      type="button"
-      (click)="openNotification(notification)"
-      class="text-left overflow-hidden rounded-2xl border bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
-      [class.border-red-200]="!notification.is_read"
-      [class.border-zinc-200]="notification.is_read"
-    >
-      <div class="flex items-start gap-3">
-        <div class="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-zinc-200">
-          <img *ngIf="notification.sender_avatar_url; else senderFallback" [src]="notification.sender_avatar_url" alt="Sender avatar" class="h-full w-full object-cover" />
-          <ng-template #senderFallback>
-            <span class="text-sm font-semibold text-zinc-600">{{ notification.sender_name.charAt(0).toUpperCase() }}</span>
-          </ng-template>
-        </div>
-
-        <div class="min-w-0 flex-1">
-          <div class="flex items-center justify-between gap-3">
-            <div class="min-w-0">
-              <div class="truncate text-sm font-semibold text-zinc-900">{{ notification.sender_name }}</div>
-              <div class="mt-0.5 text-xs uppercase tracking-[0.18em] text-zinc-400">{{ notification.sender_role }}</div>
-            </div>
-            <span *ngIf="!notification.is_read" class="inline-flex h-2.5 w-2.5 rounded-full bg-red-500"></span>
-          </div>
-
-          <div class="mt-4">
-            <h2 class="text-base font-semibold text-zinc-900">{{ notification.subject }}</h2>
-            <p class="mt-2 text-sm leading-6 text-zinc-600">{{ trimBody(notification.body) }}</p>
-          </div>
-
-          <div class="mt-4 text-xs text-zinc-400">
-            {{ notification.created_at | date:'medium' }}
-          </div>
-        </div>
-      </div>
-    </button>
+  <div *ngIf="!isLoading && notifications.length > 0" class="space-y-3">
+    <div class="overflow-x-auto">
+      <table class="min-w-full divide-y divide-zinc-200">
+        <thead class="bg-zinc-50">
+          <tr>
+            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Sender</th>
+            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Subject</th>
+            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Preview</th>
+            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Date</th>
+            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Status</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-zinc-200">
+          <tr
+            *ngFor="let notification of notifications; trackBy: trackByNotification"
+            (click)="openNotification(notification)"
+            class="hover:bg-zinc-100 cursor-pointer"
+            [class.bg-red-50]="!notification.is_read"
+            [class.bg-white]="notification.is_read"
+          >
+            <td class="px-4 py-4">
+              <div class="flex items-center gap-3">
+                <div class="h-9 w-9 rounded-full bg-zinc-100 flex items-center justify-center overflow-hidden">
+                  <img *ngIf="notification.sender_avatar_url; else rowSenderFallback" [src]="notification.sender_avatar_url" alt="Sender avatar" class="h-full w-full object-cover" />
+                  <ng-template #rowSenderFallback>
+                    <span class="text-xs font-semibold text-zinc-600">{{ notification.sender_name.charAt(0).toUpperCase() }}</span>
+                  </ng-template>
+                </div>
+                <div>
+                  <div class="text-sm font-medium text-zinc-900">{{ notification.sender_name }}</div>
+                  <div class="text-xs text-zinc-500" *ngIf="notification.sender_role">{{ notification.sender_role }}</div>
+                </div>
+              </div>
+            </td>
+            <td class="px-4 py-4">
+              <div class="text-sm font-semibold text-zinc-900">{{ notification.subject }}</div>
+            </td>
+            <td class="px-4 py-4">
+              <div class="text-sm text-zinc-600">{{ trimBody(notification.body) }}</div>
+            </td>
+            <td class="px-4 py-4 text-sm text-zinc-500">{{ notification.created_at | date:'medium' }}</td>
+            <td class="px-4 py-4 text-sm">
+              <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                [class.bg-green-100]="notification.is_read"
+                [class.text-green-700]="notification.is_read"
+                [class.bg-red-100]="!notification.is_read"
+                [class.text-red-700]="!notification.is_read">
+                {{ notification.is_read ? 'Read' : 'Unread' }}
+              </span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 
   <div *ngIf="selectedNotification" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">

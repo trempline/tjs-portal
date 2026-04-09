@@ -276,6 +276,96 @@ export interface ArtistNotificationItem {
   sender_avatar_url: string | null;
 }
 
+export interface ArtistMessageDirectoryUser {
+  id: string;
+  email: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  roles: TjsRole[];
+}
+
+export interface ArtistConversationSummary {
+  other_user_id: string;
+  other_user_name: string;
+  other_user_email: string;
+  other_user_avatar_url: string | null;
+  other_user_role: string;
+  subject: string;
+  last_message_at: string;
+  last_message_preview: string;
+  unread_count: number;
+  is_archived: boolean;
+  is_deleted: boolean;
+}
+
+export interface ArtistConversationMessage {
+  id: string;
+  sender_id: string;
+  recipient_id: string;
+  subject: string;
+  body: string;
+  is_read: boolean;
+  created_at: string;
+  sender_name: string;
+  sender_avatar_url: string | null;
+}
+
+export interface ArtistRequestListItem {
+  id: string;
+  event_title: string;
+  status: 'pending' | 'approved' | 'rejected';
+  request_type: 'day_show' | 'period';
+  start_date: string | null;
+  end_date: string | null;
+  event_time: string | null;
+  created_at: string;
+  event_domain_name: string | null;
+}
+
+export interface ArtistRequestMediaEntry {
+  id?: string;
+  media_type: 'CD' | 'Video';
+  image_url: string | null;
+  name: string;
+  description: string;
+  url: string;
+}
+
+export interface ArtistRequestArtistEntry {
+  id?: string;
+  artist_id: string | null;
+  invited_artist_id: string | null;
+  invited_email: string;
+  display_name: string;
+}
+
+export interface ArtistRequestCommentEntry {
+  id: string;
+  author_profile_id: string;
+  author_name: string;
+  author_avatar_url: string | null;
+  body: string;
+  created_at: string;
+}
+
+export interface ArtistRequestDetail {
+  id?: string;
+  event_domain_id: number | null;
+  event_title: string;
+  teaser: string;
+  long_teaser: string;
+  description: string;
+  request_type: 'day_show' | 'period';
+  start_date: string;
+  end_date: string;
+  event_time: string;
+  image_url: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  media: ArtistRequestMediaEntry[];
+  artists: ArtistRequestArtistEntry[];
+  comments: ArtistRequestCommentEntry[];
+}
+
 export interface PagArtist {
   id: string;
   id_profile: string | null;
@@ -1223,6 +1313,639 @@ export class SupabaseService {
     }
 
     return null;
+  }
+
+  async getArtistMessageDirectory(): Promise<ArtistMessageDirectoryUser[]> {
+    const users = await this.listAllUsersWithRoles();
+
+    return users.map((user) => ({
+      id: user.id,
+      email: user.email,
+      full_name: user.full_name,
+      avatar_url: user.avatar_url,
+      roles: user.roles,
+    }));
+  }
+
+  async getArtistConversations(currentUserId: string): Promise<ArtistConversationSummary[]> {
+    const { data, error } = await this.adminSupabase
+      .from('tjs_internal_messages')
+      .select(`
+        id,
+        sender_id,
+        recipient_id,
+        subject,
+        body,
+        is_read,
+        created_at
+      `)
+      .or(`sender_id.eq.${currentUserId},recipient_id.eq.${currentUserId}`)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      if (this.isMissingSchemaError(error)) {
+        throw new Error('Messaging tables are missing in the database. Run db/011_tjs_internal_messages.sql and db/020_artist_message_conversation_state.sql.');
+      }
+      console.error('getArtistConversations error:', error.message);
+      return [];
+    }
+
+    const stateResult = await this.adminSupabase
+      .from('tjs_internal_message_conversation_state')
+      .select('other_user_id, subject, is_archived, is_deleted')
+      .eq('user_id', currentUserId);
+
+    if (stateResult.error && !this.isMissingSchemaError(stateResult.error)) {
+      console.error('getArtistConversations state error:', stateResult.error.message);
+    }
+
+    const stateMap = new Map<string, { is_archived: boolean; is_deleted: boolean }>();
+    for (const row of ((stateResult.data ?? []) as any[])) {
+      const key = `${row.other_user_id}::${row.subject ?? ''}`;
+      stateMap.set(key, {
+        is_archived: !!row.is_archived,
+        is_deleted: !!row.is_deleted,
+      });
+    }
+
+    const participantIds = new Set<string>();
+    for (const row of ((data ?? []) as any[])) {
+      const otherUserId = row.sender_id === currentUserId ? row.recipient_id : row.sender_id;
+      if (otherUserId) {
+        participantIds.add(otherUserId);
+      }
+    }
+
+    const profilesResult = participantIds.size > 0
+      ? await this.adminSupabase
+          .from('tjs_profiles')
+          .select('id, full_name, email, avatar_url')
+          .in('id', Array.from(participantIds))
+      : { data: [], error: null };
+
+    if (profilesResult.error) {
+      console.error('getArtistConversations profiles error:', profilesResult.error.message);
+    }
+
+    const profileByUserId = new Map<string, Partial<TjsProfile>>();
+    for (const row of ((profilesResult.data ?? []) as Partial<TjsProfile>[])) {
+      if (row.id) {
+        profileByUserId.set(row.id, row);
+      }
+    }
+
+    const rolesResult = participantIds.size > 0
+      ? await this.adminSupabase
+          .from('tjs_user_roles')
+          .select(`
+            user_id,
+            is_active,
+            role:tjs_roles (
+              id,
+              name,
+              description,
+              permissions
+            )
+          `)
+          .in('user_id', Array.from(participantIds))
+          .eq('is_active', true)
+      : { data: [], error: null };
+
+    if (rolesResult.error) {
+      console.error('getArtistConversations roles error:', rolesResult.error.message);
+    }
+
+    const roleNameByUserId = new Map<string, string>();
+    for (const row of ((rolesResult.data ?? []) as any[])) {
+      const userId = typeof row.user_id === 'string' ? row.user_id : null;
+      const roleName = typeof row.role?.name === 'string' ? row.role.name : null;
+      if (userId && roleName && !roleNameByUserId.has(userId)) {
+        roleNameByUserId.set(userId, roleName);
+      }
+    }
+
+    const conversationMap = new Map<string, ArtistConversationSummary>();
+    for (const row of ((data ?? []) as any[])) {
+      const isSender = row.sender_id === currentUserId;
+      const otherUserId = isSender ? row.recipient_id : row.sender_id;
+      const otherProfile = otherUserId ? profileByUserId.get(otherUserId) : null;
+      const subject = (row.subject ?? '').trim();
+      const key = `${otherUserId}::${subject}`;
+
+      if (!otherUserId || conversationMap.has(key)) {
+        continue;
+      }
+
+      const state = stateMap.get(key) ?? { is_archived: false, is_deleted: false };
+      if (state.is_deleted) {
+        continue;
+      }
+
+      conversationMap.set(key, {
+        other_user_id: otherUserId,
+        other_user_name: otherProfile?.full_name || otherProfile?.email || 'Unknown user',
+        other_user_email: otherProfile?.email || '',
+        other_user_avatar_url: otherProfile?.avatar_url ?? null,
+        other_user_role: roleNameByUserId.get(otherUserId) || 'User',
+        subject,
+        last_message_at: row.created_at,
+        last_message_preview: row.body ?? '',
+        unread_count: 0,
+        is_archived: state.is_archived,
+        is_deleted: state.is_deleted,
+      });
+    }
+
+    for (const row of ((data ?? []) as any[])) {
+      const isSender = row.sender_id === currentUserId;
+      const otherUserId = isSender ? row.recipient_id : row.sender_id;
+      const subject = (row.subject ?? '').trim();
+      const key = `${otherUserId}::${subject}`;
+      const conversation = conversationMap.get(key);
+      if (!conversation) {
+        continue;
+      }
+
+      if (!isSender && !row.is_read) {
+        conversation.unread_count += 1;
+      }
+    }
+
+    return Array.from(conversationMap.values()).sort((a, b) =>
+      new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime()
+    );
+  }
+
+  async getArtistConversationMessages(currentUserId: string, otherUserId: string, subject: string): Promise<ArtistConversationMessage[]> {
+    const normalizedSubject = subject.trim();
+    let query = this.adminSupabase
+      .from('tjs_internal_messages')
+      .select(`
+        id,
+        sender_id,
+        recipient_id,
+        subject,
+        body,
+        is_read,
+        created_at
+      `)
+      .or(`and(sender_id.eq.${currentUserId},recipient_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},recipient_id.eq.${currentUserId})`)
+      .order('created_at', { ascending: true });
+
+    query = normalizedSubject
+      ? query.eq('subject', normalizedSubject)
+      : query.or('subject.is.null,subject.eq.');
+
+    const { data, error } = await query;
+    if (error) {
+      if (this.isMissingSchemaError(error)) {
+        throw new Error('Messaging tables are missing in the database. Run db/011_tjs_internal_messages.sql and db/020_artist_message_conversation_state.sql.');
+      }
+      console.error('getArtistConversationMessages error:', error.message);
+      return [];
+    }
+
+    const senderIds = Array.from(new Set(
+      ((data ?? []) as any[])
+        .map((row) => row.sender_id as string | undefined)
+        .filter((value): value is string => !!value)
+    ));
+
+    const profilesResult = senderIds.length > 0
+      ? await this.adminSupabase
+          .from('tjs_profiles')
+          .select('id, full_name, email, avatar_url')
+          .in('id', senderIds)
+      : { data: [], error: null };
+
+    if (profilesResult.error) {
+      console.error('getArtistConversationMessages profiles error:', profilesResult.error.message);
+    }
+
+    const profileByUserId = new Map<string, Partial<TjsProfile>>();
+    for (const row of ((profilesResult.data ?? []) as Partial<TjsProfile>[])) {
+      if (row.id) {
+        profileByUserId.set(row.id, row);
+      }
+    }
+
+    return ((data ?? []) as any[]).map((row) => ({
+      id: row.id,
+      sender_id: row.sender_id,
+      recipient_id: row.recipient_id,
+      subject: (row.subject ?? '').trim(),
+      body: row.body ?? '',
+      is_read: !!row.is_read,
+      created_at: row.created_at,
+      sender_name: profileByUserId.get(row.sender_id)?.full_name || profileByUserId.get(row.sender_id)?.email || 'Unknown sender',
+      sender_avatar_url: profileByUserId.get(row.sender_id)?.avatar_url ?? null,
+    }));
+  }
+
+  async sendArtistMessage(senderId: string, recipientId: string, subject: string, body: string): Promise<string | null> {
+    const normalizedSubject = subject.trim();
+    const normalizedBody = body.trim();
+
+    const { error } = await this.adminSupabase
+      .from('tjs_internal_messages')
+      .insert({
+        sender_id: senderId,
+        recipient_id: recipientId,
+        subject: normalizedSubject,
+        body: normalizedBody,
+      });
+
+    if (error) {
+      if (this.isMissingSchemaError(error)) {
+        return 'Messaging tables are missing in the database. Run db/011_tjs_internal_messages.sql and db/020_artist_message_conversation_state.sql.';
+      }
+      console.error('sendArtistMessage error:', error.message);
+      return error.message;
+    }
+
+    await this.setArtistConversationState(senderId, recipientId, normalizedSubject, {
+      is_archived: false,
+      is_deleted: false,
+    });
+
+    return null;
+  }
+
+  async markArtistConversationRead(currentUserId: string, otherUserId: string, subject: string): Promise<string | null> {
+    const normalizedSubject = subject.trim();
+    let query = this.adminSupabase
+      .from('tjs_internal_messages')
+      .update({
+        is_read: true,
+        read_at: new Date().toISOString(),
+      })
+      .eq('sender_id', otherUserId)
+      .eq('recipient_id', currentUserId)
+      .eq('is_read', false);
+
+    query = normalizedSubject
+      ? query.eq('subject', normalizedSubject)
+      : query.or('subject.is.null,subject.eq.');
+
+    const { error } = await query;
+    if (error) {
+      if (this.isMissingSchemaError(error)) {
+        return 'Messaging tables are missing in the database. Run db/011_tjs_internal_messages.sql and db/020_artist_message_conversation_state.sql.';
+      }
+      console.error('markArtistConversationRead error:', error.message);
+      return error.message;
+    }
+
+    return null;
+  }
+
+  async setArtistConversationState(
+    currentUserId: string,
+    otherUserId: string,
+    subject: string,
+    updates: { is_archived?: boolean; is_deleted?: boolean }
+  ): Promise<string | null> {
+    const { error } = await this.adminSupabase
+      .from('tjs_internal_message_conversation_state')
+      .upsert({
+        user_id: currentUserId,
+        other_user_id: otherUserId,
+        subject: subject.trim(),
+        is_archived: updates.is_archived ?? false,
+        is_deleted: updates.is_deleted ?? false,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id,other_user_id,subject' });
+
+    if (error) {
+      if (this.isMissingSchemaError(error)) {
+        return 'Conversation state table is missing in the database. Run db/020_artist_message_conversation_state.sql and try again.';
+      }
+
+      console.error('setArtistConversationState error:', error.message);
+      return error.message;
+    }
+
+    return null;
+  }
+
+  async listEventDomains(): Promise<Array<{ id: number; name: string }>> {
+    const { data, error } = await this.adminSupabase
+      .from('sys_event_domain')
+      .select('id, name')
+      .order('name', { ascending: true });
+
+    if (error) {
+      console.error('listEventDomains error:', error.message);
+      return [];
+    }
+
+    return (data ?? []) as Array<{ id: number; name: string }>;
+  }
+
+  async getArtistWorkspaceRequests(profileId: string): Promise<ArtistRequestListItem[]> {
+    const { data, error } = await this.adminSupabase
+      .from('tjs_artist_requests')
+      .select(`
+        id,
+        event_title,
+        status,
+        request_type,
+        start_date,
+        end_date,
+        event_time,
+        created_at,
+        event_domain:sys_event_domain(name)
+      `)
+      .eq('created_by', profileId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      if (this.isMissingSchemaError(error)) {
+        throw new Error('Artist request tables are missing in the database. Run db/021_artist_workspace_requests.sql.');
+      }
+      console.error('getArtistWorkspaceRequests error:', error.message);
+      return [];
+    }
+
+    return ((data ?? []) as any[]).map((row) => ({
+      id: row.id,
+      event_title: row.event_title ?? '',
+      status: row.status ?? 'pending',
+      request_type: row.request_type ?? 'day_show',
+      start_date: row.start_date ?? null,
+      end_date: row.end_date ?? null,
+      event_time: row.event_time ?? null,
+      created_at: row.created_at,
+      event_domain_name: row.event_domain?.name ?? null,
+    }));
+  }
+
+  async getArtistWorkspaceRequestDetail(requestId: string): Promise<ArtistRequestDetail | null> {
+    const [requestResult, mediaResult, artistsResult, commentsResult] = await Promise.all([
+      this.adminSupabase
+        .from('tjs_artist_requests')
+        .select('*')
+        .eq('id', requestId)
+        .maybeSingle(),
+      this.adminSupabase
+        .from('tjs_artist_request_media')
+        .select('*')
+        .eq('request_id', requestId)
+        .order('created_at', { ascending: true }),
+      this.adminSupabase
+        .from('tjs_artist_request_artists')
+        .select(`
+          *,
+          artist:tjs_artists(id, artist_name),
+          invited_artist:tjs_artists(id, artist_name)
+        `)
+        .eq('request_id', requestId)
+        .order('created_at', { ascending: true }),
+      this.adminSupabase
+        .from('tjs_artist_request_comments')
+        .select(`
+          *,
+          author:tjs_profiles(full_name, email, avatar_url)
+        `)
+        .eq('request_id', requestId)
+        .order('created_at', { ascending: true }),
+    ]);
+
+    if (requestResult.error) {
+      if (this.isMissingSchemaError(requestResult.error)) {
+        throw new Error('Artist request tables are missing in the database. Run db/021_artist_workspace_requests.sql.');
+      }
+      console.error('getArtistWorkspaceRequestDetail request error:', requestResult.error.message);
+      return null;
+    }
+
+    if (!requestResult.data) {
+      return null;
+    }
+
+    return {
+      id: requestResult.data.id,
+      event_domain_id: requestResult.data.event_domain_id ?? null,
+      event_title: requestResult.data.event_title ?? '',
+      teaser: requestResult.data.teaser ?? '',
+      long_teaser: requestResult.data.long_teaser ?? '',
+      description: requestResult.data.description ?? '',
+      request_type: requestResult.data.request_type ?? 'day_show',
+      start_date: requestResult.data.start_date ?? '',
+      end_date: requestResult.data.end_date ?? '',
+      event_time: requestResult.data.event_time ?? '',
+      image_url: requestResult.data.image_url ?? null,
+      status: requestResult.data.status ?? 'pending',
+      media: ((mediaResult.data ?? []) as any[]).map((row) => ({
+        id: row.id,
+        media_type: row.media_type ?? 'Video',
+        image_url: row.image_url ?? null,
+        name: row.name ?? '',
+        description: row.description ?? '',
+        url: row.url ?? '',
+      })),
+      artists: ((artistsResult.data ?? []) as any[]).map((row) => ({
+        id: row.id,
+        artist_id: row.artist_id ?? null,
+        invited_artist_id: row.invited_artist_id ?? null,
+        invited_email: row.invited_email ?? '',
+        display_name: row.artist?.artist_name || row.invited_artist?.artist_name || row.invited_email || '',
+      })),
+      comments: ((commentsResult.data ?? []) as any[]).map((row) => ({
+        id: row.id,
+        author_profile_id: row.author_profile_id,
+        author_name: row.author?.full_name || row.author?.email || 'Unknown user',
+        author_avatar_url: row.author?.avatar_url ?? null,
+        body: row.body ?? '',
+        created_at: row.created_at,
+      })),
+    };
+  }
+
+  async uploadArtistWorkspaceRequestImage(profileId: string, file: File, folder: 'request-image' | 'request-media'): Promise<{ url: string | null; error: string | null }> {
+    const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+    const path = `artist-workspace/${profileId}/${folder}/${Date.now()}.${extension}`;
+
+    const { error } = await this.adminSupabase.storage
+      .from('tjs')
+      .upload(path, file, {
+        cacheControl: '3600',
+        upsert: true,
+      });
+
+    if (error) {
+      console.error('uploadArtistWorkspaceRequestImage error:', error.message);
+      return { url: null, error: error.message };
+    }
+
+    const { data } = this.adminSupabase.storage.from('tjs').getPublicUrl(path);
+    return { url: data.publicUrl, error: null };
+  }
+
+  async saveArtistWorkspaceRequest(profileId: string, request: ArtistRequestDetail): Promise<{ requestId: string | null; error: string | null }> {
+    const normalizedTeaser = request.teaser.trim().slice(0, 200);
+    const payload = {
+      created_by: profileId,
+      event_domain_id: request.event_domain_id,
+      event_title: request.event_title.trim(),
+      teaser: normalizedTeaser || null,
+      long_teaser: request.long_teaser.trim() || null,
+      description: request.description.trim() || null,
+      request_type: request.request_type,
+      start_date: request.start_date || null,
+      end_date: request.request_type === 'period' ? (request.end_date || null) : null,
+      event_time: request.event_time.trim() || null,
+      image_url: request.image_url || null,
+      status: request.status || 'pending',
+      updated_at: new Date().toISOString(),
+    };
+
+    const requestResult = request.id
+      ? await this.adminSupabase
+          .from('tjs_artist_requests')
+          .update(payload)
+          .eq('id', request.id)
+          .select('id')
+          .single()
+      : await this.adminSupabase
+          .from('tjs_artist_requests')
+          .insert(payload)
+          .select('id')
+          .single();
+
+    if (requestResult.error || !requestResult.data?.id) {
+      if (requestResult.error && this.isMissingSchemaError(requestResult.error)) {
+        return { requestId: null, error: 'Artist request tables are missing in the database. Run db/021_artist_workspace_requests.sql.' };
+      }
+      return { requestId: null, error: requestResult.error?.message ?? 'Failed to save request.' };
+    }
+
+    const requestId = requestResult.data.id;
+
+    const { error: mediaDeleteError } = await this.adminSupabase
+      .from('tjs_artist_request_media')
+      .delete()
+      .eq('request_id', requestId);
+    if (mediaDeleteError) {
+      return { requestId: null, error: mediaDeleteError.message };
+    }
+
+    const mediaPayload = request.media
+      .filter((item) => item.name.trim())
+      .map((item) => ({
+        request_id: requestId,
+        media_type: item.media_type,
+        image_url: item.image_url || null,
+        name: item.name.trim(),
+        description: item.description.trim() || null,
+        url: item.url.trim() || null,
+        updated_at: new Date().toISOString(),
+      }));
+
+    if (mediaPayload.length > 0) {
+      const { error: mediaInsertError } = await this.adminSupabase
+        .from('tjs_artist_request_media')
+        .insert(mediaPayload);
+      if (mediaInsertError) {
+        return { requestId: null, error: mediaInsertError.message };
+      }
+    }
+
+    const { error: artistDeleteError } = await this.adminSupabase
+      .from('tjs_artist_request_artists')
+      .delete()
+      .eq('request_id', requestId);
+    if (artistDeleteError) {
+      return { requestId: null, error: artistDeleteError.message };
+    }
+
+    const artistPayload = request.artists
+      .filter((item) => item.artist_id || item.invited_artist_id || item.invited_email.trim())
+      .map((item) => ({
+        request_id: requestId,
+        artist_id: item.artist_id,
+        invited_artist_id: item.invited_artist_id,
+        invited_email: item.invited_email.trim() || null,
+        updated_at: new Date().toISOString(),
+      }));
+
+    if (artistPayload.length > 0) {
+      const { error: artistInsertError } = await this.adminSupabase
+        .from('tjs_artist_request_artists')
+        .insert(artistPayload);
+      if (artistInsertError) {
+        return { requestId: null, error: artistInsertError.message };
+      }
+    }
+
+    return { requestId, error: null };
+  }
+
+  async addArtistWorkspaceRequestComment(requestId: string, authorProfileId: string, body: string): Promise<string | null> {
+    const { error } = await this.adminSupabase
+      .from('tjs_artist_request_comments')
+      .insert({
+        request_id: requestId,
+        author_profile_id: authorProfileId,
+        body: body.trim(),
+      });
+
+    if (error) {
+      if (this.isMissingSchemaError(error)) {
+        return 'Artist request tables are missing in the database. Run db/021_artist_workspace_requests.sql.';
+      }
+      console.error('addArtistWorkspaceRequestComment error:', error.message);
+      return error.message;
+    }
+
+    return null;
+  }
+
+  async listTjsArtistsForRequestSelection(): Promise<Array<{ id: string; artist_name: string; profile_id: string }>> {
+    const { data, error } = await this.adminSupabase
+      .from('tjs_artists')
+      .select('id, artist_name, profile_id')
+      .eq('is_tjs_artist', true)
+      .order('artist_name', { ascending: true });
+
+    if (error) {
+      console.error('listTjsArtistsForRequestSelection error:', error.message);
+      return [];
+    }
+
+    return (data ?? []) as Array<{ id: string; artist_name: string; profile_id: string }>;
+  }
+
+  async inviteArtistForRequest(
+    assignedBy: string,
+    requestId: string,
+    email: string,
+    fullName: string
+  ): Promise<{ artistId: string | null; error: string | null }> {
+    const inviteResult = await this.inviteArtist({
+      email,
+      full_name: fullName,
+      assigned_by: assignedBy,
+      role_name: 'Artist Invited',
+    });
+
+    if (inviteResult.error || !inviteResult.artist) {
+      return { artistId: null, error: inviteResult.error ?? 'Failed to invite artist.' };
+    }
+
+    const { error } = await this.adminSupabase
+      .from('tjs_artist_request_artists')
+      .insert({
+        request_id: requestId,
+        invited_artist_id: inviteResult.artist.id,
+        invited_email: email.trim().toLowerCase(),
+      });
+
+    if (error) {
+      return { artistId: null, error: error.message };
+    }
+
+    return { artistId: inviteResult.artist.id, error: null };
   }
 
   async getAdminEventOverview(): Promise<AdminEventOverviewItem[]> {

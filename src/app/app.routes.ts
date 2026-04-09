@@ -27,6 +27,8 @@ import { ArtistInstruments } from './backoffice/artist-instruments/artist-instru
 import { ArtistRequirements } from './backoffice/artist-requirements/artist-requirements';
 import { ArtistMedia } from './backoffice/artist-media/artist-media';
 import { ArtistAvailability } from './backoffice/artist-availability/artist-availability';
+import { ArtistRequests } from './backoffice/artist-requests/artist-requests';
+import { ArtistMessages } from './backoffice/artist-messages/artist-messages';
 import { ArtistNotifications } from './backoffice/artist-notifications/artist-notifications';
 import { authGuard, roleGuard } from './guards/auth.guard';
 
@@ -97,10 +99,10 @@ export const routes: Routes = [
             { path: 'artist-instruments', component: ArtistInstruments, canActivate: [roleGuard(['Artist', 'Artist Invited'])] },
             { path: 'artist-requirements', component: ArtistRequirements, canActivate: [roleGuard(['Artist', 'Artist Invited'])] },
             { path: 'artist-media', component: ArtistMedia, canActivate: [roleGuard(['Artist', 'Artist Invited'])] },
-            { path: 'artist-requests', component: ArtistWorkspacePage, canActivate: [roleGuard(['Artist', 'Artist Invited'])], data: { title: 'Request', description: 'Review and manage artist-side requests and submissions.' } },
+            { path: 'artist-requests', component: ArtistRequests, canActivate: [roleGuard(['Artist', 'Artist Invited'])] },
             { path: 'artist-availability', component: ArtistAvailability, canActivate: [roleGuard(['Artist', 'Artist Invited'])] },
             { path: 'artist-events', component: ArtistWorkspacePage, canActivate: [roleGuard(['Artist', 'Artist Invited'])], data: { title: 'Events', description: 'View upcoming and past events associated with your profile.' } },
-            { path: 'artist-messages', component: ArtistWorkspacePage, canActivate: [roleGuard(['Artist', 'Artist Invited'])], data: { title: 'Message Center', description: 'Read and manage your artist communications.' } },
+            { path: 'artist-messages', component: ArtistMessages, canActivate: [roleGuard(['Artist', 'Artist Invited'])] },
             { path: 'artist-notifications', component: ArtistNotifications, canActivate: [roleGuard(['Artist', 'Artist Invited'])] },
             { path: 'artist-settings', component: ArtistWorkspacePage, canActivate: [roleGuard(['Artist', 'Artist Invited'])], data: { title: 'Settings', description: 'Configure your artist workspace preferences and account settings.' } },
             { path: 'account-settings', component: AccountSettings },
