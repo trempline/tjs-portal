@@ -119,6 +119,10 @@ export class AuthService {
     return this.hasRole('Host Manager');
   }
 
+  get isArtist(): boolean {
+    return this.hasAnyRole(['Artist', 'Artist Invited']);
+  }
+
   get hasValidMembership(): boolean {
     const profile = this.currentProfile;
     if (!profile?.is_member) {
@@ -199,6 +203,10 @@ export class AuthService {
 
     if (roleNames.includes('host') || roleNames.includes('host+')) {
       return '/backoffice/my-hosts';
+    }
+
+    if (roleNames.includes('artist') || roleNames.includes('artist invited')) {
+      return '/backoffice/artist-dashboard';
     }
 
     return '/backoffice/dashboard';

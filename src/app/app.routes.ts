@@ -4,6 +4,7 @@ import { Nous } from './nous/nous';
 import { Entreprises } from './entreprises/entreprises';
 import { About } from './about/about';
 import { AdminLogin } from './admin-login/admin-login';
+import { ArtistLogin } from './artist-login/artist-login';
 import { BackofficeLayout } from './backoffice/backoffice-layout/backoffice-layout';
 import { Dashboard } from './backoffice/dashboard/dashboard';
 import { EventRequests } from './backoffice/event-requests/event-requests';
@@ -20,6 +21,13 @@ import { AuthCallback } from './auth-callback/auth-callback';
 import { TestHostCreationComponent } from './test-host-creation/test-host-creation.component';
 import { HostManagerHosts } from './backoffice/host-manager-hosts/host-manager-hosts';
 import { NonTjsArtists } from './backoffice/non-tjs-artists/non-tjs-artists';
+import { ArtistWorkspacePage } from './backoffice/artist-workspace-page/artist-workspace-page';
+import { ArtistProfile } from './backoffice/artist-profile/artist-profile';
+import { ArtistInstruments } from './backoffice/artist-instruments/artist-instruments';
+import { ArtistRequirements } from './backoffice/artist-requirements/artist-requirements';
+import { ArtistMedia } from './backoffice/artist-media/artist-media';
+import { ArtistAvailability } from './backoffice/artist-availability/artist-availability';
+import { ArtistNotifications } from './backoffice/artist-notifications/artist-notifications';
 import { authGuard, roleGuard } from './guards/auth.guard';
 
 export const routes: Routes = [
@@ -44,9 +52,22 @@ export const routes: Routes = [
         component: AdminLogin,
     },
     {
+        path: 'artist-login',
+        component: ArtistLogin,
+    },
+    {
         // Handles Supabase email invite / password-reset magic links
         path: 'auth/callback',
         component: AuthCallback,
+    },
+    {
+        path: 'artist/auth/callback',
+        component: AuthCallback,
+        data: {
+            loginRoute: '/artist-login',
+            successRoute: '/backoffice/artist-dashboard',
+            activationTitle: 'Activate Artist Account',
+        },
     },
     {
         path: 'test-host-creation',
@@ -71,6 +92,17 @@ export const routes: Routes = [
             { path: 'user-management', component: UserManagement, canActivate: [roleGuard(['Admin'])] },
             { path: 'committee-members', component: CommitteeMembers, canActivate: [roleGuard(['Admin'])] },
             { path: 'committee-dashboard', component: CommitteeDashboard, canActivate: [roleGuard(['Committee Member'])] },
+            { path: 'artist-dashboard', component: ArtistWorkspacePage, canActivate: [roleGuard(['Artist', 'Artist Invited'])], data: { title: 'Dashboard', description: 'Overview of your artist workspace.' } },
+            { path: 'artist-profile', component: ArtistProfile, canActivate: [roleGuard(['Artist', 'Artist Invited'])] },
+            { path: 'artist-instruments', component: ArtistInstruments, canActivate: [roleGuard(['Artist', 'Artist Invited'])] },
+            { path: 'artist-requirements', component: ArtistRequirements, canActivate: [roleGuard(['Artist', 'Artist Invited'])] },
+            { path: 'artist-media', component: ArtistMedia, canActivate: [roleGuard(['Artist', 'Artist Invited'])] },
+            { path: 'artist-requests', component: ArtistWorkspacePage, canActivate: [roleGuard(['Artist', 'Artist Invited'])], data: { title: 'Request', description: 'Review and manage artist-side requests and submissions.' } },
+            { path: 'artist-availability', component: ArtistAvailability, canActivate: [roleGuard(['Artist', 'Artist Invited'])] },
+            { path: 'artist-events', component: ArtistWorkspacePage, canActivate: [roleGuard(['Artist', 'Artist Invited'])], data: { title: 'Events', description: 'View upcoming and past events associated with your profile.' } },
+            { path: 'artist-messages', component: ArtistWorkspacePage, canActivate: [roleGuard(['Artist', 'Artist Invited'])], data: { title: 'Message Center', description: 'Read and manage your artist communications.' } },
+            { path: 'artist-notifications', component: ArtistNotifications, canActivate: [roleGuard(['Artist', 'Artist Invited'])] },
+            { path: 'artist-settings', component: ArtistWorkspacePage, canActivate: [roleGuard(['Artist', 'Artist Invited'])], data: { title: 'Settings', description: 'Configure your artist workspace preferences and account settings.' } },
             { path: 'account-settings', component: AccountSettings },
             { path: 'host-manager', redirectTo: 'my-hosts', pathMatch: 'full' },
             { path: 'host-manager/hosts', component: HostManagerHosts },

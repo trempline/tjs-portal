@@ -27,6 +27,7 @@ export class BackofficeLayout implements OnInit, OnDestroy {
   isHost = false;
   isHostManager = false;
   isCommitteeMember = false;
+  isArtist = false;
   membershipNotification: MembershipNotification | null = null;
 
   expandedMenus: Set<string> = new Set();
@@ -49,6 +50,7 @@ export class BackofficeLayout implements OnInit, OnDestroy {
       this.userRoles = state.roles.map(r => r.name);
       this.isAdmin = this.authService.isAdmin;
       this.isCommitteeMember = this.authService.isCommitteeMember;
+      this.isArtist = this.authService.isArtist;
       this.isHostManager = state.roles.some(
         r => r.name === 'Host Manager'
       );
@@ -68,6 +70,12 @@ export class BackofficeLayout implements OnInit, OnDestroy {
         const currentUrl = this.router.url;
         if (currentUrl === '/backoffice' || currentUrl === '/backoffice/dashboard') {
           this.router.navigate(['/backoffice/my-hosts']);
+        }
+      } else if (!this.initialRedirectDone && !state.isLoading && this.isArtist && !this.isAdmin && !this.isCommitteeMember && !this.isHost) {
+        this.initialRedirectDone = true;
+        const currentUrl = this.router.url;
+        if (currentUrl === '/backoffice' || currentUrl === '/backoffice/dashboard') {
+          this.router.navigate(['/backoffice/artist-dashboard']);
         }
       }
       if (!this.initialRedirectDone && !state.isLoading) {
@@ -95,6 +103,10 @@ export class BackofficeLayout implements OnInit, OnDestroy {
       return 'Committee Workspace';
     }
 
+    if (this.isArtist) {
+      return 'Artist Workspace';
+    }
+
     return 'Host Workspace';
   }
 
@@ -105,6 +117,10 @@ export class BackofficeLayout implements OnInit, OnDestroy {
 
     if (this.isCommitteeMember) {
       return 'Committee Workspace';
+    }
+
+    if (this.isArtist) {
+      return 'Artist Workspace';
     }
 
     return 'Host Workspace';

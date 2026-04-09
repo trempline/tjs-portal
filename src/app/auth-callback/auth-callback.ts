@@ -29,6 +29,30 @@ export class AuthCallback implements OnInit {
   newPassword = '';
   confirmPassword = '';
 
+  get loginRoute(): string {
+    return this.route.snapshot.data['loginRoute'] ?? '/admin';
+  }
+
+  get successRoute(): string | null {
+    return this.route.snapshot.data['successRoute'] ?? null;
+  }
+
+  get activationTitle(): string {
+    return this.route.snapshot.data['activationTitle'] ?? 'Activate Account';
+  }
+
+  get activationDescription(): string {
+    return this.successRoute === '/backoffice/artist-dashboard'
+      ? 'Choose a secure password to activate your artist workspace.'
+      : 'Choisissez un mot de passe securise pour acceder au back-office TJS.';
+  }
+
+  get successDescription(): string {
+    return this.successRoute === '/backoffice/artist-dashboard'
+      ? 'Your artist account is active. Redirecting to your workspace...'
+      : 'Votre compte est active. Redirection vers le tableau de bord...';
+  }
+
   async ngOnInit() {
     await this.initializeCallback();
     await this.waitForSession();
@@ -130,10 +154,10 @@ export class AuthCallback implements OnInit {
     this.state = 'success';
     this.isSaving = false;
 
-    setTimeout(() => this.router.navigate([this.authService.getPostLoginRoute()]), 2000);
+    setTimeout(() => this.router.navigate([this.successRoute ?? this.authService.getPostLoginRoute()]), 2000);
   }
 
   goToLogin() {
-    this.router.navigate(['/admin']);
+    this.router.navigate([this.loginRoute]);
   }
 }

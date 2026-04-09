@@ -25,8 +25,8 @@
             <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
           </svg>
         </div>
-        <h1 class="text-white text-2xl font-bold">Définir votre mot de passe</h1>
-        <p class="text-zinc-400 text-sm mt-1">Choisissez un mot de passe sécurisé pour accéder au back-office TJS.</p>
+        <h1 class="text-white text-2xl font-bold">{{ activationTitle }}</h1>
+        <p class="text-zinc-400 text-sm mt-1">{{ activationDescription }}</p>
       </div>
 
       <!-- Form -->
@@ -149,7 +149,7 @@
         </svg>
       </div>
       <h1 class="text-white text-2xl font-bold">Mot de passe défini !</h1>
-      <p class="text-zinc-400 text-sm mt-2">Votre compte est activé. Redirection vers le tableau de bord…</p>
+      <p class="text-zinc-400 text-sm mt-2">{{ successDescription }}</p>
       <div class="mt-4">
         <div class="animate-spin h-5 w-5 border-2 border-zinc-700 border-t-green-500 rounded-full mx-auto"></div>
       </div>
@@ -171,7 +171,7 @@
 
     <!-- Footer -->
     <p class="text-center text-zinc-600 text-xs mt-6">
-      Tremplin Jeunes Solistes — Administration
+      Tremplin Jeunes Solistes
     </p>
   </div>
 </div>

@@ -193,6 +193,89 @@ export interface TjsArtistAuditLog {
   performer_email?: string | null;
 }
 
+export interface ArtistPerformanceType {
+  id: number;
+  name: string;
+}
+
+export interface ArtistInstrumentOption {
+  id: number;
+  name: string;
+}
+
+export interface ArtistEducationEntry {
+  id?: string;
+  school_name: string;
+  course_name: string;
+  year: number | null;
+}
+
+export interface ArtistAwardEntry {
+  id?: string;
+  award: string;
+  description: string;
+  year: number | null;
+}
+
+export interface ArtistWorkspaceProfile {
+  profile_id: string;
+  banner_url: string | null;
+  profile_picture_url: string | null;
+  first_name: string;
+  last_name: string;
+  tagline: string;
+  short_biography: string;
+  long_biography: string;
+  email: string;
+  phone: string;
+  website: string;
+  city: string;
+  country: string;
+  performance_types: ArtistPerformanceType[];
+  educations: ArtistEducationEntry[];
+  awards: ArtistAwardEntry[];
+}
+
+export interface ArtistWorkspaceRequirements {
+  profile_id: string;
+  rib_number: string;
+  guso_number: string;
+  security_number: string;
+  allergies: string;
+  food_restriction: string;
+  additional_requirements: string;
+}
+
+export type ArtistMediaType = 'video' | 'cd';
+
+export interface ArtistMediaEntry {
+  id?: string;
+  media_type: ArtistMediaType;
+  image_url: string | null;
+  name: string;
+  description: string;
+  urls: string[];
+}
+
+export interface ArtistAvailabilityEntry {
+  id?: string;
+  start_date: string;
+  end_date: string;
+  note: string;
+}
+
+export interface ArtistNotificationItem {
+  id: string;
+  subject: string;
+  body: string;
+  expires_at: string | null;
+  is_read: boolean;
+  created_at: string;
+  sender_name: string;
+  sender_role: string;
+  sender_avatar_url: string | null;
+}
+
 export interface PagArtist {
   id: string;
   id_profile: string | null;
@@ -436,6 +519,710 @@ export class SupabaseService {
       return [];
     }
     return data as TjsRole[];
+  }
+
+  async listArtistPerformanceTypes(): Promise<ArtistPerformanceType[]> {
+    const { data, error } = await this.adminSupabase
+      .from('sys_artist_performance')
+      .select('id, name')
+      .order('name', { ascending: true });
+
+    if (error) {
+      console.error('listArtistPerformanceTypes error:', error.message);
+      return [];
+    }
+
+    return (data ?? []) as ArtistPerformanceType[];
+  }
+
+  async listArtistInstrumentOptions(): Promise<ArtistInstrumentOption[]> {
+    const { data, error } = await this.adminSupabase
+      .from('sys_instruments')
+      .select('id, name')
+      .order('name', { ascending: true });
+
+    if (error) {
+      console.error('listArtistInstrumentOptions error:', error.message);
+      return [];
+    }
+
+    return (data ?? []) as ArtistInstrumentOption[];
+  }
+
+  private isMissingSchemaError(error: { code?: string | null; message?: string | null } | null | undefined): boolean {
+    if (!error) {
+      return false;
+    }
+
+    return error.code === '42P01'
+      || error.code === 'PGRST205'
+      || error.message?.toLowerCase().includes('does not exist') === true
+      || error.message?.toLowerCase().includes('could not find the table') === true;
+  }
+
+  async getArtistWorkspaceProfile(profileId: string): Promise<ArtistWorkspaceProfile | null> {
+    const [profileResult, workspaceResult, performancesResult, educationsResult, awardsResult] = await Promise.all([
+      this.adminSupabase
+        .from('tjs_profiles')
+        .select('id, email, full_name, phone, bio, avatar_url')
+        .eq('id', profileId)
+        .maybeSingle(),
+      this.adminSupabase
+        .from('tjs_artist_profiles')
+        .select('*')
+        .eq('profile_id', profileId)
+        .maybeSingle(),
+      this.adminSupabase
+        .from('tjs_artist_profile_performances')
+        .select('performance_id, performance:sys_artist_performance(id, name)')
+        .eq('profile_id', profileId),
+      this.adminSupabase
+        .from('tjs_artist_educations')
+        .select('id, school_name, course_name, year')
+        .eq('profile_id', profileId)
+        .order('year', { ascending: false }),
+      this.adminSupabase
+        .from('tjs_artist_awards')
+        .select('id, award, description, year')
+        .eq('profile_id', profileId)
+        .order('year', { ascending: false }),
+    ]);
+
+    if (profileResult.error) {
+      console.error('getArtistWorkspaceProfile profile error:', profileResult.error.message);
+      return null;
+    }
+
+    const baseProfile = profileResult.data as Partial<TjsProfile> | null;
+    if (!baseProfile?.id) {
+      return null;
+    }
+
+    if (workspaceResult.error && !this.isMissingSchemaError(workspaceResult.error)) {
+      console.error('getArtistWorkspaceProfile workspace error:', workspaceResult.error.message);
+    }
+
+    if (performancesResult.error && !this.isMissingSchemaError(performancesResult.error)) {
+      console.error('getArtistWorkspaceProfile performances error:', performancesResult.error.message);
+    }
+
+    if (educationsResult.error && !this.isMissingSchemaError(educationsResult.error)) {
+      console.error('getArtistWorkspaceProfile educations error:', educationsResult.error.message);
+    }
+
+    if (awardsResult.error && !this.isMissingSchemaError(awardsResult.error)) {
+      console.error('getArtistWorkspaceProfile awards error:', awardsResult.error.message);
+    }
+
+    const workspaceProfile = (workspaceResult.data ?? {}) as any;
+    const fullName = baseProfile.full_name ?? '';
+    const [fallbackFirstName, ...fallbackRest] = fullName.trim().split(/\s+/).filter(Boolean);
+
+    const performanceTypes = ((performancesResult.data ?? []) as any[])
+      .map((row) => row.performance)
+      .filter((item): item is ArtistPerformanceType => !!item?.id && !!item?.name);
+
+    const educations = ((educationsResult.data ?? []) as any[]).map((row) => ({
+      id: row.id,
+      school_name: row.school_name ?? '',
+      course_name: row.course_name ?? '',
+      year: row.year ?? null,
+    }));
+
+    const awards = ((awardsResult.data ?? []) as any[]).map((row) => ({
+      id: row.id,
+      award: row.award ?? '',
+      description: row.description ?? '',
+      year: row.year ?? null,
+    }));
+
+    return {
+      profile_id: baseProfile.id,
+      banner_url: workspaceProfile.banner_url ?? null,
+      profile_picture_url: baseProfile.avatar_url ?? null,
+      first_name: workspaceProfile.first_name ?? fallbackFirstName ?? '',
+      last_name: workspaceProfile.last_name ?? fallbackRest.join(' '),
+      tagline: workspaceProfile.tagline ?? '',
+      short_biography: workspaceProfile.short_biography ?? '',
+      long_biography: workspaceProfile.long_biography ?? '',
+      email: baseProfile.email ?? '',
+      phone: baseProfile.phone ?? '',
+      website: workspaceProfile.website ?? '',
+      city: workspaceProfile.city ?? '',
+      country: workspaceProfile.country ?? '',
+      performance_types: performanceTypes,
+      educations,
+      awards,
+    };
+  }
+
+  async saveArtistWorkspaceProfile(profile: ArtistWorkspaceProfile): Promise<string | null> {
+    const profileError = await this.upsertProfile({
+      id: profile.profile_id,
+      email: profile.email,
+      full_name: `${profile.first_name} ${profile.last_name}`.trim(),
+      phone: profile.phone || null,
+      bio: profile.long_biography || profile.short_biography || null,
+      avatar_url: profile.profile_picture_url || null,
+    } as Partial<TjsProfile> & { id: string });
+
+    if (profileError) {
+      return profileError;
+    }
+
+    const { error: workspaceError } = await this.adminSupabase
+      .from('tjs_artist_profiles')
+      .upsert({
+        profile_id: profile.profile_id,
+        banner_url: profile.banner_url || null,
+        first_name: profile.first_name || null,
+        last_name: profile.last_name || null,
+        tagline: profile.tagline || null,
+        short_biography: profile.short_biography || null,
+        long_biography: profile.long_biography || null,
+        website: profile.website || null,
+        city: profile.city || null,
+        country: profile.country || null,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'profile_id' });
+
+    if (workspaceError) {
+      if (this.isMissingSchemaError(workspaceError)) {
+        console.error('saveArtistWorkspaceProfile workspace table missing:', workspaceError.message);
+        return 'Artist profile tables are missing in the database. Run db/014_artist_workspace_profile.sql and try again.';
+      }
+
+      console.error('saveArtistWorkspaceProfile workspace error:', workspaceError.message);
+      return workspaceError.message;
+    }
+
+    const { error: performanceDeleteError } = await this.adminSupabase
+      .from('tjs_artist_profile_performances')
+      .delete()
+      .eq('profile_id', profile.profile_id);
+
+    if (performanceDeleteError) {
+      if (this.isMissingSchemaError(performanceDeleteError)) {
+        return 'Artist profile tables are missing in the database. Run db/014_artist_workspace_profile.sql and try again.';
+      }
+
+      console.error('saveArtistWorkspaceProfile performance delete error:', performanceDeleteError.message);
+      return performanceDeleteError.message;
+    }
+
+    if (profile.performance_types.length > 0) {
+      const { error: performanceInsertError } = await this.adminSupabase
+        .from('tjs_artist_profile_performances')
+        .insert(profile.performance_types.map((item) => ({
+          profile_id: profile.profile_id,
+          performance_id: item.id,
+        })));
+
+      if (performanceInsertError) {
+        if (this.isMissingSchemaError(performanceInsertError)) {
+          return 'Artist profile tables are missing in the database. Run db/014_artist_workspace_profile.sql and try again.';
+        }
+
+        console.error('saveArtistWorkspaceProfile performance insert error:', performanceInsertError.message);
+        return performanceInsertError.message;
+      }
+    }
+
+    const { error: educationDeleteError } = await this.adminSupabase
+      .from('tjs_artist_educations')
+      .delete()
+      .eq('profile_id', profile.profile_id);
+
+    if (educationDeleteError) {
+      if (this.isMissingSchemaError(educationDeleteError)) {
+        return 'Artist profile tables are missing in the database. Run db/014_artist_workspace_profile.sql and try again.';
+      }
+
+      console.error('saveArtistWorkspaceProfile education delete error:', educationDeleteError.message);
+      return educationDeleteError.message;
+    }
+
+    const educationPayload = profile.educations
+      .filter((item) => item.school_name.trim() || item.course_name.trim())
+      .map((item) => ({
+        profile_id: profile.profile_id,
+        school_name: item.school_name.trim(),
+        course_name: item.course_name.trim(),
+        year: item.year ?? null,
+      }));
+
+    if (educationPayload.length > 0) {
+      const { error: educationInsertError } = await this.adminSupabase
+        .from('tjs_artist_educations')
+        .insert(educationPayload);
+
+      if (educationInsertError) {
+        if (this.isMissingSchemaError(educationInsertError)) {
+          return 'Artist profile tables are missing in the database. Run db/014_artist_workspace_profile.sql and try again.';
+        }
+
+        console.error('saveArtistWorkspaceProfile education insert error:', educationInsertError.message);
+        return educationInsertError.message;
+      }
+    }
+
+    const { error: awardsDeleteError } = await this.adminSupabase
+      .from('tjs_artist_awards')
+      .delete()
+      .eq('profile_id', profile.profile_id);
+
+    if (awardsDeleteError) {
+      if (this.isMissingSchemaError(awardsDeleteError)) {
+        return 'Artist profile tables are missing in the database. Run db/014_artist_workspace_profile.sql and try again.';
+      }
+
+      console.error('saveArtistWorkspaceProfile awards delete error:', awardsDeleteError.message);
+      return awardsDeleteError.message;
+    }
+
+    const awardsPayload = profile.awards
+      .filter((item) => item.award.trim())
+      .map((item) => ({
+        profile_id: profile.profile_id,
+        award: item.award.trim(),
+        description: item.description.trim() || null,
+        year: item.year ?? null,
+      }));
+
+    if (awardsPayload.length > 0) {
+      const { error: awardsInsertError } = await this.adminSupabase
+        .from('tjs_artist_awards')
+        .insert(awardsPayload);
+
+      if (awardsInsertError) {
+        if (this.isMissingSchemaError(awardsInsertError)) {
+          return 'Artist profile tables are missing in the database. Run db/014_artist_workspace_profile.sql and try again.';
+        }
+
+        console.error('saveArtistWorkspaceProfile awards insert error:', awardsInsertError.message);
+        return awardsInsertError.message;
+      }
+    }
+
+    return null;
+  }
+
+  async uploadArtistWorkspaceImage(profileId: string, file: File, kind: 'banner' | 'avatar'): Promise<{ url: string | null; error: string | null }> {
+    const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+    const path = `artist-workspace/${profileId}/${kind}-${Date.now()}.${extension}`;
+
+    const { error } = await this.adminSupabase.storage
+      .from('tjs')
+      .upload(path, file, {
+        cacheControl: '3600',
+        upsert: true,
+      });
+
+    if (error) {
+      console.error('uploadArtistWorkspaceImage error:', error.message);
+      return { url: null, error: error.message };
+    }
+
+    const { data } = this.adminSupabase.storage.from('tjs').getPublicUrl(path);
+    return { url: data.publicUrl, error: null };
+  }
+
+  async getArtistWorkspaceInstruments(profileId: string): Promise<ArtistInstrumentOption[]> {
+    const { data, error } = await this.adminSupabase
+      .from('tjs_artist_instruments')
+      .select('instrument_id, instrument:sys_instruments(id, name)')
+      .eq('profile_id', profileId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      if (!this.isMissingSchemaError(error)) {
+        console.error('getArtistWorkspaceInstruments error:', error.message);
+      }
+      return [];
+    }
+
+    return ((data ?? []) as any[])
+      .map((row) => row.instrument)
+      .filter((item): item is ArtistInstrumentOption => !!item?.id && !!item?.name);
+  }
+
+  async saveArtistWorkspaceInstruments(profileId: string, instruments: ArtistInstrumentOption[]): Promise<string | null> {
+    const { error: deleteError } = await this.adminSupabase
+      .from('tjs_artist_instruments')
+      .delete()
+      .eq('profile_id', profileId);
+
+    if (deleteError) {
+      if (this.isMissingSchemaError(deleteError)) {
+        return 'Artist instrument table is missing in the database. Run db/015_artist_workspace_instruments.sql and try again.';
+      }
+
+      console.error('saveArtistWorkspaceInstruments delete error:', deleteError.message);
+      return deleteError.message;
+    }
+
+    if (instruments.length === 0) {
+      return null;
+    }
+
+    const { error: insertError } = await this.adminSupabase
+      .from('tjs_artist_instruments')
+      .insert(instruments.map((instrument) => ({
+        profile_id: profileId,
+        instrument_id: instrument.id,
+      })));
+
+    if (insertError) {
+      if (this.isMissingSchemaError(insertError)) {
+        return 'Artist instrument table is missing in the database. Run db/015_artist_workspace_instruments.sql and try again.';
+      }
+
+      console.error('saveArtistWorkspaceInstruments insert error:', insertError.message);
+      return insertError.message;
+    }
+
+    return null;
+  }
+
+  async getArtistWorkspaceRequirements(profileId: string): Promise<ArtistWorkspaceRequirements | null> {
+    const { data, error } = await this.adminSupabase
+      .from('tjs_artist_requirements')
+      .select('*')
+      .eq('profile_id', profileId)
+      .maybeSingle();
+
+    if (error) {
+      if (!this.isMissingSchemaError(error)) {
+        console.error('getArtistWorkspaceRequirements error:', error.message);
+      }
+      return null;
+    }
+
+    return {
+      profile_id: profileId,
+      rib_number: data?.rib_number ?? '',
+      guso_number: data?.guso_number ?? '',
+      security_number: data?.security_number ?? '',
+      allergies: data?.allergies ?? '',
+      food_restriction: data?.food_restriction ?? '',
+      additional_requirements: data?.additional_requirements ?? '',
+    };
+  }
+
+  async saveArtistWorkspaceRequirements(requirements: ArtistWorkspaceRequirements): Promise<string | null> {
+    const normalizedRibNumber = requirements.rib_number.replace(/\s+/g, '').trim();
+    const normalizedGusoNumber = requirements.guso_number.replace(/\s+/g, '').trim();
+    const normalizedSecurityNumber = requirements.security_number.replace(/\s+/g, '').trim();
+
+    const { error } = await this.adminSupabase
+      .from('tjs_artist_requirements')
+      .upsert({
+        profile_id: requirements.profile_id,
+        rib_number: normalizedRibNumber,
+        guso_number: normalizedGusoNumber,
+        security_number: normalizedSecurityNumber,
+        allergies: requirements.allergies.trim() || null,
+        food_restriction: requirements.food_restriction.trim() || null,
+        additional_requirements: requirements.additional_requirements.trim() || null,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'profile_id' });
+
+    if (error) {
+      if (this.isMissingSchemaError(error)) {
+        return 'Artist requirements table is missing in the database. Run db/016_artist_workspace_requirements.sql and try again.';
+      }
+
+      console.error('saveArtistWorkspaceRequirements error:', error.message);
+      return error.message;
+    }
+
+    return null;
+  }
+
+  async getArtistWorkspaceMedia(profileId: string): Promise<ArtistMediaEntry[]> {
+    const { data, error } = await this.adminSupabase
+      .from('tjs_artist_media')
+      .select('id, media_type, image_url, name, description, urls')
+      .eq('profile_id', profileId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      if (!this.isMissingSchemaError(error)) {
+        console.error('getArtistWorkspaceMedia error:', error.message);
+      }
+      return [];
+    }
+
+    return ((data ?? []) as any[]).map((row) => ({
+      id: row.id,
+      media_type: row.media_type as ArtistMediaType,
+      image_url: row.image_url ?? null,
+      name: row.name ?? '',
+      description: row.description ?? '',
+      urls: Array.isArray(row.urls) ? row.urls.filter((value: unknown): value is string => typeof value === 'string') : [],
+    }));
+  }
+
+  async saveArtistWorkspaceMedia(profileId: string, mediaEntries: ArtistMediaEntry[]): Promise<string | null> {
+    const { error: deleteError } = await this.adminSupabase
+      .from('tjs_artist_media')
+      .delete()
+      .eq('profile_id', profileId);
+
+    if (deleteError) {
+      if (this.isMissingSchemaError(deleteError)) {
+        return 'Artist media table is missing in the database. Run db/017_artist_workspace_media.sql and try again.';
+      }
+
+      console.error('saveArtistWorkspaceMedia delete error:', deleteError.message);
+      return deleteError.message;
+    }
+
+    const payload = mediaEntries
+      .filter((entry) => entry.name.trim())
+      .map((entry) => ({
+        profile_id: profileId,
+        media_type: entry.media_type,
+        image_url: entry.image_url || null,
+        name: entry.name.trim(),
+        description: entry.description.trim() || null,
+        urls: entry.urls.map((url) => url.trim()).filter(Boolean),
+        updated_at: new Date().toISOString(),
+      }));
+
+    if (payload.length === 0) {
+      return null;
+    }
+
+    const { error: insertError } = await this.adminSupabase
+      .from('tjs_artist_media')
+      .insert(payload);
+
+    if (insertError) {
+      if (this.isMissingSchemaError(insertError)) {
+        return 'Artist media table is missing in the database. Run db/017_artist_workspace_media.sql and try again.';
+      }
+
+      console.error('saveArtistWorkspaceMedia insert error:', insertError.message);
+      return insertError.message;
+    }
+
+    return null;
+  }
+
+  async uploadArtistWorkspaceMediaImage(profileId: string, file: File): Promise<{ url: string | null; error: string | null }> {
+    const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+    const path = `artist-workspace/${profileId}/media/${Date.now()}.${extension}`;
+
+    const { error } = await this.adminSupabase.storage
+      .from('tjs')
+      .upload(path, file, {
+        cacheControl: '3600',
+        upsert: true,
+      });
+
+    if (error) {
+      console.error('uploadArtistWorkspaceMediaImage error:', error.message);
+      return { url: null, error: error.message };
+    }
+
+    const { data } = this.adminSupabase.storage.from('tjs').getPublicUrl(path);
+    return { url: data.publicUrl, error: null };
+  }
+
+  async getArtistWorkspaceAvailability(profileId: string): Promise<ArtistAvailabilityEntry[]> {
+    const { data, error } = await this.adminSupabase
+      .from('tjs_artist_availability')
+      .select('id, start_date, end_date, note')
+      .eq('profile_id', profileId)
+      .order('start_date', { ascending: true });
+
+    if (error) {
+      if (!this.isMissingSchemaError(error)) {
+        console.error('getArtistWorkspaceAvailability error:', error.message);
+      }
+      return [];
+    }
+
+    return ((data ?? []) as any[]).map((row) => ({
+      id: row.id,
+      start_date: row.start_date ?? '',
+      end_date: row.end_date ?? '',
+      note: row.note ?? '',
+    }));
+  }
+
+  async saveArtistWorkspaceAvailability(profileId: string, entries: ArtistAvailabilityEntry[]): Promise<string | null> {
+    const { error: deleteError } = await this.adminSupabase
+      .from('tjs_artist_availability')
+      .delete()
+      .eq('profile_id', profileId);
+
+    if (deleteError) {
+      if (this.isMissingSchemaError(deleteError)) {
+        return 'Artist availability table is missing in the database. Run db/018_artist_workspace_availability.sql and try again.';
+      }
+
+      console.error('saveArtistWorkspaceAvailability delete error:', deleteError.message);
+      return deleteError.message;
+    }
+
+    const payload = entries
+      .filter((entry) => entry.start_date && entry.end_date)
+      .map((entry) => ({
+        profile_id: profileId,
+        start_date: entry.start_date,
+        end_date: entry.end_date,
+        note: entry.note.trim() || null,
+        updated_at: new Date().toISOString(),
+      }));
+
+    if (payload.length === 0) {
+      return null;
+    }
+
+    const { error: insertError } = await this.adminSupabase
+      .from('tjs_artist_availability')
+      .insert(payload);
+
+    if (insertError) {
+      if (this.isMissingSchemaError(insertError)) {
+        return 'Artist availability table is missing in the database. Run db/018_artist_workspace_availability.sql and try again.';
+      }
+
+      console.error('saveArtistWorkspaceAvailability insert error:', insertError.message);
+      return insertError.message;
+    }
+
+    return null;
+  }
+
+  async getArtistWorkspaceNotifications(profileId: string, roleIds: string[]): Promise<ArtistNotificationItem[]> {
+    if (roleIds.length === 0) {
+      return [];
+    }
+
+    const { data, error } = await this.adminSupabase
+      .from('tjs_artist_notifications')
+      .select(`
+        id,
+        subject,
+        body,
+        expires_at,
+        recipient_role_id,
+        created_at,
+        sender_role,
+        sender:tjs_profiles!tjs_artist_notifications_sender_profile_id_fkey (
+          id,
+          full_name,
+          email,
+          avatar_url
+        )
+      `)
+      .in('recipient_role_id', roleIds)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      if (!this.isMissingSchemaError(error)) {
+        console.error('getArtistWorkspaceNotifications error:', error.message);
+      }
+      return [];
+    }
+
+    const rows = (data ?? []) as any[];
+    const senderIds = Array.from(new Set(
+      rows
+        .map((row) => row.sender?.id as string | undefined)
+        .filter((value): value is string => !!value)
+    ));
+
+    const notificationIds = rows
+      .map((row) => row.id as string | undefined)
+      .filter((value): value is string => !!value);
+
+    const rolesResult = senderIds.length > 0
+      ? await this.adminSupabase
+          .from('tjs_user_roles')
+          .select(`
+            user_id,
+            is_active,
+            role:tjs_roles (
+              name
+            )
+          `)
+          .in('user_id', senderIds)
+          .eq('is_active', true)
+      : { data: [], error: null };
+
+    if (rolesResult.error) {
+      console.error('getArtistWorkspaceNotifications roles error:', rolesResult.error.message);
+    }
+
+    const readsResult = notificationIds.length > 0
+      ? await this.adminSupabase
+          .from('tjs_artist_notification_reads')
+          .select('notification_id')
+          .eq('profile_id', profileId)
+          .in('notification_id', notificationIds)
+      : { data: [], error: null };
+
+    if (readsResult.error) {
+      console.error('getArtistWorkspaceNotifications reads error:', readsResult.error.message);
+    }
+
+    const rolesByUserId = new Map<string, string>();
+    for (const row of ((rolesResult.data ?? []) as any[])) {
+      const userId = typeof row.user_id === 'string' ? row.user_id : null;
+      const roleName = typeof row.role?.name === 'string' ? row.role.name : null;
+      if (userId && roleName && !rolesByUserId.has(userId)) {
+        rolesByUserId.set(userId, roleName);
+      }
+    }
+
+    const readIds = new Set(
+      ((readsResult.data ?? []) as any[])
+        .map((row) => row.notification_id as string | undefined)
+        .filter((value): value is string => !!value)
+    );
+
+    return rows.map((row) => {
+      const sender = row.sender;
+      const senderId = sender?.id as string | undefined;
+      const fallbackName = sender?.full_name || sender?.email || 'Unknown sender';
+
+      return {
+        id: row.id,
+        subject: row.subject ?? 'Notification',
+        body: row.body ?? '',
+        expires_at: row.expires_at ?? null,
+        is_read: readIds.has(row.id),
+        created_at: row.created_at,
+        sender_name: fallbackName,
+        sender_role: row.sender_role || (senderId ? rolesByUserId.get(senderId) : null) || 'System',
+        sender_avatar_url: sender?.avatar_url ?? null,
+      };
+    });
+  }
+
+  async markArtistNotificationRead(notificationId: string, profileId: string): Promise<string | null> {
+    const { error } = await this.adminSupabase
+      .from('tjs_artist_notification_reads')
+      .upsert({
+        notification_id: notificationId,
+        profile_id: profileId,
+        read_at: new Date().toISOString(),
+      }, { onConflict: 'notification_id,profile_id' });
+
+    if (error) {
+      if (this.isMissingSchemaError(error)) {
+        return 'Artist notifications table is missing in the database. Run db/019_artist_workspace_notifications.sql and try again.';
+      }
+
+      console.error('markArtistNotificationRead error:', error.message);
+      return error.message;
+    }
+
+    return null;
   }
 
   async getAdminEventOverview(): Promise<AdminEventOverviewItem[]> {
