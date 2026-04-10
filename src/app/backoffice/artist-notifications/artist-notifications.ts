@@ -1,15 +1,17 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { DatePipe, NgFor, NgIf } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../services/auth.service';
 import {
   ArtistNotificationItem,
   SupabaseService,
+  TjsRole,
 } from '../../services/supabase.service';
 
 @Component({
   selector: 'app-artist-notifications',
   standalone: true,
-  imports: [NgIf, NgFor, DatePipe],
+  imports: [NgIf, NgFor, DatePipe, FormsModule],
   templateUrl: './artist-notifications.html',
 })
 export class ArtistNotifications implements OnInit {
@@ -17,9 +19,19 @@ export class ArtistNotifications implements OnInit {
   private supabase = inject(SupabaseService);
 
   isLoading = true;
+  isSending = false;
   error = '';
+  successMessage = '';
   notifications: ArtistNotificationItem[] = [];
   selectedNotification: ArtistNotificationItem | null = null;
+  roleOptions: TjsRole[] = [];
+  isComposeOpen = false;
+  compose = {
+    recipientRoleId: '',
+    subject: '',
+    body: '',
+    expiresAt: '',
+  };
 
   async ngOnInit() {
     await this.authService.waitForAuthReady();
@@ -27,12 +39,99 @@ export class ArtistNotifications implements OnInit {
     const profileId = this.authService.currentUser?.id;
     const roleIds = this.authService.currentRoles.map((role) => role.id);
     if (!profileId) {
-      this.error = 'Artist notifications could not be loaded.';
+      this.error = 'Notifications could not be loaded.';
       this.isLoading = false;
       return;
     }
 
+    if (this.canComposeNotifications) {
+      this.roleOptions = await this.supabase.getAllRoles();
+    }
+
     await this.loadNotifications(profileId, roleIds);
+  }
+
+  get isCommittee(): boolean {
+    return this.authService.hasRole('Committee Member');
+  }
+
+  get canComposeNotifications(): boolean {
+    return this.isCommittee;
+  }
+
+  get pageTitle(): string {
+    return 'Notification';
+  }
+
+  get pageDescription(): string {
+    return this.isCommittee
+      ? 'Review incoming notifications and send role-based notifications across the workspace.'
+      : 'Review notifications sent by Hosts, Host Managers, Host+, Committee Members, and Admins.';
+  }
+
+  openCompose() {
+    this.error = '';
+    this.successMessage = '';
+    this.compose = {
+      recipientRoleId: '',
+      subject: '',
+      body: '',
+      expiresAt: '',
+    };
+    this.isComposeOpen = true;
+  }
+
+  closeCompose() {
+    this.isComposeOpen = false;
+  }
+
+  async sendNotification() {
+    const profileId = this.authService.currentUser?.id;
+    const currentRoleName = this.authService.currentRoles[0]?.name ?? null;
+
+    if (!profileId || !currentRoleName) {
+      this.error = 'Notification could not be sent.';
+      return;
+    }
+
+    if (!this.compose.recipientRoleId) {
+      this.error = 'Recipient role is required.';
+      return;
+    }
+
+    if (!this.compose.subject.trim()) {
+      this.error = 'Subject is required.';
+      return;
+    }
+
+    if (!this.compose.body.trim()) {
+      this.error = 'Message is required.';
+      return;
+    }
+
+    this.isSending = true;
+    this.error = '';
+    this.successMessage = '';
+
+    const error = await this.supabase.createRoleNotification({
+      recipient_role_id: this.compose.recipientRoleId,
+      sender_profile_id: profileId,
+      sender_role: currentRoleName,
+      subject: this.compose.subject,
+      body: this.compose.body,
+      expires_at: this.compose.expiresAt || null,
+    });
+
+    if (error) {
+      this.error = error;
+      this.isSending = false;
+      return;
+    }
+
+    this.successMessage = 'Notification sent successfully.';
+    this.isComposeOpen = false;
+    await this.loadNotifications(profileId, this.authService.currentRoles.map((role) => role.id));
+    this.isSending = false;
   }
 
   async openNotification(notification: ArtistNotificationItem) {

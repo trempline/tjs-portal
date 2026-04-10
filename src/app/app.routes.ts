@@ -5,6 +5,7 @@ import { Entreprises } from './entreprises/entreprises';
 import { About } from './about/about';
 import { AdminLogin } from './admin-login/admin-login';
 import { ArtistLogin } from './artist-login/artist-login';
+import { CommitteeLogin } from './committee-login/committee-login';
 import { BackofficeLayout } from './backoffice/backoffice-layout/backoffice-layout';
 import { Dashboard } from './backoffice/dashboard/dashboard';
 import { EventRequests } from './backoffice/event-requests/event-requests';
@@ -21,6 +22,7 @@ import { AuthCallback } from './auth-callback/auth-callback';
 import { TestHostCreationComponent } from './test-host-creation/test-host-creation.component';
 import { HostManagerHosts } from './backoffice/host-manager-hosts/host-manager-hosts';
 import { NonTjsArtists } from './backoffice/non-tjs-artists/non-tjs-artists';
+import { CommitteeArtistDetail } from './backoffice/committee-artist-detail/committee-artist-detail';
 import { ArtistWorkspacePage } from './backoffice/artist-workspace-page/artist-workspace-page';
 import { ArtistProfile } from './backoffice/artist-profile/artist-profile';
 import { ArtistInstruments } from './backoffice/artist-instruments/artist-instruments';
@@ -58,6 +60,10 @@ export const routes: Routes = [
         component: ArtistLogin,
     },
     {
+        path: 'committee-login',
+        component: CommitteeLogin,
+    },
+    {
         // Handles Supabase email invite / password-reset magic links
         path: 'auth/callback',
         component: AuthCallback,
@@ -87,6 +93,7 @@ export const routes: Routes = [
             { path: 'artists/tjs', component: Artists },
             { path: 'artists/invited', component: Artists },
             { path: 'artists/non-tjs', component: NonTjsArtists, canActivate: [roleGuard(['Committee Member'])] },
+            { path: 'artists/:id', component: CommitteeArtistDetail, canActivate: [roleGuard(['Committee Member'])] },
             { path: 'hosts', component: Hosts, canActivate: [roleGuard(['Admin'])] },
             { path: 'my-hosts', component: MyHosts },
             { path: 'events', component: Events },
@@ -99,11 +106,15 @@ export const routes: Routes = [
             { path: 'artist-instruments', component: ArtistInstruments, canActivate: [roleGuard(['Artist', 'Artist Invited'])] },
             { path: 'artist-requirements', component: ArtistRequirements, canActivate: [roleGuard(['Artist', 'Artist Invited'])] },
             { path: 'artist-media', component: ArtistMedia, canActivate: [roleGuard(['Artist', 'Artist Invited'])] },
+            { path: 'artist-requests/new', component: ArtistRequests, canActivate: [roleGuard(['Artist', 'Artist Invited'])] },
+            { path: 'artist-requests/:requestId', component: ArtistRequests, canActivate: [roleGuard(['Artist', 'Artist Invited'])] },
             { path: 'artist-requests', component: ArtistRequests, canActivate: [roleGuard(['Artist', 'Artist Invited'])] },
             { path: 'artist-availability', component: ArtistAvailability, canActivate: [roleGuard(['Artist', 'Artist Invited'])] },
             { path: 'artist-events', component: ArtistWorkspacePage, canActivate: [roleGuard(['Artist', 'Artist Invited'])], data: { title: 'Events', description: 'View upcoming and past events associated with your profile.' } },
             { path: 'artist-messages', component: ArtistMessages, canActivate: [roleGuard(['Artist', 'Artist Invited'])] },
+            { path: 'committee-messages', component: ArtistMessages, canActivate: [roleGuard(['Committee Member'])] },
             { path: 'artist-notifications', component: ArtistNotifications, canActivate: [roleGuard(['Artist', 'Artist Invited'])] },
+            { path: 'committee-notifications', component: ArtistNotifications, canActivate: [roleGuard(['Committee Member'])] },
             { path: 'artist-settings', component: ArtistWorkspacePage, canActivate: [roleGuard(['Artist', 'Artist Invited'])], data: { title: 'Settings', description: 'Configure your artist workspace preferences and account settings.' } },
             { path: 'account-settings', component: AccountSettings },
             { path: 'host-manager', redirectTo: 'my-hosts', pathMatch: 'full' },

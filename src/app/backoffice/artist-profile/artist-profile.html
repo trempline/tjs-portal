@@ -155,7 +155,7 @@
         </button>
       </div>
 
-      <div class="mt-5 space-y-4">
+      <div *ngIf="isEditing; else educationTable" class="mt-5 space-y-4">
         <div *ngFor="let item of profile.educations; let i = index; trackBy: trackByIndex" class="grid gap-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 md:grid-cols-4">
           <div class="space-y-2">
             <label class="text-xs font-medium uppercase tracking-wide text-zinc-500">School Name</label>
@@ -176,6 +176,30 @@
           </div>
         </div>
       </div>
+
+      <ng-template #educationTable>
+        <div class="mt-5 overflow-x-auto">
+          <table *ngIf="profile.educations.length; else noEducationRows" class="min-w-full divide-y divide-zinc-200 text-sm">
+            <thead class="bg-zinc-50">
+              <tr>
+                <th class="px-4 py-3 text-left font-semibold text-zinc-600">School Name</th>
+                <th class="px-4 py-3 text-left font-semibold text-zinc-600">Course Name</th>
+                <th class="px-4 py-3 text-left font-semibold text-zinc-600">Year</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-zinc-100">
+              <tr *ngFor="let item of profile.educations; trackBy: trackByIndex" class="hover:bg-zinc-50">
+                <td class="px-4 py-3 text-zinc-700">{{ item.school_name || '-' }}</td>
+                <td class="px-4 py-3 text-zinc-700">{{ item.course_name || '-' }}</td>
+                <td class="px-4 py-3 text-zinc-700">{{ item.year || '-' }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <ng-template #noEducationRows>
+            <div class="rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-10 text-center text-sm text-zinc-500">No education entries added.</div>
+          </ng-template>
+        </div>
+      </ng-template>
     </section>
 
     <section class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
@@ -189,7 +213,7 @@
         </button>
       </div>
 
-      <div class="mt-5 space-y-4">
+      <div *ngIf="isEditing; else awardsTable" class="mt-5 space-y-4">
         <div *ngFor="let item of profile.awards; let i = index; trackBy: trackByIndex" class="grid gap-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 md:grid-cols-4">
           <div class="space-y-2">
             <label class="text-xs font-medium uppercase tracking-wide text-zinc-500">Award</label>
@@ -210,6 +234,30 @@
           </div>
         </div>
       </div>
+
+      <ng-template #awardsTable>
+        <div class="mt-5 overflow-x-auto">
+          <table *ngIf="profile.awards.length; else noAwardRows" class="min-w-full divide-y divide-zinc-200 text-sm">
+            <thead class="bg-zinc-50">
+              <tr>
+                <th class="px-4 py-3 text-left font-semibold text-zinc-600">Award</th>
+                <th class="px-4 py-3 text-left font-semibold text-zinc-600">Description</th>
+                <th class="px-4 py-3 text-left font-semibold text-zinc-600">Year</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-zinc-100">
+              <tr *ngFor="let item of profile.awards; trackBy: trackByIndex" class="hover:bg-zinc-50">
+                <td class="px-4 py-3 align-top text-zinc-700">{{ item.award || '-' }}</td>
+                <td class="px-4 py-3 text-zinc-700">{{ item.description || '-' }}</td>
+                <td class="px-4 py-3 align-top text-zinc-700">{{ item.year || '-' }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <ng-template #noAwardRows>
+            <div class="rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-10 text-center text-sm text-zinc-500">No awards added.</div>
+          </ng-template>
+        </div>
+      </ng-template>
     </section>
 
     <section class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">

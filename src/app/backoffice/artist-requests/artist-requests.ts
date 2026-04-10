@@ -1,6 +1,7 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { DatePipe, NgClass, NgFor, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import {
   ArtistRequestArtistEntry,
@@ -17,12 +18,14 @@ type RequestTab = 'details' | 'dates' | 'image' | 'media' | 'artist' | 'comments
 @Component({
   selector: 'app-artist-requests',
   standalone: true,
-  imports: [NgIf, NgFor, NgClass, FormsModule, DatePipe],
+  imports: [NgIf, NgFor, NgClass, FormsModule, DatePipe, RouterLink],
   templateUrl: './artist-requests.html',
 })
 export class ArtistRequests implements OnInit {
   private authService = inject(AuthService);
   private supabase = inject(SupabaseService);
+  private route = inject(ActivatedRoute);
+  private router = inject(Router);
   private currentProfileId: string | null = null;
   private currentArtistId: string | null = null;
   private currentArtistName = '';
@@ -66,9 +69,19 @@ export class ArtistRequests implements OnInit {
     this.currentProfileId = profileId;
     this.loadSeenCommentMap(profileId);
     await this.loadData(profileId);
+    this.route.url.subscribe(() => {
+      void this.syncEditorWithRoute();
+    });
+    this.route.paramMap.subscribe(() => {
+      void this.syncEditorWithRoute();
+    });
   }
 
-  openNewRequest() {
+  async openNewRequest() {
+    await this.router.navigate(['/backoffice/artist-requests/new']);
+  }
+
+  private prepareNewRequest() {
     this.error = '';
     this.successMessage = '';
     this.isEditorOpen = true;
@@ -83,6 +96,10 @@ export class ArtistRequests implements OnInit {
   }
 
   async openExistingRequest(requestId: string) {
+    await this.router.navigate(['/backoffice/artist-requests', requestId]);
+  }
+
+  private async loadExistingRequest(requestId: string) {
     this.error = '';
     this.successMessage = '';
     this.isEditorOpen = true;
@@ -104,7 +121,11 @@ export class ArtistRequests implements OnInit {
     this.isEditing = false;
   }
 
-  closeEditor() {
+  async closeEditor() {
+    await this.router.navigate(['/backoffice/artist-requests']);
+  }
+
+  private resetEditorState() {
     this.isEditorOpen = false;
     this.selectedRequestId = null;
     this.request = this.blankRequest();
@@ -162,6 +183,8 @@ export class ArtistRequests implements OnInit {
         id: undefined,
       })),
     });
+
+    await this.router.navigate(['/backoffice/artist-requests/new']);
   }
 
   async deleteRequest() {
@@ -178,7 +201,7 @@ export class ArtistRequests implements OnInit {
     }
 
     this.successMessage = 'Request deleted successfully.';
-    this.closeEditor();
+    await this.closeEditor();
     await this.loadRequests(profileId);
   }
 
@@ -399,9 +422,9 @@ export class ArtistRequests implements OnInit {
     }
 
     this.successMessage = 'Request submitted successfully.';
-    this.closeEditor();
     this.isSaving = false;
     await this.loadRequests(profileId);
+    await this.router.navigate(['/backoffice/artist-requests', result.requestId]);
   }
 
   async addComment() {
@@ -586,6 +609,27 @@ export class ArtistRequests implements OnInit {
 
   private async loadRequests(profileId: string) {
     this.requests = await this.supabase.getArtistWorkspaceRequests(profileId);
+  }
+
+  private async syncEditorWithRoute() {
+    if (!this.currentProfileId) {
+      return;
+    }
+
+    const routePath = this.route.snapshot.routeConfig?.path;
+    const requestId = this.route.snapshot.paramMap.get('requestId');
+
+    if (routePath === 'artist-requests/new') {
+      this.prepareNewRequest();
+      return;
+    }
+
+    if (requestId) {
+      await this.loadExistingRequest(requestId);
+      return;
+    }
+
+    this.resetEditorState();
   }
 
   private loadSeenCommentMap(profileId: string) {

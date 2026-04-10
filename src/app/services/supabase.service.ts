@@ -276,6 +276,15 @@ export interface ArtistNotificationItem {
   sender_avatar_url: string | null;
 }
 
+export interface CreateRoleNotificationInput {
+  recipient_role_id: string;
+  sender_profile_id: string;
+  sender_role: string;
+  subject: string;
+  body: string;
+  expires_at?: string | null;
+}
+
 export interface ArtistMessageDirectoryUser {
   id: string;
   email: string;
@@ -353,6 +362,7 @@ export interface ArtistRequestCommentEntry {
   id: string;
   author_profile_id: string;
   author_name: string;
+  author_role: string | null;
   author_avatar_url: string | null;
   body: string;
   created_at: string;
@@ -1322,6 +1332,30 @@ export class SupabaseService {
     return null;
   }
 
+  async createRoleNotification(input: CreateRoleNotificationInput): Promise<string | null> {
+    const { error } = await this.adminSupabase
+      .from('tjs_artist_notifications')
+      .insert({
+        recipient_role_id: input.recipient_role_id,
+        sender_profile_id: input.sender_profile_id,
+        sender_role: input.sender_role,
+        subject: input.subject.trim(),
+        body: input.body.trim(),
+        expires_at: input.expires_at || null,
+      });
+
+    if (error) {
+      if (this.isMissingSchemaError(error)) {
+        return 'Artist notifications table is missing in the database. Run db/019_artist_workspace_notifications.sql and try again.';
+      }
+
+      console.error('createRoleNotification error:', error.message);
+      return error.message;
+    }
+
+    return null;
+  }
+
   async getArtistMessageDirectory(): Promise<ArtistMessageDirectoryUser[]> {
     const users = await this.listAllUsersWithRoles();
 
@@ -1814,6 +1848,7 @@ export class SupabaseService {
 
     const artistsById = new Map<string, any>();
     const profilesById = new Map<string, any>();
+    const authorRolesByProfileId = new Map<string, string>();
 
     if (linkedArtistIds.length > 0) {
       const { data: linkedArtists, error: linkedArtistsError } = await this.adminSupabase
@@ -1849,6 +1884,48 @@ export class SupabaseService {
               profilesById.set(profile.id, profile);
             }
           }
+        }
+      }
+    }
+
+    const commentAuthorIds = Array.from(
+      new Set(
+        ((commentsResult.data ?? []) as any[])
+          .map((row) => row.author_profile_id as string | null)
+          .filter((value): value is string => !!value)
+      )
+    );
+
+    if (commentAuthorIds.length > 0) {
+      const { data: authorRoles, error: authorRolesError } = await this.adminSupabase
+        .from('tjs_user_roles')
+        .select('user_id, role:tjs_roles(name)')
+        .in('user_id', commentAuthorIds)
+        .eq('is_active', true);
+
+      if (authorRolesError) {
+        console.error('getArtistWorkspaceRequestDetail author roles error:', authorRolesError.message);
+      } else {
+        const collectedRoles = new Map<string, string[]>();
+
+        for (const row of authorRoles ?? []) {
+          const roleName = Array.isArray((row as any).role)
+            ? (row as any).role[0]?.name
+            : (row as any).role?.name;
+
+          if (!row.user_id || !roleName) {
+            continue;
+          }
+
+          const roles = collectedRoles.get(row.user_id) ?? [];
+          if (!roles.includes(roleName)) {
+            roles.push(roleName);
+          }
+          collectedRoles.set(row.user_id, roles);
+        }
+
+        for (const [userId, roles] of collectedRoles.entries()) {
+          authorRolesByProfileId.set(userId, roles.join(', '));
         }
       }
     }
@@ -1903,6 +1980,7 @@ export class SupabaseService {
         id: row.id,
         author_profile_id: row.author_profile_id,
         author_name: row.author?.full_name || row.author?.email || 'Unknown user',
+        author_role: authorRolesByProfileId.get(row.author_profile_id) ?? null,
         author_avatar_url: row.author?.avatar_url ?? null,
         body: row.body ?? '',
         created_at: row.created_at,
@@ -3134,6 +3212,33 @@ export class SupabaseService {
     }
     
     return artists;
+  }
+
+  async getArtistById(artistId: string): Promise<TjsArtist | null> {
+    const { data, error } = await this.adminSupabase
+      .from('tjs_artists')
+      .select(`
+        *,
+        profile:tjs_profiles (
+          id, email, full_name, phone, bio, avatar_url,
+          is_member, member_since, member_until, is_pag_artist,
+          created_at, updated_at
+        )
+      `)
+      .eq('id', artistId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('getArtistById error:', error);
+      throw new Error(`Failed to fetch artist: ${error.message}`);
+    }
+
+    if (!data) {
+      return null;
+    }
+
+    const artists = await this.mapArtistsWithAssignments([data as any]);
+    return artists[0] ?? null;
   }
 
   /** Fetch TJS artists (is_tjs_artist = true). */

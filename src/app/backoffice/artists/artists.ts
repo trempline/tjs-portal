@@ -1,7 +1,7 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { DatePipe, NgClass, NgFor, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import {
   SupabaseService,
@@ -21,7 +21,6 @@ type ArtistTab = 'tjs' | 'invited';
 export class Artists implements OnInit {
   private authService = inject(AuthService);
   private supabase = inject(SupabaseService);
-  private route = inject(ActivatedRoute);
   private router = inject(Router);
 
   isLoading = true;
@@ -141,6 +140,13 @@ export class Artists implements OnInit {
     }
 
     await this.loadData();
+  }
+
+  async openArtistDetail(artist: TjsArtist) {
+    if (!this.isCommittee || !artist.profile_id || this.activeTab !== 'tjs') {
+      return;
+    }
+    await this.router.navigate(['/backoffice/artists', artist.id]);
   }
 
   private async loadData() {
@@ -448,5 +454,17 @@ export class Artists implements OnInit {
 
   trackById(_: number, item: { id: string }) {
     return item.id;
+  }
+
+  trackByIndex(index: number) {
+    return index;
+  }
+
+  trackByNumericId(_: number, item: { id: number }) {
+    return item.id;
+  }
+
+  trackByOptionalId(index: number, item: { id?: string }) {
+    return item.id ?? index;
   }
 }

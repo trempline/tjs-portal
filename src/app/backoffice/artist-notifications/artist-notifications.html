@@ -1,7 +1,22 @@
 <div class="space-y-6">
-  <div>
-    <h1 class="text-2xl font-bold text-zinc-900">Notification</h1>
-    <p class="mt-0.5 text-sm text-zinc-500">Review notifications sent by Hosts, Host Managers, Host+, Committee Members, and Admins.</p>
+  <div class="flex items-start justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-bold text-zinc-900">{{ pageTitle }}</h1>
+      <p class="mt-0.5 text-sm text-zinc-500">{{ pageDescription }}</p>
+    </div>
+
+    <button
+      *ngIf="canComposeNotifications"
+      type="button"
+      (click)="openCompose()"
+      class="rounded-2xl bg-red-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-red-700"
+    >
+      New Notification
+    </button>
+  </div>
+
+  <div *ngIf="successMessage" class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+    {{ successMessage }}
   </div>
 
   <div *ngIf="error" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -104,6 +119,54 @@
       <div class="px-6 py-6">
         <h2 class="text-2xl font-semibold text-zinc-900">{{ selectedNotification.subject }}</h2>
         <div class="mt-5 whitespace-pre-wrap text-sm leading-7 text-zinc-700">{{ selectedNotification.body }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div *ngIf="isComposeOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+    <div class="w-full max-w-2xl rounded-3xl bg-white shadow-2xl">
+      <div class="flex items-center justify-between border-b border-zinc-200 px-6 py-5">
+        <div>
+          <h2 class="text-xl font-semibold text-zinc-900">New Notification</h2>
+          <p class="mt-1 text-sm text-zinc-500">Send this notification to everyone assigned to a selected role.</p>
+        </div>
+        <button type="button" (click)="closeCompose()" class="rounded-xl border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50">
+          Close
+        </button>
+      </div>
+
+      <div class="space-y-5 px-6 py-6">
+        <div class="space-y-2">
+          <label class="text-sm font-medium text-zinc-700">Recipient Role</label>
+          <select [(ngModel)]="compose.recipientRoleId" class="w-full rounded-2xl border border-zinc-300 px-3 py-2.5 text-sm outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100">
+            <option value="">Select role</option>
+            <option *ngFor="let role of roleOptions" [value]="role.id">{{ role.name }}</option>
+          </select>
+        </div>
+
+        <div class="space-y-2">
+          <label class="text-sm font-medium text-zinc-700">Subject</label>
+          <input [(ngModel)]="compose.subject" type="text" class="w-full rounded-2xl border border-zinc-300 px-3 py-2.5 text-sm outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+        </div>
+
+        <div class="space-y-2">
+          <label class="text-sm font-medium text-zinc-700">Message</label>
+          <textarea [(ngModel)]="compose.body" rows="7" class="w-full rounded-2xl border border-zinc-300 px-3 py-2.5 text-sm outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100"></textarea>
+        </div>
+
+        <div class="space-y-2">
+          <label class="text-sm font-medium text-zinc-700">Expiry Date</label>
+          <input [(ngModel)]="compose.expiresAt" type="datetime-local" class="w-full rounded-2xl border border-zinc-300 px-3 py-2.5 text-sm outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-3 border-t border-zinc-200 px-6 py-5">
+        <button type="button" (click)="closeCompose()" class="rounded-xl border border-zinc-200 px-5 py-2.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50">
+          Cancel
+        </button>
+        <button type="button" (click)="sendNotification()" [disabled]="isSending" class="rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60">
+          {{ isSending ? 'Sending...' : 'Send Notification' }}
+        </button>
       </div>
     </div>
   </div>

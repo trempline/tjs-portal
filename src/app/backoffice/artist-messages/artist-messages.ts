@@ -48,7 +48,7 @@ export class ArtistMessages implements OnInit {
 
     const currentUserId = this.authService.currentUser?.id;
     if (!currentUserId) {
-      this.error = 'Artist messages could not be loaded.';
+      this.error = 'Messages could not be loaded.';
       this.isLoading = false;
       return;
     }
@@ -136,7 +136,7 @@ export class ArtistMessages implements OnInit {
   async sendMessage() {
     const currentUserId = this.authService.currentUser?.id;
     if (!currentUserId) {
-      this.error = 'Artist messages could not be sent.';
+      this.error = 'Messages could not be sent.';
       return;
     }
 
@@ -324,7 +324,7 @@ export class ArtistMessages implements OnInit {
       this.directoryUsers = users;
       await this.reloadConversations(currentUserId);
     } catch (error) {
-      this.error = error instanceof Error ? error.message : 'Artist messages could not be loaded.';
+      this.error = error instanceof Error ? error.message : 'Messages could not be loaded.';
     } finally {
       this.isLoading = false;
     }

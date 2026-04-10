@@ -137,6 +137,8 @@
             class="transition-colors hover:bg-zinc-50"
             [class.bg-amber-50/30]="artist.is_featured"
             [class.bg-red-50/20]="needsAssignment(artist) && !isCommittee"
+            [class.cursor-pointer]="isCommittee && activeTab === 'tjs'"
+            (click)="openArtistDetail(artist)"
           >
             <td class="px-6 py-4">
               <div class="flex items-center gap-3">
@@ -168,7 +170,7 @@
               <button
                 *ngIf="canManageArtists; else featuredReadOnly"
                 type="button"
-                (click)="toggleFeatured(artist)"
+                (click)="$event.stopPropagation(); toggleFeatured(artist)"
                 [disabled]="isSaving"
                 [attr.aria-pressed]="artist.is_featured"
                 [title]="artist.is_featured ? 'Disable Is Featured' : 'Enable Is Featured'"
@@ -215,7 +217,7 @@
                 <button
                   *ngIf="canPromoteInvitedArtist(artist)"
                   type="button"
-                  (click)="promoteInvitedArtistToTjs(artist)"
+                  (click)="$event.stopPropagation(); promoteInvitedArtistToTjs(artist)"
                   [disabled]="isSaving"
                   class="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700 transition-colors hover:border-blue-300 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
                 >
@@ -224,7 +226,8 @@
 
                 <button
                   *ngIf="canReassignArtist(artist)"
-                  (click)="openAssignmentModal(artist)"
+                  type="button"
+                  (click)="$event.stopPropagation(); openAssignmentModal(artist)"
                   class="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 px-2.5 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
                 >
                   <svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -237,7 +240,7 @@
 
                 <button
                   type="button"
-                  (click)="openAuditModal(artist)"
+                  (click)="$event.stopPropagation(); openAuditModal(artist)"
                   title="View audit history"
                   class="rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
                 >
