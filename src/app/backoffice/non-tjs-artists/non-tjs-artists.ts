@@ -1,6 +1,7 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { DatePipe, NgFor, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import { PagArtist, SupabaseService } from '../../services/supabase.service';
 
@@ -13,6 +14,7 @@ import { PagArtist, SupabaseService } from '../../services/supabase.service';
 export class NonTjsArtists implements OnInit {
   private supabase = inject(SupabaseService);
   private authService = inject(AuthService);
+  private router = inject(Router);
 
   isLoading = true;
   isSaving = false;
@@ -66,7 +68,17 @@ export class NonTjsArtists implements OnInit {
     return !!artist.is_active && !artist.tjs_artist_id;
   }
 
-  async promoteToTjs(artist: PagArtist) {
+  async openArtistProfile(artist: PagArtist) {
+    const target = artist.tjs_artist_id
+      ? ['/backoffice/artists', artist.tjs_artist_id]
+      : ['/backoffice/artists/non-tjs', artist.id];
+
+    await this.router.navigate(target);
+  }
+
+  async promoteToTjs(event: Event, artist: PagArtist) {
+    event.stopPropagation();
+
     if (!this.canPromote(artist)) {
       return;
     }

@@ -1,5 +1,6 @@
 import { Component, inject } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
+import { AuthService } from '../../services/auth.service';
 
 @Component({
   selector: 'app-artist-workspace-page',
@@ -28,12 +29,27 @@ import { ActivatedRoute } from '@angular/router';
 })
 export class ArtistWorkspacePage {
   private route = inject(ActivatedRoute);
+  private authService = inject(AuthService);
+
+  get isInvitedArtist(): boolean {
+    return this.authService.isInvitedArtist;
+  }
 
   get title(): string {
-    return this.route.snapshot.data['title'] ?? 'Artist Workspace';
+    const routeTitle = this.route.snapshot.data['title'] ?? 'Artist Workspace';
+    if (this.isInvitedArtist && routeTitle === 'Dashboard') {
+      return 'Invited Artists Workspace';
+    }
+
+    return routeTitle;
   }
 
   get description(): string {
-    return this.route.snapshot.data['description'] ?? 'Manage your artist workspace.';
+    const routeDescription = this.route.snapshot.data['description'] ?? 'Manage your artist workspace.';
+    if (this.isInvitedArtist && this.title === 'Invited Artists Workspace') {
+      return 'Manage your invited artist workspace, profile, media, messages, notifications, and availability.';
+    }
+
+    return routeDescription;
   }
 }

@@ -1,0 +1,287 @@
+<div class="space-y-6">
+  <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-zinc-900">Public Locations</h1>
+      <p class="mt-0.5 text-sm text-zinc-500">Manage the public locations visible from the host manager workspace.</p>
+    </div>
+
+    <div class="flex flex-col gap-3 sm:flex-row">
+      <input
+        [(ngModel)]="searchQuery"
+        type="search"
+        placeholder="Search locations"
+        class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100 sm:w-72"
+      />
+      <button
+        type="button"
+        (click)="openCreateForm()"
+        class="rounded-xl bg-zinc-900 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-800"
+      >
+        Add New Location
+      </button>
+    </div>
+  </div>
+
+  <div *ngIf="successMessage" class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+    {{ successMessage }}
+  </div>
+
+  <div *ngIf="error" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+    {{ error }}
+  </div>
+
+  <div *ngIf="isEditing" class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <h2 class="text-lg font-semibold text-zinc-900">{{ editingLocation ? 'Update Public Location' : 'Add New Public Location' }}</h2>
+        <p class="mt-1 text-sm text-zinc-500">Public is fixed to true and private is fixed to false for this workspace.</p>
+      </div>
+
+      <div class="flex gap-3">
+        <button
+          type="button"
+          (click)="cancelEdit()"
+          class="rounded-xl border border-zinc-300 px-4 py-2.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          (click)="saveLocation()"
+          [disabled]="isSaving"
+          class="rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {{ isSaving ? 'Saving...' : (editingLocation ? 'Update Location' : 'Create Location') }}
+        </button>
+      </div>
+    </div>
+
+    <div class="mt-6 grid gap-5 lg:grid-cols-2">
+      <div class="space-y-2">
+        <label class="text-sm font-medium text-zinc-700">Name</label>
+        <input [(ngModel)]="form.name" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+      </div>
+
+      <div class="space-y-2">
+        <label class="text-sm font-medium text-zinc-700">Address</label>
+        <input [(ngModel)]="form.address" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+      </div>
+
+      <div class="space-y-2">
+        <label class="text-sm font-medium text-zinc-700">Latitude</label>
+        <input [(ngModel)]="form.lat" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+      </div>
+
+      <div class="space-y-2">
+        <label class="text-sm font-medium text-zinc-700">Longitude</label>
+        <input [(ngModel)]="form.long" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+      </div>
+
+      <div class="space-y-2 lg:col-span-2">
+        <label class="text-sm font-medium text-zinc-700">Description</label>
+        <textarea [(ngModel)]="form.description" rows="4" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100"></textarea>
+      </div>
+
+      <div class="space-y-2 lg:col-span-2">
+        <label class="text-sm font-medium text-zinc-700">Public Description</label>
+        <textarea [(ngModel)]="form.public_description" rows="3" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100"></textarea>
+      </div>
+
+      <div class="space-y-2 lg:col-span-2">
+        <label class="text-sm font-medium text-zinc-700">Restricted Description</label>
+        <textarea [(ngModel)]="form.restricted_description" rows="3" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100"></textarea>
+      </div>
+
+      <div class="space-y-2">
+        <label class="text-sm font-medium text-zinc-700">Capacity</label>
+        <input [(ngModel)]="form.capacity" type="text" placeholder="50-100 pax" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+      </div>
+
+      <div class="space-y-2">
+        <label class="text-sm font-medium text-zinc-700">Location Type</label>
+        <select [(ngModel)]="form.location_type_id" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100">
+          <option [ngValue]="null">Select location type</option>
+          <option *ngFor="let option of typeOptions; trackBy: trackByOption" [ngValue]="option.id">{{ option.name }}</option>
+        </select>
+      </div>
+
+      <div class="space-y-2">
+        <label class="text-sm font-medium text-zinc-700">City</label>
+        <input [(ngModel)]="form.city" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+      </div>
+
+      <div class="space-y-2">
+        <label class="text-sm font-medium text-zinc-700">Country</label>
+        <input [(ngModel)]="form.country" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+      </div>
+
+      <div class="space-y-2">
+        <label class="text-sm font-medium text-zinc-700">ZIP</label>
+        <input [(ngModel)]="form.zip" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+      </div>
+
+      <div class="space-y-2">
+        <label class="text-sm font-medium text-zinc-700">Phone</label>
+        <input [(ngModel)]="form.phone" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+      </div>
+
+      <div class="space-y-2">
+        <label class="text-sm font-medium text-zinc-700">Email</label>
+        <input [(ngModel)]="form.email" type="email" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+      </div>
+
+      <div class="space-y-2">
+        <label class="text-sm font-medium text-zinc-700">Website</label>
+        <input [(ngModel)]="form.website" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+      </div>
+
+      <div class="space-y-2 lg:col-span-2">
+        <label class="text-sm font-medium text-zinc-700">Access Info</label>
+        <textarea [(ngModel)]="form.access_info" rows="3" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100"></textarea>
+      </div>
+    </div>
+
+    <div class="mt-6 grid gap-6 lg:grid-cols-2">
+      <section class="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <h3 class="text-base font-semibold text-zinc-900">Images</h3>
+            <p class="mt-1 text-sm text-zinc-500">Upload up to 5 images for the location.</p>
+          </div>
+
+          <label class="inline-flex cursor-pointer items-center rounded-xl border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50">
+            {{ isUploadingImages ? 'Uploading...' : 'Upload Images' }}
+            <input type="file" accept="image/*" multiple class="hidden" (change)="onImagesSelected($event)" [disabled]="isUploadingImages || form.image_urls.length >= 5" />
+          </label>
+        </div>
+
+        <div *ngIf="form.image_urls.length; else noImages" class="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div *ngFor="let imageUrl of form.image_urls; let i = index; trackBy: trackByImage" class="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+            <img [src]="imageUrl" alt="Location image" class="h-32 w-full object-cover" />
+            <div class="flex items-center justify-between px-3 py-2">
+              <span class="text-xs font-medium text-zinc-500">Image {{ i + 1 }}</span>
+              <button type="button" (click)="removeImage(i)" class="text-xs font-semibold text-red-600 hover:text-red-700">Remove</button>
+            </div>
+          </div>
+        </div>
+
+        <ng-template #noImages>
+          <div class="mt-4 rounded-2xl border border-dashed border-zinc-300 bg-white px-4 py-8 text-center text-sm text-zinc-500">
+            No images uploaded yet.
+          </div>
+        </ng-template>
+      </section>
+
+      <section class="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
+        <div class="space-y-5">
+          <div>
+            <div class="flex items-end gap-2">
+              <div class="flex-1 space-y-2">
+                <label class="text-sm font-medium text-zinc-700">Location Amenity</label>
+                <select [(ngModel)]="selectedAmenityId" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100">
+                  <option value="">Select amenity</option>
+                  <option *ngFor="let option of amenityOptions; trackBy: trackByOption" [value]="option.id">{{ option.name }}</option>
+                </select>
+              </div>
+              <button type="button" (click)="addAmenity()" class="rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-800">Add</button>
+            </div>
+
+            <div class="mt-3 flex flex-wrap gap-2">
+              <span *ngFor="let amenity of form.amenities; trackBy: trackByOption" class="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700">
+                {{ amenity.name }}
+                <button type="button" (click)="removeAmenity(amenity.id)" class="text-blue-500 hover:text-blue-700">x</button>
+              </span>
+            </div>
+          </div>
+
+          <div>
+            <div class="flex items-end gap-2">
+              <div class="flex-1 space-y-2">
+                <label class="text-sm font-medium text-zinc-700">Location Specification</label>
+                <select [(ngModel)]="selectedSpecId" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100">
+                  <option value="">Select specification</option>
+                  <option *ngFor="let option of specOptions; trackBy: trackByOption" [value]="option.id">{{ option.name }}</option>
+                </select>
+              </div>
+              <button type="button" (click)="addSpec()" class="rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-800">Add</button>
+            </div>
+
+            <div class="mt-3 flex flex-wrap gap-2">
+              <span *ngFor="let spec of form.specs; trackBy: trackByOption" class="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-sm font-medium text-emerald-700">
+                {{ spec.name }}
+                <button type="button" (click)="removeSpec(spec.id)" class="text-emerald-500 hover:text-emerald-700">x</button>
+              </span>
+            </div>
+          </div>
+
+          <label class="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-700">
+            <input [(ngModel)]="form.is_active" type="checkbox" class="h-4 w-4 rounded border-zinc-300 text-red-600 focus:ring-red-500" />
+            <span>Location is active</span>
+          </label>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div *ngIf="isLoading" class="flex items-center justify-center py-20">
+    <div class="h-8 w-8 animate-spin rounded-full border-4 border-zinc-200 border-t-red-600"></div>
+  </div>
+
+  <div *ngIf="!isLoading" class="rounded-2xl border border-zinc-200 bg-white shadow-sm">
+    <div class="overflow-x-auto">
+      <table class="min-w-full divide-y divide-zinc-200 text-sm">
+        <thead class="bg-zinc-50">
+          <tr>
+            <th class="px-5 py-3 text-left font-semibold text-zinc-600">Location</th>
+            <th class="px-5 py-3 text-left font-semibold text-zinc-600">Type</th>
+            <th class="px-5 py-3 text-left font-semibold text-zinc-600">City</th>
+            <th class="px-5 py-3 text-left font-semibold text-zinc-600">Capacity</th>
+            <th class="px-5 py-3 text-left font-semibold text-zinc-600">Status</th>
+            <th class="px-5 py-3 text-right font-semibold text-zinc-600">Actions</th>
+          </tr>
+        </thead>
+
+        <tbody *ngIf="filteredLocations.length; else emptyState" class="divide-y divide-zinc-100">
+          <tr *ngFor="let location of filteredLocations; trackBy: trackByLocation" class="hover:bg-zinc-50">
+            <td class="px-5 py-4">
+              <div class="flex items-center gap-3">
+                <div class="h-12 w-12 overflow-hidden rounded-xl bg-zinc-100">
+                  <img *ngIf="location.images[0]?.image_url; else imageFallback" [src]="location.images[0]?.image_url" alt="Location preview" class="h-full w-full object-cover" />
+                  <ng-template #imageFallback>
+                    <div class="flex h-full w-full items-center justify-center text-xs font-semibold uppercase tracking-wide text-zinc-500">IMG</div>
+                  </ng-template>
+                </div>
+                <div>
+                  <a [routerLink]="[detailRoutePrefix, location.id]" class="font-semibold text-zinc-900 transition-colors hover:text-blue-700">{{ location.name }}</a>
+                  <div class="text-xs text-zinc-500">{{ location.address || 'No address yet' }}</div>
+                </div>
+              </div>
+            </td>
+            <td class="px-5 py-4 text-zinc-700">{{ location.location_type?.name || '-' }}</td>
+            <td class="px-5 py-4 text-zinc-700">{{ location.city || '-' }}</td>
+            <td class="px-5 py-4 text-zinc-700">{{ location.capacity || '-' }}</td>
+            <td class="px-5 py-4">
+              <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold" [class.bg-green-100]="location.is_active" [class.text-green-700]="location.is_active" [class.bg-zinc-200]="!location.is_active" [class.text-zinc-700]="!location.is_active">
+                {{ location.is_active ? 'Active' : 'Inactive' }}
+              </span>
+            </td>
+            <td class="px-5 py-4 text-right">
+              <div class="flex justify-end gap-3">
+                <a [routerLink]="[detailRoutePrefix, location.id]" class="text-sm font-medium text-zinc-700 hover:text-zinc-900">View</a>
+                <button type="button" (click)="openEditForm(location)" class="text-sm font-medium text-blue-600 hover:text-blue-700">Edit</button>
+                <button type="button" (click)="deleteLocation(location)" class="text-sm font-medium text-red-600 hover:text-red-700">Delete</button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <ng-template #emptyState>
+      <div class="px-6 py-16 text-center">
+        <div class="text-base font-semibold text-zinc-900">No public locations yet</div>
+        <p class="mt-2 text-sm text-zinc-500">Create the first public location from this workspace.</p>
+      </div>
+    </ng-template>
+  </div>
+</div>

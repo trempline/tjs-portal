@@ -20,12 +20,15 @@ export class ArtistNotifications implements OnInit {
 
   isLoading = true;
   isSending = false;
+  isDeleting = false;
   error = '';
   successMessage = '';
-  notifications: ArtistNotificationItem[] = [];
+  receivedNotifications: ArtistNotificationItem[] = [];
+  sentNotifications: ArtistNotificationItem[] = [];
   selectedNotification: ArtistNotificationItem | null = null;
   roleOptions: TjsRole[] = [];
   isComposeOpen = false;
+  activeTab: 'received' | 'sent' = 'received';
   compose = {
     recipientRoleId: '',
     subject: '',
@@ -59,14 +62,30 @@ export class ArtistNotifications implements OnInit {
     return this.isCommittee;
   }
 
+  get notifications(): ArtistNotificationItem[] {
+    if (this.isCommittee && this.activeTab === 'sent') {
+      return this.sentNotifications;
+    }
+
+    return this.receivedNotifications;
+  }
+
   get pageTitle(): string {
     return 'Notification';
   }
 
   get pageDescription(): string {
     return this.isCommittee
-      ? 'Review incoming notifications and send role-based notifications across the workspace.'
+      ? 'Review incoming notifications, track everything you have sent, and remove sent notifications before they expire.'
       : 'Review notifications sent by Hosts, Host Managers, Host+, Committee Members, and Admins.';
+  }
+
+  get emptyStateMessage(): string {
+    if (this.isCommittee && this.activeTab === 'sent') {
+      return 'You have not sent any notifications yet.';
+    }
+
+    return "You'll see notifications here when they're sent to you";
   }
 
   openCompose() {
@@ -130,12 +149,17 @@ export class ArtistNotifications implements OnInit {
 
     this.successMessage = 'Notification sent successfully.';
     this.isComposeOpen = false;
+    this.activeTab = 'sent';
     await this.loadNotifications(profileId, this.authService.currentRoles.map((role) => role.id));
     this.isSending = false;
   }
 
   async openNotification(notification: ArtistNotificationItem) {
     this.selectedNotification = notification;
+
+    if (this.isCommittee && this.activeTab === 'sent') {
+      return;
+    }
 
     if (!notification.is_read) {
       const profileId = this.authService.currentUser?.id;
@@ -145,7 +169,7 @@ export class ArtistNotifications implements OnInit {
 
       const error = await this.supabase.markArtistNotificationRead(notification.id, profileId);
       if (!error) {
-        this.notifications = this.notifications.map((item) =>
+        this.receivedNotifications = this.receivedNotifications.map((item) =>
           item.id === notification.id ? { ...item, is_read: true } : item
         );
         this.selectedNotification = { ...notification, is_read: true };
@@ -155,6 +179,59 @@ export class ArtistNotifications implements OnInit {
 
   closeNotification() {
     this.selectedNotification = null;
+  }
+
+  setActiveTab(tab: 'received' | 'sent') {
+    this.activeTab = tab;
+    this.selectedNotification = null;
+    this.error = '';
+    this.successMessage = '';
+  }
+
+  isExpired(notification: ArtistNotificationItem): boolean {
+    if (!notification.expires_at) {
+      return false;
+    }
+
+    const expiresAt = new Date(notification.expires_at).getTime();
+    return !Number.isNaN(expiresAt) && expiresAt < Date.now();
+  }
+
+  canDelete(notification: ArtistNotificationItem): boolean {
+    return this.isCommittee && this.activeTab === 'sent' && !this.isExpired(notification);
+  }
+
+  async deleteNotification(event: Event, notification: ArtistNotificationItem) {
+    event.stopPropagation();
+
+    if (!this.canDelete(notification) || this.isDeleting) {
+      return;
+    }
+
+    const profileId = this.authService.currentUser?.id;
+    if (!profileId) {
+      this.error = 'Notification could not be deleted.';
+      return;
+    }
+
+    this.isDeleting = true;
+    this.error = '';
+    this.successMessage = '';
+
+    const error = await this.supabase.deleteSentArtistNotification(notification.id, profileId);
+
+    if (error) {
+      this.error = error;
+      this.isDeleting = false;
+      return;
+    }
+
+    this.sentNotifications = this.sentNotifications.filter((item) => item.id !== notification.id);
+    if (this.selectedNotification?.id === notification.id) {
+      this.selectedNotification = null;
+    }
+    this.successMessage = 'Notification deleted successfully.';
+    this.isDeleting = false;
   }
 
   trimBody(body: string, maxLength = 140): string {
@@ -171,10 +248,13 @@ export class ArtistNotifications implements OnInit {
   }
 
   private async loadNotifications(profileId: string, roleIds: string[]) {
-    const notifications = await this.supabase.getArtistWorkspaceNotifications(profileId, roleIds);
+    const [receivedNotifications, sentNotifications] = await Promise.all([
+      this.supabase.getArtistWorkspaceNotifications(profileId, roleIds),
+      this.isCommittee ? this.supabase.getSentArtistWorkspaceNotifications(profileId) : Promise.resolve([]),
+    ]);
     const now = Date.now();
 
-    this.notifications = notifications.filter((item) => {
+    this.receivedNotifications = receivedNotifications.filter((item) => {
       if (!item.expires_at) {
         return true;
       }
@@ -182,6 +262,7 @@ export class ArtistNotifications implements OnInit {
       const expiresAt = new Date(item.expires_at).getTime();
       return Number.isNaN(expiresAt) || expiresAt >= now;
     });
+    this.sentNotifications = sentNotifications;
 
     this.isLoading = false;
   }

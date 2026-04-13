@@ -123,6 +123,10 @@ export class AuthService {
     return this.hasAnyRole(['Artist', 'Artist Invited']);
   }
 
+  get isInvitedArtist(): boolean {
+    return this.hasRole('Artist Invited') && !this.hasRole('Artist');
+  }
+
   get hasValidMembership(): boolean {
     const profile = this.currentProfile;
     if (!profile?.is_member) {
@@ -202,7 +206,7 @@ export class AuthService {
     }
 
     if (roleNames.includes('host') || roleNames.includes('host+')) {
-      return '/backoffice/my-hosts';
+      return '/backoffice/host/dashboard';
     }
 
     if (roleNames.includes('artist') || roleNames.includes('artist invited')) {

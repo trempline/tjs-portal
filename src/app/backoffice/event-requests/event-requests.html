@@ -8,11 +8,13 @@
   <div class="space-y-6">
     <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
       <div>
-        <h1 class="text-2xl font-bold text-zinc-900">Event Requests</h1>
+        <h1 class="text-2xl font-bold text-zinc-900">{{ isHostWorkspace ? 'Artist Requests' : 'Event Requests' }}</h1>
         <p class="mt-1 text-sm text-zinc-500">
-          {{ isCommitteeMember
+          {{ isHostWorkspace
+            ? 'Browse artist requests in a read-only list. Click any request to open its full details on a separate page.'
+            : (isCommitteeMember
             ? 'Read-only request monitoring for your assigned artists, with optional platform-wide visibility for coordination.'
-            : 'Platform request overview.' }}
+            : 'Platform request overview.') }}
         </p>
       </div>
 
@@ -59,6 +61,18 @@
             Pending
           </button>
           <button
+            *ngIf="isHostWorkspace"
+            (click)="setTab('SELECTED')"
+            [class.bg-white]="activeTab === 'SELECTED'"
+            [class.shadow-sm]="activeTab === 'SELECTED'"
+            [class.text-zinc-800]="activeTab === 'SELECTED'"
+            [class.font-semibold]="activeTab === 'SELECTED'"
+            [class.text-zinc-500]="activeTab !== 'SELECTED'"
+            class="rounded-md px-4 py-1.5 text-sm transition-all duration-200"
+          >
+            Accepted
+          </button>
+          <button
             (click)="setTab('APPROVED')"
             [class.bg-white]="activeTab === 'APPROVED'"
             [class.shadow-sm]="activeTab === 'APPROVED'"
@@ -70,6 +84,7 @@
             Approved
           </button>
           <button
+            *ngIf="!isHostWorkspace"
             (click)="setTab('AVAILABLE')"
             [class.bg-white]="activeTab === 'AVAILABLE'"
             [class.shadow-sm]="activeTab === 'AVAILABLE'"
@@ -86,7 +101,7 @@
           {{ scopeLabel }}
         </span>
 
-        <span *ngIf="isCommitteeMember" class="inline-flex rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+        <span *ngIf="isCommitteeMember || isHostWorkspace" class="inline-flex rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
           Read only
         </span>
       </div>
@@ -109,36 +124,43 @@
           <table class="w-full text-sm">
             <thead class="border-b border-zinc-200 bg-zinc-50">
               <tr>
-                <th class="px-5 py-3 text-left font-semibold text-zinc-600">Request</th>
-                <th class="px-5 py-3 text-left font-semibold text-zinc-600">Artist</th>
-                <th class="px-5 py-3 text-left font-semibold text-zinc-600">Requester</th>
-                <th class="px-5 py-3 text-left font-semibold text-zinc-600">Location</th>
+                <th class="px-5 py-3 text-left font-semibold text-zinc-600">Title of Show</th>
+                <th class="px-5 py-3 text-left font-semibold text-zinc-600">Domain</th>
+                <th class="px-5 py-3 text-left font-semibold text-zinc-600">Dates</th>
+                <th class="px-5 py-3 text-left font-semibold text-zinc-600">Artist Name</th>
+                <th class="px-5 py-3 text-left font-semibold text-zinc-600">Teaser</th>
                 <th class="px-5 py-3 text-left font-semibold text-zinc-600">Status</th>
-                <th class="px-5 py-3 text-left font-semibold text-zinc-600">Primary Date</th>
-                <th class="px-5 py-3 text-left font-semibold text-zinc-600">Created</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-zinc-100">
-              <tr *ngFor="let item of filteredRequests" class="hover:bg-zinc-50">
+              <tr
+                *ngFor="let item of filteredRequests"
+                (click)="openRequest(item)"
+                [class.cursor-pointer]="isHostWorkspace"
+                class="hover:bg-zinc-50"
+              >
                 <td class="px-5 py-4 align-top">
                   <div class="font-semibold text-zinc-900">{{ item.title }}</div>
-                  <div *ngIf="item.description" class="mt-1 max-w-md text-xs text-zinc-500">{{ item.description }}</div>
+                </td>
+                <td class="px-5 py-4 text-zinc-600">{{ item.event_domain_name || 'No domain' }}</td>
+                <td class="px-5 py-4 text-zinc-600">
+                  <div *ngIf="requestDates(item).length === 0">Not scheduled</div>
+                  <div *ngIf="requestDates(item).length > 0" class="space-y-1">
+                    <div *ngFor="let date of requestDates(item)">
+                      {{ date | date:'dd/MM/yyyy' }}
+                    </div>
+                  </div>
                 </td>
                 <td class="px-5 py-4 text-zinc-600">{{ primaryArtist(item) }}</td>
                 <td class="px-5 py-4">
-                  <div class="text-zinc-700">{{ item.creator_name || 'Unknown' }}</div>
-                  <div class="mt-1 text-xs text-zinc-500">{{ item.creator_email || 'No email' }}</div>
+                  <div class="max-w-md text-zinc-600">{{ teaserText(item) }}</div>
+                  <div class="mt-1 text-xs text-zinc-400">Created {{ item.created_at | date:'dd/MM/yyyy' }}</div>
                 </td>
-                <td class="px-5 py-4 text-zinc-600">{{ item.city || item.department || 'Unknown' }}</td>
                 <td class="px-5 py-4">
                   <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold" [ngClass]="badgeClass(item.status)">
                     {{ requestStatusLabel(item.status) }}
                   </span>
                 </td>
-                <td class="px-5 py-4 text-zinc-600">
-                  {{ primaryDate(item) ? (primaryDate(item) | date:'dd/MM/yyyy') : 'Not scheduled' }}
-                </td>
-                <td class="px-5 py-4 text-zinc-600">{{ item.created_at | date:'dd/MM/yyyy' }}</td>
               </tr>
             </tbody>
           </table>

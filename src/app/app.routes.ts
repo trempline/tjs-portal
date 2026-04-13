@@ -6,6 +6,8 @@ import { About } from './about/about';
 import { AdminLogin } from './admin-login/admin-login';
 import { ArtistLogin } from './artist-login/artist-login';
 import { CommitteeLogin } from './committee-login/committee-login';
+import { HostManagerLogin } from './host-manager-login/host-manager-login';
+import { HostLogin } from './host-login/host-login';
 import { BackofficeLayout } from './backoffice/backoffice-layout/backoffice-layout';
 import { Dashboard } from './backoffice/dashboard/dashboard';
 import { EventRequests } from './backoffice/event-requests/event-requests';
@@ -21,6 +23,13 @@ import { AccountSettings } from './backoffice/account-settings/account-settings'
 import { AuthCallback } from './auth-callback/auth-callback';
 import { TestHostCreationComponent } from './test-host-creation/test-host-creation.component';
 import { HostManagerHosts } from './backoffice/host-manager-hosts/host-manager-hosts';
+import { HostManagerHostDetail } from './backoffice/host-manager-host-detail/host-manager-host-detail';
+import { HostManagerDashboard } from './backoffice/host-manager-dashboard/host-manager-dashboard';
+import { HostPrivateLocations } from './backoffice/host-private-locations/host-private-locations';
+import { HostPrivateLocationDetail } from './backoffice/host-private-location-detail/host-private-location-detail';
+import { HostManagerPublicLocationDetail } from './backoffice/host-manager-public-location-detail/host-manager-public-location-detail';
+import { HostManagerPublicLocations } from './backoffice/host-manager-public-locations/host-manager-public-locations';
+import { HostArtistRequestDetail } from './backoffice/host-artist-request-detail/host-artist-request-detail';
 import { NonTjsArtists } from './backoffice/non-tjs-artists/non-tjs-artists';
 import { CommitteeArtistDetail } from './backoffice/committee-artist-detail/committee-artist-detail';
 import { ArtistWorkspacePage } from './backoffice/artist-workspace-page/artist-workspace-page';
@@ -64,6 +73,14 @@ export const routes: Routes = [
         component: CommitteeLogin,
     },
     {
+        path: 'host-manager-login',
+        component: HostManagerLogin,
+    },
+    {
+        path: 'host-login',
+        component: HostLogin,
+    },
+    {
         // Handles Supabase email invite / password-reset magic links
         path: 'auth/callback',
         component: AuthCallback,
@@ -93,9 +110,19 @@ export const routes: Routes = [
             { path: 'artists/tjs', component: Artists },
             { path: 'artists/invited', component: Artists },
             { path: 'artists/non-tjs', component: NonTjsArtists, canActivate: [roleGuard(['Committee Member'])] },
+            { path: 'artists/non-tjs/:id', component: CommitteeArtistDetail, canActivate: [roleGuard(['Committee Member'])] },
             { path: 'artists/:id', component: CommitteeArtistDetail, canActivate: [roleGuard(['Committee Member'])] },
             { path: 'hosts', component: Hosts, canActivate: [roleGuard(['Admin'])] },
             { path: 'my-hosts', component: MyHosts },
+            { path: 'host/dashboard', component: ArtistWorkspacePage, canActivate: [roleGuard(['Host', 'Host+'])], data: { title: 'Dashboard', description: 'This host dashboard page is intentionally blank for now.' } },
+            { path: 'host/events', component: ArtistWorkspacePage, canActivate: [roleGuard(['Host', 'Host+'])], data: { title: 'Events', description: 'This host events page is intentionally blank for now.' } },
+            { path: 'host/requests', component: EventRequests, canActivate: [roleGuard(['Host', 'Host+'])] },
+            { path: 'host/requests/:id', component: HostArtistRequestDetail, canActivate: [roleGuard(['Host', 'Host+'])] },
+            { path: 'host/artists', component: ArtistWorkspacePage, canActivate: [roleGuard(['Host', 'Host+'])], data: { title: 'Artist', description: 'This host artist page is intentionally blank for now.' } },
+            { path: 'host/locations/my', component: HostPrivateLocations, canActivate: [roleGuard(['Host', 'Host+'])] },
+            { path: 'host/locations/my/:id', component: HostPrivateLocationDetail, canActivate: [roleGuard(['Host', 'Host+'])] },
+            { path: 'host/locations/public', component: HostManagerPublicLocations, canActivate: [roleGuard(['Host', 'Host+', 'Host Manager', 'Committee Member'])] },
+            { path: 'host/locations/public/:id', component: HostManagerPublicLocationDetail, canActivate: [roleGuard(['Host', 'Host+', 'Host Manager', 'Committee Member'])] },
             { path: 'events', component: Events },
             { path: 'membership', component: Membership, canActivate: [roleGuard(['Admin'])] },
             { path: 'user-management', component: UserManagement, canActivate: [roleGuard(['Admin'])] },
@@ -117,12 +144,17 @@ export const routes: Routes = [
             { path: 'committee-notifications', component: ArtistNotifications, canActivate: [roleGuard(['Committee Member'])] },
             { path: 'artist-settings', component: ArtistWorkspacePage, canActivate: [roleGuard(['Artist', 'Artist Invited'])], data: { title: 'Settings', description: 'Configure your artist workspace preferences and account settings.' } },
             { path: 'account-settings', component: AccountSettings },
-            { path: 'host-manager', redirectTo: 'my-hosts', pathMatch: 'full' },
-            { path: 'host-manager/hosts', component: HostManagerHosts },
-            { path: 'host-manager/hosts/:id', component: HostManagerHosts },
-            { path: 'host-manager/messages', redirectTo: 'my-hosts', pathMatch: 'full' },
-            { path: 'host-manager/messages/:userId', redirectTo: 'my-hosts', pathMatch: 'full' },
-            { path: 'host-manager/suggest', redirectTo: 'my-hosts', pathMatch: 'full' },
+            { path: 'host-manager', component: HostManagerDashboard, canActivate: [roleGuard(['Host Manager'])] },
+            { path: 'host-manager/hosts', component: HostManagerHosts, canActivate: [roleGuard(['Host Manager'])] },
+            { path: 'host-manager/hosts/:id', component: HostManagerHostDetail, canActivate: [roleGuard(['Host Manager'])] },
+            { path: 'host-manager/events', component: ArtistWorkspacePage, canActivate: [roleGuard(['Host Manager'])], data: { title: 'Events', description: 'This host manager events page is intentionally blank for now.' } },
+            { path: 'host-manager/requests', component: ArtistWorkspacePage, canActivate: [roleGuard(['Host Manager'])], data: { title: 'Request', description: 'This host manager request page is intentionally blank for now.' } },
+            { path: 'host-manager/artists/tjs', component: ArtistWorkspacePage, canActivate: [roleGuard(['Host Manager'])], data: { title: 'TJS Artists', description: 'This host manager TJS artists page is intentionally blank for now.' } },
+            { path: 'host-manager/locations/public', component: HostManagerPublicLocations, canActivate: [roleGuard(['Host', 'Host+', 'Host Manager', 'Committee Member'])] },
+            { path: 'host-manager/locations/public/:id', component: HostManagerPublicLocationDetail, canActivate: [roleGuard(['Host', 'Host+', 'Host Manager', 'Committee Member'])] },
+            { path: 'committee/locations/public', component: HostManagerPublicLocations, canActivate: [roleGuard(['Committee Member'])] },
+            { path: 'committee/locations/public/:id', component: HostManagerPublicLocationDetail, canActivate: [roleGuard(['Committee Member'])] },
+            { path: 'host-manager/locations/private', component: ArtistWorkspacePage, canActivate: [roleGuard(['Host Manager'])], data: { title: 'Private Locations', description: 'This private locations page is intentionally blank for now.' } },
         ],
     },
 ];

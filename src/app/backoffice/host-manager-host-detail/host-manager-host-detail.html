@@ -1,0 +1,119 @@
+<div class="host-manager-host-detail">
+  <div class="page-header">
+    <a routerLink="/backoffice/host-manager/hosts" class="back-link">Back to My Hosts</a>
+    <div>
+      <h1>Host Detail</h1>
+      <p class="subtitle">Review the full information for this assigned host.</p>
+    </div>
+  </div>
+
+  @if (isLoading) {
+    <div class="loading-container">
+      <div class="spinner"></div>
+      <p>Loading host details...</p>
+    </div>
+  }
+
+  @if (error) {
+    <div class="error-container">
+      <p class="error-message">{{ error }}</p>
+      <a routerLink="/backoffice/host-manager/hosts" class="btn btn-primary">Back to Hosts</a>
+    </div>
+  }
+
+  @if (!isLoading && !error && host) {
+    <section class="hero-card">
+      <div>
+        <p class="kicker">Assigned Host</p>
+        <h2>{{ host.name || 'Unnamed Host' }}</h2>
+        <p class="hero-subtitle">{{ host.public_name || host.city || 'Host overview' }}</p>
+      </div>
+      <div class="hero-meta">
+        <div><span>City</span><strong>{{ host.city || '-' }}</strong></div>
+        <div><span>Country</span><strong>{{ host.country || '-' }}</strong></div>
+        <div><span>Capacity</span><strong>{{ host.capacity ?? '-' }}</strong></div>
+        <div><span>Host+</span><strong>{{ host.is_host_plus ? 'Yes' : 'No' }}</strong></div>
+      </div>
+    </section>
+
+    <div class="detail-grid">
+      <section class="detail-card">
+        <h3>Overview</h3>
+        <div class="detail-list">
+          <div><span>Name</span><strong>{{ host.name || '-' }}</strong></div>
+          <div><span>Public Name</span><strong>{{ host.public_name || '-' }}</strong></div>
+          <div><span>Address</span><strong>{{ host.address || '-' }}</strong></div>
+          <div><span>City</span><strong>{{ host.city || '-' }}</strong></div>
+          <div><span>Country</span><strong>{{ host.country || '-' }}</strong></div>
+          <div><span>ZIP</span><strong>{{ host.zip || '-' }}</strong></div>
+          <div><span>Website</span><strong>{{ host.web_url || '-' }}</strong></div>
+        </div>
+      </section>
+
+      <section class="detail-card">
+        <h3>Contact</h3>
+        <div class="detail-list">
+          <div><span>First Name</span><strong>{{ host.contact_fname || '-' }}</strong></div>
+          <div><span>Last Name</span><strong>{{ host.contact_lname || '-' }}</strong></div>
+          <div><span>Email</span><strong>{{ host.contact_email || '-' }}</strong></div>
+          <div><span>Phone 1</span><strong>{{ host.contact_phone1 || '-' }}</strong></div>
+          <div><span>Phone 2</span><strong>{{ host.contact_phone2 || '-' }}</strong></div>
+        </div>
+      </section>
+
+      <section class="detail-card">
+        <h3>Members</h3>
+        @if (hostMembers.length === 0) {
+          <p class="empty-detail">No host members assigned.</p>
+        } @else {
+          <div class="pill-list">
+            @for (member of hostMembers; track trackByMember($index, member)) {
+              <div class="pill-item">
+                <strong>{{ member.profile?.full_name || member.profile?.email || member.profile_id }}</strong>
+                <span>{{ member.role || 'member' }}</span>
+              </div>
+            }
+          </div>
+        }
+      </section>
+
+      <section class="detail-card">
+        <h3>Artists</h3>
+        @if (hostArtists.length === 0) {
+          <p class="empty-detail">No artists linked to this host yet.</p>
+        } @else {
+          <div class="pill-list">
+            @for (artist of hostArtists; track trackByArtist($index, artist)) {
+              <div class="pill-item">
+                <strong>{{ artist.artist_name }}</strong>
+                <span>{{ artist.event_count }} event{{ artist.event_count === 1 ? '' : 's' }}</span>
+              </div>
+            }
+          </div>
+        }
+      </section>
+
+      <section class="detail-card detail-card-wide">
+        <h3>Events</h3>
+        @if (hostEvents.length === 0) {
+          <p class="empty-detail">No events found for this host.</p>
+        } @else {
+          <div class="event-list">
+            @for (event of hostEvents; track trackByEvent($index, event)) {
+              <div class="event-item">
+                <div>
+                  <strong>{{ event.title }}</strong>
+                  <p>{{ event.location_name || 'No location set' }}</p>
+                </div>
+                <div class="event-meta">
+                  <span class="status-pill">{{ event.status }}</span>
+                  <span>{{ event.event_dates?.[0] || 'Date pending' }}</span>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      </section>
+    </div>
+  }
+</div>

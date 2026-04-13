@@ -1,13 +1,14 @@
 <div class="host-manager-hosts">
-  <!-- Header -->
   <div class="page-header">
-    <div class="header-content">
+    <div class="header-copy">
       <h1>My Assigned Hosts</h1>
-      <p class="subtitle">Manage and monitor your portfolio of hosts</p>
+      <p class="subtitle">View all hosts assigned to you in a table, then open one to inspect full details.</p>
+    </div>
+    <div class="header-actions">
+      <input [(ngModel)]="searchQuery" type="search" placeholder="Search hosts" class="search-input" />
     </div>
   </div>
 
-  <!-- Loading State -->
   @if (isLoading) {
     <div class="loading-container">
       <div class="spinner"></div>
@@ -15,7 +16,6 @@
     </div>
   }
 
-  <!-- Error State -->
   @if (error) {
     <div class="error-container">
       <p class="error-message">{{ error }}</p>
@@ -23,7 +23,6 @@
     </div>
   }
 
-  <!-- Content -->
   @if (!isLoading && !error) {
     @if (hosts.length === 0) {
       <div class="empty-state">
@@ -33,46 +32,52 @@
         <a routerLink="/backoffice/host-manager" class="btn btn-primary">Back to Dashboard</a>
       </div>
     } @else {
-      <div class="hosts-grid">
-        @for (host of hosts; track host.id) {
-          <a [routerLink]="['/backoffice/host-manager/hosts', host.id]" class="host-card">
-            <div class="host-avatar">{{ host.name ? host.name.charAt(0).toUpperCase() : '?' }}</div>
-            <div class="host-content">
-              <div class="host-header">
-                <h3>{{ host.name || 'Unnamed Host' }}</h3>
-                <span class="host-status active">Active</span>
-              </div>
-              <div class="host-details">
-                @if (host.city) {
-                  <div class="detail-item">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                    <span>{{ host.city }}</span>
-                  </div>
-                }
-                @if (host.contact_email) {
-                  <div class="detail-item">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
-                    <span>{{ host.contact_email }}</span>
-                  </div>
-                }
-              </div>
-              <div class="host-stats">
-                <div class="stat">
-                  <span class="stat-value">0</span>
-                  <span class="stat-label">Events</span>
-                </div>
-                <div class="stat">
-                  <span class="stat-value">0</span>
-                  <span class="stat-label">Artists</span>
-                </div>
-              </div>
-            </div>
-            <div class="host-arrow">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-            </div>
-          </a>
-        }
-      </div>
+      <section class="table-shell">
+        <div class="table-toolbar">
+          <div class="table-count">{{ filteredHosts.length }} host{{ filteredHosts.length === 1 ? '' : 's' }}</div>
+        </div>
+
+        <div class="table-wrap">
+          <table class="hosts-table">
+            <thead>
+              <tr>
+                <th>Host</th>
+                <th>Public Name</th>
+                <th>City</th>
+                <th>Country</th>
+                <th>Contact</th>
+                <th class="actions-col">Open</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (host of filteredHosts; track trackByHost($index, host)) {
+                <tr class="host-row" (click)="openHost(host)">
+                  <td>
+                    <div class="host-name-cell">
+                      <span class="host-avatar">{{ host.name ? host.name.charAt(0).toUpperCase() : '?' }}</span>
+                      <div>
+                        <div class="primary-text">{{ host.name || 'Unnamed Host' }}</div>
+                        <div class="secondary-text">{{ host.address || 'No address set' }}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>{{ host.public_name || '-' }}</td>
+                  <td>{{ host.city || '-' }}</td>
+                  <td>{{ host.country || '-' }}</td>
+                  <td>{{ host.contact_email || host.contact_phone1 || '-' }}</td>
+                  <td class="actions-col">
+                    <a [routerLink]="['/backoffice/host-manager/hosts', host.id]" class="table-link" (click)="$event.stopPropagation()">View</a>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="6" class="empty-table">No hosts match your search.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
     }
   }
 </div>

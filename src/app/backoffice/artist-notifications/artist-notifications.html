@@ -23,6 +23,29 @@
     {{ error }}
   </div>
 
+  <div *ngIf="isCommittee" class="inline-flex rounded-2xl border border-zinc-200 bg-white p-1">
+    <button
+      type="button"
+      (click)="setActiveTab('received')"
+      class="rounded-xl px-4 py-2 text-sm font-medium transition-colors"
+      [class.bg-zinc-900]="activeTab === 'received'"
+      [class.text-white]="activeTab === 'received'"
+      [class.text-zinc-600]="activeTab !== 'received'"
+    >
+      Received
+    </button>
+    <button
+      type="button"
+      (click)="setActiveTab('sent')"
+      class="rounded-xl px-4 py-2 text-sm font-medium transition-colors"
+      [class.bg-zinc-900]="activeTab === 'sent'"
+      [class.text-white]="activeTab === 'sent'"
+      [class.text-zinc-600]="activeTab !== 'sent'"
+    >
+      Sent
+    </button>
+  </div>
+
   <div *ngIf="isLoading" class="flex items-center justify-center py-12">
     <div class="flex items-center space-x-3">
       <div class="h-8 w-8 animate-spin rounded-full border-3 border-zinc-200 border-t-red-600"></div>
@@ -35,7 +58,7 @@
       <svg class="h-5 w-5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
     </div>
     <p class="text-base font-medium text-zinc-800">No notifications yet</p>
-    <p class="mt-2 text-sm text-zinc-500">You'll see notifications here when they're sent to you</p>
+    <p class="mt-2 text-sm text-zinc-500">{{ emptyStateMessage }}</p>
   </div>
 
   <div *ngIf="!isLoading && notifications.length > 0" class="space-y-3">
@@ -43,11 +66,13 @@
       <table class="min-w-full divide-y divide-zinc-200">
         <thead class="bg-zinc-50">
           <tr>
-            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Sender</th>
+            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">{{ isCommittee && activeTab === 'sent' ? 'Recipient Role' : 'Sender' }}</th>
             <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Subject</th>
             <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Preview</th>
             <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Date</th>
+            <th *ngIf="isCommittee && activeTab === 'sent'" scope="col" class="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Expiry</th>
             <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Status</th>
+            <th *ngIf="isCommittee && activeTab === 'sent'" scope="col" class="px-4 py-3 text-right text-xs font-medium text-zinc-500 uppercase tracking-wider">Action</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-zinc-200">
@@ -55,11 +80,11 @@
             *ngFor="let notification of notifications; trackBy: trackByNotification"
             (click)="openNotification(notification)"
             class="hover:bg-zinc-100 cursor-pointer"
-            [class.bg-red-50]="!notification.is_read"
-            [class.bg-white]="notification.is_read"
+            [class.bg-red-50]="activeTab !== 'sent' && !notification.is_read"
+            [class.bg-white]="activeTab === 'sent' || notification.is_read"
           >
             <td class="px-4 py-4">
-              <div class="flex items-center gap-3">
+              <div *ngIf="!(isCommittee && activeTab === 'sent'); else recipientRoleCell" class="flex items-center gap-3">
                 <div class="h-9 w-9 rounded-full bg-zinc-100 flex items-center justify-center overflow-hidden">
                   <img *ngIf="notification.sender_avatar_url; else rowSenderFallback" [src]="notification.sender_avatar_url" alt="Sender avatar" class="h-full w-full object-cover" />
                   <ng-template #rowSenderFallback>
@@ -71,6 +96,12 @@
                   <div class="text-xs text-zinc-500" *ngIf="notification.sender_role">{{ notification.sender_role }}</div>
                 </div>
               </div>
+              <ng-template #recipientRoleCell>
+                <div>
+                  <div class="text-sm font-medium text-zinc-900">{{ notification.recipient_role_name || 'Role not found' }}</div>
+                  <div class="text-xs text-zinc-500">Sent by you</div>
+                </div>
+              </ng-template>
             </td>
             <td class="px-4 py-4">
               <div class="text-sm font-semibold text-zinc-900">{{ notification.subject }}</div>
@@ -79,14 +110,32 @@
               <div class="text-sm text-zinc-600">{{ trimBody(notification.body) }}</div>
             </td>
             <td class="px-4 py-4 text-sm text-zinc-500">{{ notification.created_at | date:'medium' }}</td>
+            <td *ngIf="isCommittee && activeTab === 'sent'" class="px-4 py-4 text-sm text-zinc-500">
+              <span *ngIf="notification.expires_at; else noExpiry">{{ notification.expires_at | date:'medium' }}</span>
+              <ng-template #noExpiry>Never</ng-template>
+            </td>
             <td class="px-4 py-4 text-sm">
               <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
-                [class.bg-green-100]="notification.is_read"
-                [class.text-green-700]="notification.is_read"
-                [class.bg-red-100]="!notification.is_read"
-                [class.text-red-700]="!notification.is_read">
-                {{ notification.is_read ? 'Read' : 'Unread' }}
+                [class.bg-green-100]="(isCommittee && activeTab === 'sent') ? !isExpired(notification) : notification.is_read"
+                [class.text-green-700]="(isCommittee && activeTab === 'sent') ? !isExpired(notification) : notification.is_read"
+                [class.bg-red-100]="(isCommittee && activeTab === 'sent') ? isExpired(notification) : !notification.is_read"
+                [class.text-red-700]="(isCommittee && activeTab === 'sent') ? isExpired(notification) : !notification.is_read">
+                {{ isCommittee && activeTab === 'sent' ? (isExpired(notification) ? 'Expired' : 'Active') : (notification.is_read ? 'Read' : 'Unread') }}
               </span>
+            </td>
+            <td *ngIf="isCommittee && activeTab === 'sent'" class="px-4 py-4 text-right text-sm">
+              <button
+                *ngIf="canDelete(notification); else expiredDeleteState"
+                type="button"
+                (click)="deleteNotification($event, notification)"
+                [disabled]="isDeleting"
+                class="rounded-lg border border-red-200 px-3 py-1.5 font-medium text-red-700 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Delete
+              </button>
+              <ng-template #expiredDeleteState>
+                <span class="text-xs text-zinc-400">Unavailable</span>
+              </ng-template>
             </td>
           </tr>
         </tbody>
@@ -105,8 +154,8 @@
             </ng-template>
           </div>
           <div>
-            <div class="text-lg font-semibold text-zinc-900">{{ selectedNotification.sender_name }}</div>
-            <div class="mt-1 text-xs uppercase tracking-[0.2em] text-zinc-400">{{ selectedNotification.sender_role }}</div>
+            <div class="text-lg font-semibold text-zinc-900">{{ isCommittee && activeTab === 'sent' ? (selectedNotification.recipient_role_name || 'Role not found') : selectedNotification.sender_name }}</div>
+            <div class="mt-1 text-xs uppercase tracking-[0.2em] text-zinc-400">{{ isCommittee && activeTab === 'sent' ? 'Recipient Role' : selectedNotification.sender_role }}</div>
             <div class="mt-2 text-sm text-zinc-500">{{ selectedNotification.created_at | date:'medium' }}</div>
           </div>
         </div>

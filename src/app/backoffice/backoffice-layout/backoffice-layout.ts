@@ -28,6 +28,7 @@ export class BackofficeLayout implements OnInit, OnDestroy {
   isHostManager = false;
   isCommitteeMember = false;
   isArtist = false;
+  isInvitedArtist = false;
   membershipNotification: MembershipNotification | null = null;
 
   expandedMenus: Set<string> = new Set();
@@ -51,6 +52,7 @@ export class BackofficeLayout implements OnInit, OnDestroy {
       this.isAdmin = this.authService.isAdmin;
       this.isCommitteeMember = this.authService.isCommitteeMember;
       this.isArtist = this.authService.isArtist;
+      this.isInvitedArtist = this.authService.isInvitedArtist;
       this.isHostManager = state.roles.some(
         r => r.name === 'Host Manager'
       );
@@ -69,7 +71,7 @@ export class BackofficeLayout implements OnInit, OnDestroy {
         this.initialRedirectDone = true;
         const currentUrl = this.router.url;
         if (currentUrl === '/backoffice' || currentUrl === '/backoffice/dashboard') {
-          this.router.navigate(['/backoffice/my-hosts']);
+          this.router.navigate([this.isHostManager ? '/backoffice/host-manager' : '/backoffice/host/dashboard']);
         }
       } else if (!this.initialRedirectDone && !state.isLoading && this.isArtist && !this.isAdmin && !this.isCommitteeMember && !this.isHost) {
         this.initialRedirectDone = true;
@@ -103,8 +105,12 @@ export class BackofficeLayout implements OnInit, OnDestroy {
       return 'Committee Workspace';
     }
 
+    if (this.isHostManager) {
+      return 'Host Manager Workspace';
+    }
+
     if (this.isArtist) {
-      return 'Artist Workspace';
+      return this.isInvitedArtist ? 'Invited Artists Workspace' : 'Artist Workspace';
     }
 
     return 'Host Workspace';
@@ -119,8 +125,12 @@ export class BackofficeLayout implements OnInit, OnDestroy {
       return 'Committee Workspace';
     }
 
+    if (this.isHostManager) {
+      return 'Host Manager Workspace';
+    }
+
     if (this.isArtist) {
-      return 'Artist Workspace';
+      return this.isInvitedArtist ? 'Invited Artists Workspace' : 'Artist Workspace';
     }
 
     return 'Host Workspace';

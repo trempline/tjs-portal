@@ -86,6 +86,8 @@ export interface AdminEventOverviewItem {
   id: string;
   title: string;
   description: string | null;
+  teaser: string | null;
+  event_domain_name: string | null;
   event_type: 'REQUEST' | 'EVENT_INSTANCE';
   status: string;
   origin_website: string;
@@ -99,6 +101,7 @@ export interface AdminEventOverviewItem {
   city: string | null;
   creator_name: string;
   creator_email: string;
+  host_ids: number[];
   host_names: string[];
   host_statuses: string[];
   selected_dates: string[];
@@ -141,6 +144,74 @@ export interface TjsHost {
 export interface SysHostType {
   id: number;
   name: string;
+}
+
+export interface LocationLookupOption {
+  id: number;
+  name: string;
+}
+
+export interface TjsLocationImage {
+  id: string;
+  image_url: string;
+  sort_order: number;
+}
+
+export interface TjsLocation {
+  id: string;
+  name: string;
+  address: string | null;
+  lat: number | null;
+  long: number | null;
+  description: string | null;
+  is_public: boolean;
+  is_private: boolean;
+  public_description: string | null;
+  restricted_description: string | null;
+  capacity: string | null;
+  city: string | null;
+  country: string | null;
+  zip: string | null;
+  phone: string | null;
+  email: string | null;
+  website: string | null;
+  is_active: boolean;
+  access_info: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+  images: TjsLocationImage[];
+  amenities: LocationLookupOption[];
+  specs: LocationLookupOption[];
+  location_type: LocationLookupOption | null;
+}
+
+export interface SaveTjsLocationInput {
+  name: string;
+  address?: string | null;
+  lat?: number | null;
+  long?: number | null;
+  description?: string | null;
+  is_public: boolean;
+  is_private: boolean;
+  public_description?: string | null;
+  restricted_description?: string | null;
+  capacity?: string | null;
+  city?: string | null;
+  country?: string | null;
+  zip?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  website?: string | null;
+  is_active: boolean;
+  access_info?: string | null;
+  created_by: string;
+  updated_by?: string | null;
+  image_urls: string[];
+  amenity_ids: number[];
+  spec_ids: number[];
+  location_type_id?: number | null;
 }
 
 export interface TjsHostMember {
@@ -274,6 +345,9 @@ export interface ArtistNotificationItem {
   sender_name: string;
   sender_role: string;
   sender_avatar_url: string | null;
+  recipient_role_id?: string | null;
+  recipient_role_name?: string | null;
+  sender_profile_id?: string | null;
 }
 
 export interface CreateRoleNotificationInput {
@@ -395,6 +469,40 @@ export interface PagArtist {
   is_active: boolean | null;
   created_on: string | null;
   tjs_artist_id?: string | null;
+}
+
+export interface PagArtistProfile {
+  id: number;
+  id_profile: string | null;
+  fname: string | null;
+  lname: string | null;
+  title: string | null;
+  teaser: string | null;
+  short_bio: string | null;
+  long_bio: string | null;
+  dob: string | null;
+  pob: string | null;
+  email: string | null;
+  phone: string | null;
+  website: string | null;
+  address: string | null;
+  city: string | null;
+  country: string | null;
+  gender: string | null;
+  photo: string | null;
+  credit_photo: string | null;
+  cover: string | null;
+  credit_cover: string | null;
+  is_featured: boolean | null;
+  is_active: boolean | null;
+  created_on: string | null;
+  performances: ArtistPerformanceType[];
+  educations: ArtistEducationEntry[];
+  awards: ArtistAwardEntry[];
+  instruments: ArtistInstrumentOption[];
+  media: ArtistMediaEntry[];
+  availability: ArtistAvailabilityEntry[];
+  requirements: ArtistWorkspaceRequirements | null;
 }
 
 export interface CreateArtistInput {
@@ -1307,6 +1415,64 @@ export class SupabaseService {
         sender_name: fallbackName,
         sender_role: row.sender_role || (senderId ? rolesByUserId.get(senderId) : null) || 'System',
         sender_avatar_url: sender?.avatar_url ?? null,
+        recipient_role_id: row.recipient_role_id ?? null,
+        recipient_role_name: null,
+        sender_profile_id: senderId ?? null,
+      };
+    });
+  }
+
+  async getSentArtistWorkspaceNotifications(senderProfileId: string): Promise<ArtistNotificationItem[]> {
+    const { data, error } = await this.adminSupabase
+      .from('tjs_artist_notifications')
+      .select(`
+        id,
+        subject,
+        body,
+        expires_at,
+        recipient_role_id,
+        created_at,
+        sender_profile_id,
+        sender_role,
+        recipient_role:tjs_roles!tjs_artist_notifications_recipient_role_id_fkey (
+          name
+        ),
+        sender:tjs_profiles!tjs_artist_notifications_sender_profile_id_fkey (
+          id,
+          full_name,
+          email,
+          avatar_url
+        )
+      `)
+      .eq('sender_profile_id', senderProfileId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      if (!this.isMissingSchemaError(error)) {
+        console.error('getSentArtistWorkspaceNotifications error:', error.message);
+      }
+      return [];
+    }
+
+    const rows = (data ?? []) as any[];
+
+    return rows.map((row) => {
+      const sender = row.sender;
+      const fallbackName = sender?.full_name || sender?.email || 'Unknown sender';
+
+      return {
+        id: row.id,
+        subject: row.subject ?? 'Notification',
+        body: row.body ?? '',
+        expires_at: row.expires_at ?? null,
+        is_read: false,
+        created_at: row.created_at,
+        sender_name: fallbackName,
+        sender_role: row.sender_role || 'Committee Member',
+        sender_avatar_url: sender?.avatar_url ?? null,
+        recipient_role_id: row.recipient_role_id ?? null,
+        recipient_role_name: row.recipient_role?.name ?? null,
+        sender_profile_id: row.sender_profile_id ?? null,
       };
     });
   }
@@ -1350,6 +1516,50 @@ export class SupabaseService {
       }
 
       console.error('createRoleNotification error:', error.message);
+      return error.message;
+    }
+
+    return null;
+  }
+
+  async deleteSentArtistNotification(notificationId: string, senderProfileId: string): Promise<string | null> {
+    const { data: existing, error: fetchError } = await this.adminSupabase
+      .from('tjs_artist_notifications')
+      .select('id, expires_at')
+      .eq('id', notificationId)
+      .eq('sender_profile_id', senderProfileId)
+      .maybeSingle();
+
+    if (fetchError) {
+      if (this.isMissingSchemaError(fetchError)) {
+        return 'Artist notifications table is missing in the database. Run db/019_artist_workspace_notifications.sql and try again.';
+      }
+
+      console.error('deleteSentArtistNotification fetch error:', fetchError.message);
+      return fetchError.message;
+    }
+
+    if (!existing) {
+      return 'Notification not found or cannot be deleted.';
+    }
+
+    const expiresAt = existing.expires_at ? new Date(existing.expires_at).getTime() : null;
+    if (expiresAt !== null && !Number.isNaN(expiresAt) && expiresAt < Date.now()) {
+      return 'Expired notifications can no longer be deleted.';
+    }
+
+    const { error } = await this.adminSupabase
+      .from('tjs_artist_notifications')
+      .delete()
+      .eq('id', notificationId)
+      .eq('sender_profile_id', senderProfileId);
+
+    if (error) {
+      if (this.isMissingSchemaError(error)) {
+        return 'Artist notifications table is missing in the database. Run db/019_artist_workspace_notifications.sql and try again.';
+      }
+
+      console.error('deleteSentArtistNotification error:', error.message);
       return error.message;
     }
 
@@ -2345,78 +2555,131 @@ export class SupabaseService {
   }
 
   async getAdminEventOverview(): Promise<AdminEventOverviewItem[]> {
-    const { data: events, error: eventsError } = await this.adminSupabase
-      .from('tjs_events')
-      .select(`
-        id,
-        title,
-        description,
-        event_type,
-        status,
-        origin_website,
-        visibility_scope,
-        parent_event_id,
-        created_by,
-        created_at,
-        updated_at,
-        proposed_dates,
-        department,
-        city
-      `)
-      .order('created_at', { ascending: false });
+    const [eventsResult, artistRequestsResult] = await Promise.all([
+      this.adminSupabase
+        .from('tjs_events')
+        .select(`
+          id,
+          title,
+          description,
+          event_type,
+          status,
+          origin_website,
+          visibility_scope,
+          parent_event_id,
+          created_by,
+          created_at,
+          updated_at,
+          proposed_dates,
+          department,
+          city
+        `)
+        .order('created_at', { ascending: false }),
+      this.adminSupabase
+        .from('tjs_artist_requests')
+        .select(`
+          id,
+          event_domain:sys_event_domain(name),
+          event_title,
+          teaser,
+          description,
+          status,
+          created_by,
+          created_at,
+          updated_at,
+          start_date
+        `)
+        .order('created_at', { ascending: false }),
+    ]);
 
-    if (eventsError) {
-      console.error('getAdminEventOverview events error:', eventsError.message);
+    if (eventsResult.error && !this.isMissingSchemaError(eventsResult.error)) {
+      console.error('getAdminEventOverview events error:', eventsResult.error.message);
       return [];
     }
 
-    const eventRows = (events ?? []) as any[];
-    if (eventRows.length === 0) {
-      return [];
+    if (artistRequestsResult.error && !this.isMissingSchemaError(artistRequestsResult.error)) {
+      console.error('getAdminEventOverview artist requests error:', artistRequestsResult.error.message);
     }
+
+    const eventRows = this.isMissingSchemaError(eventsResult.error)
+      ? []
+      : ((eventsResult.data ?? []) as any[]);
+    const existingEventIds = new Set(eventRows.map((event) => event.id as string));
+    const artistRequestRows = ((artistRequestsResult.data ?? []) as any[])
+      .filter((request) => !existingEventIds.has(request.id as string));
 
     const creatorIds = Array.from(
       new Set(
-        eventRows
-          .map((event) => event.created_by as string | null)
+        [...eventRows, ...artistRequestRows]
+          .map((row) => row.created_by as string | null)
           .filter((value): value is string => !!value)
       )
     );
 
     const eventIds = eventRows.map((event) => event.id as string);
+    const artistRequestIds = artistRequestRows.map((request) => request.id as string);
 
-    const [profilesResult, hostAssignmentsResult, eventArtistsResult] = await Promise.all([
+    const [profilesResult, hostAssignmentsResult, eventArtistsResult, artistRequestDatesResult, artistRequestArtistsResult] = await Promise.all([
       creatorIds.length > 0
         ? this.adminSupabase
             .from('tjs_profiles')
             .select('id, email, full_name')
             .in('id', creatorIds)
         : Promise.resolve({ data: [], error: null }),
-      this.adminSupabase
-        .from('tjs_event_hosts')
-        .select(`
-          event_id,
-          host_status,
-          selected_dates,
-          host:tjs_hosts (
-            id,
-            name,
-            public_name,
-            city
-          )
-        `)
-        .in('event_id', eventIds),
-      this.adminSupabase
-        .from('tjs_event_artists')
-        .select(`
-          event_id,
-          role,
-          artist:tjs_artists (
-            id,
-            artist_name
-          )
-        `)
-        .in('event_id', eventIds),
+      eventIds.length > 0
+        ? this.adminSupabase
+            .from('tjs_event_hosts')
+            .select(`
+              event_id,
+              host_status,
+              selected_dates,
+              host:tjs_hosts (
+                id,
+                name,
+                public_name,
+                city
+              )
+            `)
+            .in('event_id', eventIds)
+        : Promise.resolve({ data: [], error: null }),
+      eventIds.length > 0
+        ? this.adminSupabase
+            .from('tjs_event_artists')
+            .select(`
+              event_id,
+              role,
+              artist:tjs_artists (
+                id,
+                artist_name
+              )
+            `)
+            .in('event_id', eventIds)
+        : Promise.resolve({ data: [], error: null }),
+      artistRequestIds.length > 0
+        ? this.adminSupabase
+            .from('tjs_artist_request_dates')
+            .select('request_id, start_date')
+            .in('request_id', artistRequestIds)
+            .order('start_date', { ascending: true })
+        : Promise.resolve({ data: [], error: null }),
+      artistRequestIds.length > 0
+        ? this.adminSupabase
+            .from('tjs_artist_request_artists')
+            .select(`
+              request_id,
+              artist_id,
+              invited_artist_id,
+              artist:tjs_artists!tjs_artist_request_artists_artist_id_fkey (
+                id,
+                artist_name
+              ),
+              invited_artist:tjs_artists!tjs_artist_request_artists_invited_artist_id_fkey (
+                id,
+                artist_name
+              )
+            `)
+            .in('request_id', artistRequestIds)
+        : Promise.resolve({ data: [], error: null }),
     ]);
 
     if (profilesResult.error) {
@@ -2429,6 +2692,14 @@ export class SupabaseService {
 
     if (eventArtistsResult.error) {
       console.error('getAdminEventOverview event artists error:', eventArtistsResult.error.message);
+    }
+
+    if (artistRequestDatesResult.error && !this.isMissingSchemaError(artistRequestDatesResult.error)) {
+      console.error('getAdminEventOverview artist request dates error:', artistRequestDatesResult.error.message);
+    }
+
+    if (artistRequestArtistsResult.error && !this.isMissingSchemaError(artistRequestArtistsResult.error)) {
+      console.error('getAdminEventOverview artist request artists error:', artistRequestArtistsResult.error.message);
     }
 
     const profilesById = new Map<string, Partial<TjsProfile>>();
@@ -2454,7 +2725,25 @@ export class SupabaseService {
       artistsByEventId.set(eventId, existing);
     }
 
-    return eventRows.map((event) => {
+    const requestDatesById = new Map<string, string[]>();
+    for (const entry of ((artistRequestDatesResult.data ?? []) as any[])) {
+      const requestId = entry.request_id as string;
+      const existing = requestDatesById.get(requestId) ?? [];
+      if (entry.start_date) {
+        existing.push(entry.start_date as string);
+      }
+      requestDatesById.set(requestId, existing);
+    }
+
+    const requestArtistsById = new Map<string, any[]>();
+    for (const assignment of ((artistRequestArtistsResult.data ?? []) as any[])) {
+      const requestId = assignment.request_id as string;
+      const existing = requestArtistsById.get(requestId) ?? [];
+      existing.push(assignment);
+      requestArtistsById.set(requestId, existing);
+    }
+
+    const eventItems = eventRows.map((event) => {
       const profile = event.created_by ? profilesById.get(event.created_by) : null;
       const assignments = hostsByEventId.get(event.id) ?? [];
       const artistAssignments = artistsByEventId.get(event.id) ?? [];
@@ -2463,6 +2752,8 @@ export class SupabaseService {
         id: event.id,
         title: event.title,
         description: event.description ?? null,
+        teaser: null,
+        event_domain_name: null,
         event_type: event.event_type,
         status: event.status,
         origin_website: event.origin_website,
@@ -2476,6 +2767,9 @@ export class SupabaseService {
         city: event.city ?? null,
         creator_name: profile?.full_name || profile?.email || 'Utilisateur inconnu',
         creator_email: profile?.email || '',
+        host_ids: assignments
+          .map((assignment) => assignment.host?.id as number | null | undefined)
+          .filter((value: number | null | undefined): value is number => value !== null && value !== undefined),
         host_names: assignments
           .map((assignment) => assignment.host?.public_name || assignment.host?.name || assignment.host?.city)
           .filter((value: string | null | undefined): value is string => !!value),
@@ -2496,6 +2790,62 @@ export class SupabaseService {
           .filter((value: string | null): value is string => !!value),
       };
     });
+
+    const artistRequestItems = artistRequestRows.map((request) => {
+      const profile = request.created_by ? profilesById.get(request.created_by) : null;
+      const artistAssignments = requestArtistsById.get(request.id) ?? [];
+      const explicitDates = requestDatesById.get(request.id) ?? [];
+      const fallbackDates = request.start_date ? [request.start_date as string] : [];
+      const artistIds = Array.from(
+        new Set(
+          artistAssignments.flatMap((assignment) => [
+            assignment.artist?.id as string | null | undefined,
+            assignment.invited_artist?.id as string | null | undefined,
+            assignment.artist_id as string | null | undefined,
+            assignment.invited_artist_id as string | null | undefined,
+          ]).filter((value): value is string => !!value)
+        )
+      );
+      const artistNames = Array.from(
+        new Set(
+          artistAssignments.flatMap((assignment) => [
+            assignment.artist?.artist_name as string | null | undefined,
+            assignment.invited_artist?.artist_name as string | null | undefined,
+          ]).filter((value): value is string => !!value)
+        )
+      );
+
+      return {
+        id: request.id as string,
+        title: (request.event_title as string | null) ?? 'Untitled Request',
+        description: (request.description as string | null) ?? (request.teaser as string | null) ?? null,
+        teaser: (request.teaser as string | null) ?? null,
+        event_domain_name: (request.event_domain?.name as string | null | undefined) ?? null,
+        event_type: 'REQUEST' as const,
+        status: this.normalizeArtistRequestStatus(request.status as string | null),
+        origin_website: 'TJS',
+        visibility_scope: ['TJS'],
+        parent_event_id: null,
+        created_by: (request.created_by as string | null) ?? null,
+        created_at: request.created_at as string,
+        updated_at: (request.updated_at as string | null) ?? (request.created_at as string),
+        proposed_dates: explicitDates.length > 0 ? explicitDates : fallbackDates,
+        department: null,
+        city: null,
+        creator_name: profile?.full_name || profile?.email || 'Utilisateur inconnu',
+        creator_email: profile?.email || '',
+        host_ids: [],
+        host_names: [],
+        host_statuses: [],
+        selected_dates: [],
+        artist_ids: artistIds,
+        artist_names: artistNames,
+        artist_roles: artistIds.map((_, index) => index === 0 ? 'PRIMARY' : 'INVITED'),
+      };
+    });
+
+    return [...eventItems, ...artistRequestItems]
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }
 
   getInviteRedirectUrl(): string {
@@ -3027,6 +3377,246 @@ export class SupabaseService {
     return this.adminSupabase;
   }
 
+  // Location management
+
+  async listLocationAmenities(): Promise<LocationLookupOption[]> {
+    const { data, error } = await this.adminSupabase
+      .from('sys_location_amenity')
+      .select('id, name')
+      .order('name', { ascending: true });
+
+    if (error) {
+      console.error('listLocationAmenities error:', error.message);
+      return [];
+    }
+
+    return (data ?? []) as LocationLookupOption[];
+  }
+
+  async listLocationSpecs(): Promise<LocationLookupOption[]> {
+    const { data, error } = await this.adminSupabase
+      .from('sys_location_specs')
+      .select('id, name')
+      .order('name', { ascending: true });
+
+    if (error) {
+      console.error('listLocationSpecs error:', error.message);
+      return [];
+    }
+
+    return (data ?? []) as LocationLookupOption[];
+  }
+
+  async listLocationTypes(): Promise<LocationLookupOption[]> {
+    const { data, error } = await this.adminSupabase
+      .from('sys_location_types')
+      .select('id, name')
+      .order('name', { ascending: true });
+
+    if (error) {
+      console.error('listLocationTypes error:', error.message);
+      return [];
+    }
+
+    return (data ?? []) as LocationLookupOption[];
+  }
+
+  async getPublicLocations(createdBy?: string): Promise<TjsLocation[]> {
+    let query = this.adminSupabase
+      .from('tjs_locations')
+      .select(`
+        *,
+        images:tjs_location_images(id, image_url, sort_order),
+        amenity_links:tjs_location_amenities(amenity:sys_location_amenity(id, name)),
+        spec_links:tjs_location_specs(spec:sys_location_specs(id, name)),
+        type_links:tjs_location_types(location_type:sys_location_types(id, name))
+      `)
+      .eq('is_public', true)
+      .order('created_at', { ascending: false });
+
+    if (createdBy) {
+      query = query.eq('created_by', createdBy);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      if (!this.isMissingSchemaError(error)) {
+        console.error('getPublicLocations error:', error.message);
+      }
+      return [];
+    }
+
+    return ((data ?? []) as any[]).map((row) => this.mapLocationRow(row));
+  }
+
+  async getPublicLocationById(locationId: string, createdBy?: string): Promise<TjsLocation | null> {
+    let query = this.adminSupabase
+      .from('tjs_locations')
+      .select(`
+        *,
+        images:tjs_location_images(id, image_url, sort_order),
+        amenity_links:tjs_location_amenities(amenity:sys_location_amenity(id, name)),
+        spec_links:tjs_location_specs(spec:sys_location_specs(id, name)),
+        type_links:tjs_location_types(location_type:sys_location_types(id, name))
+      `)
+      .eq('id', locationId)
+      .eq('is_public', true);
+
+    if (createdBy) {
+      query = query.eq('created_by', createdBy);
+    }
+
+    const { data, error } = await query.maybeSingle();
+
+    if (error) {
+      if (!this.isMissingSchemaError(error)) {
+        console.error('getPublicLocationById error:', error.message);
+      }
+      return null;
+    }
+
+    return data ? this.mapLocationRow(data) : null;
+  }
+
+  async getPrivateLocations(createdBy?: string): Promise<TjsLocation[]> {
+    let query = this.adminSupabase
+      .from('tjs_locations')
+      .select(`
+        *,
+        images:tjs_location_images(id, image_url, sort_order),
+        amenity_links:tjs_location_amenities(amenity:sys_location_amenity(id, name)),
+        spec_links:tjs_location_specs(spec:sys_location_specs(id, name)),
+        type_links:tjs_location_types(location_type:sys_location_types(id, name))
+      `)
+      .eq('is_private', true)
+      .order('created_at', { ascending: false });
+
+    if (createdBy) {
+      query = query.eq('created_by', createdBy);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      if (!this.isMissingSchemaError(error)) {
+        console.error('getPrivateLocations error:', error.message);
+      }
+      return [];
+    }
+
+    return ((data ?? []) as any[]).map((row) => this.mapLocationRow(row));
+  }
+
+  async getPrivateLocationById(locationId: string, createdBy?: string): Promise<TjsLocation | null> {
+    let query = this.adminSupabase
+      .from('tjs_locations')
+      .select(`
+        *,
+        images:tjs_location_images(id, image_url, sort_order),
+        amenity_links:tjs_location_amenities(amenity:sys_location_amenity(id, name)),
+        spec_links:tjs_location_specs(spec:sys_location_specs(id, name)),
+        type_links:tjs_location_types(location_type:sys_location_types(id, name))
+      `)
+      .eq('id', locationId)
+      .eq('is_private', true);
+
+    if (createdBy) {
+      query = query.eq('created_by', createdBy);
+    }
+
+    const { data, error } = await query.maybeSingle();
+
+    if (error) {
+      if (!this.isMissingSchemaError(error)) {
+        console.error('getPrivateLocationById error:', error.message);
+      }
+      return null;
+    }
+
+    return data ? this.mapLocationRow(data) : null;
+  }
+
+  async createLocation(location: SaveTjsLocationInput): Promise<{ id: string | null; error: string | null }> {
+    const { data, error } = await this.adminSupabase
+      .from('tjs_locations')
+      .insert(this.buildLocationPayload(location, false))
+      .select('id')
+      .single();
+
+    if (error) {
+      if (this.isMissingSchemaError(error)) {
+        return { id: null, error: 'Location tables are missing in the database. Run db/022_tjs_locations.sql and try again.' };
+      }
+
+      console.error('createLocation error:', error.message);
+      return { id: null, error: error.message };
+    }
+
+    const relationError = await this.syncLocationRelations(data.id, location);
+    if (relationError) {
+      return { id: data.id, error: relationError };
+    }
+
+    return { id: data.id, error: null };
+  }
+
+  async updateLocation(locationId: string, location: SaveTjsLocationInput): Promise<string | null> {
+    const { error } = await this.adminSupabase
+      .from('tjs_locations')
+      .update(this.buildLocationPayload(location, true))
+      .eq('id', locationId);
+
+    if (error) {
+      if (this.isMissingSchemaError(error)) {
+        return 'Location tables are missing in the database. Run db/022_tjs_locations.sql and try again.';
+      }
+
+      console.error('updateLocation error:', error.message);
+      return error.message;
+    }
+
+    return this.syncLocationRelations(locationId, location);
+  }
+
+  async deleteLocation(locationId: string): Promise<string | null> {
+    const { error } = await this.adminSupabase
+      .from('tjs_locations')
+      .delete()
+      .eq('id', locationId);
+
+    if (error) {
+      if (this.isMissingSchemaError(error)) {
+        return 'Location tables are missing in the database. Run db/022_tjs_locations.sql and try again.';
+      }
+
+      console.error('deleteLocation error:', error.message);
+      return error.message;
+    }
+
+    return null;
+  }
+
+  async uploadLocationImage(profileId: string, file: File): Promise<{ url: string | null; error: string | null }> {
+    const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+    const path = `locations/${profileId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
+
+    const { error } = await this.adminSupabase.storage
+      .from('tjs')
+      .upload(path, file, {
+        cacheControl: '3600',
+        upsert: true,
+      });
+
+    if (error) {
+      console.error('uploadLocationImage error:', error.message);
+      return { url: null, error: error.message };
+    }
+
+    const { data } = this.adminSupabase.storage.from('tjs').getPublicUrl(path);
+    return { url: data.publicUrl, error: null };
+  }
+
   // ── Hosts ──────────────────────────────────────────────────────────────
 
   /** Fetch all hosts with their type. */
@@ -3040,6 +3630,174 @@ export class SupabaseService {
       return [];
     }
     return data as TjsHost[];
+  }
+
+  private mapLocationRow(row: any): TjsLocation {
+    const amenityLinks = Array.isArray(row.amenity_links) ? row.amenity_links : [];
+    const specLinks = Array.isArray(row.spec_links) ? row.spec_links : [];
+    const typeLinks = Array.isArray(row.type_links) ? row.type_links : [];
+    const images = Array.isArray(row.images) ? row.images : [];
+
+    return {
+      id: row.id,
+      name: row.name ?? '',
+      address: row.address ?? null,
+      lat: row.lat ?? null,
+      long: row.long ?? null,
+      description: row.description ?? null,
+      is_public: !!row.is_public,
+      is_private: !!row.is_private,
+      public_description: row.public_description ?? null,
+      restricted_description: row.restricted_description ?? null,
+      capacity: row.capacity ?? null,
+      city: row.city ?? null,
+      country: row.country ?? null,
+      zip: row.zip ?? null,
+      phone: row.phone ?? null,
+      email: row.email ?? null,
+      website: row.website ?? null,
+      is_active: !!row.is_active,
+      access_info: row.access_info ?? null,
+      created_by: row.created_by ?? null,
+      updated_by: row.updated_by ?? null,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      images: images
+        .map((image: any) => ({
+          id: image.id,
+          image_url: image.image_url,
+          sort_order: image.sort_order ?? 0,
+        }))
+        .sort((a: TjsLocationImage, b: TjsLocationImage) => a.sort_order - b.sort_order),
+      amenities: amenityLinks
+        .map((link: any) => link.amenity)
+        .filter((item: any): item is LocationLookupOption => !!item?.id && !!item?.name),
+      specs: specLinks
+        .map((link: any) => link.spec)
+        .filter((item: any): item is LocationLookupOption => !!item?.id && !!item?.name),
+      location_type: typeLinks[0]?.location_type?.id ? typeLinks[0].location_type as LocationLookupOption : null,
+    };
+  }
+
+  private buildLocationPayload(location: SaveTjsLocationInput, isUpdate: boolean) {
+    return {
+      name: location.name.trim(),
+      address: location.address?.trim() || null,
+      lat: location.lat ?? null,
+      long: location.long ?? null,
+      description: location.description?.trim() || null,
+      is_public: location.is_public,
+      is_private: location.is_private,
+      public_description: location.public_description?.trim() || null,
+      restricted_description: location.restricted_description?.trim() || null,
+      capacity: location.capacity?.trim() || null,
+      city: location.city?.trim() || null,
+      country: location.country?.trim() || null,
+      zip: location.zip?.trim() || null,
+      phone: location.phone?.trim() || null,
+      email: location.email?.trim() || null,
+      website: location.website?.trim() || null,
+      is_active: location.is_active,
+      access_info: location.access_info?.trim() || null,
+      created_by: location.created_by,
+      updated_by: isUpdate ? location.updated_by ?? location.created_by : location.updated_by ?? null,
+      updated_at: new Date().toISOString(),
+    };
+  }
+
+  private async syncLocationRelations(locationId: string, location: SaveTjsLocationInput): Promise<string | null> {
+    const relationTables = ['tjs_location_images', 'tjs_location_amenities', 'tjs_location_specs', 'tjs_location_types'] as const;
+
+    for (const table of relationTables) {
+      const { error } = await this.adminSupabase
+        .from(table)
+        .delete()
+        .eq('location_id', locationId);
+
+      if (error) {
+        if (this.isMissingSchemaError(error)) {
+          return 'Location tables are missing in the database. Run db/022_tjs_locations.sql and try again.';
+        }
+
+        console.error(`syncLocationRelations delete ${table} error:`, error.message);
+        return error.message;
+      }
+    }
+
+    if (location.image_urls.length > 0) {
+      const { error } = await this.adminSupabase
+        .from('tjs_location_images')
+        .insert(location.image_urls.slice(0, 5).map((imageUrl, index) => ({
+          location_id: locationId,
+          image_url: imageUrl,
+          sort_order: index,
+        })));
+
+      if (error) {
+        if (this.isMissingSchemaError(error)) {
+          return 'Location tables are missing in the database. Run db/022_tjs_locations.sql and try again.';
+        }
+
+        console.error('syncLocationRelations insert images error:', error.message);
+        return error.message;
+      }
+    }
+
+    if (location.amenity_ids.length > 0) {
+      const { error } = await this.adminSupabase
+        .from('tjs_location_amenities')
+        .insert(location.amenity_ids.map((amenityId) => ({
+          location_id: locationId,
+          amenity_id: amenityId,
+        })));
+
+      if (error) {
+        if (this.isMissingSchemaError(error)) {
+          return 'Location tables are missing in the database. Run db/022_tjs_locations.sql and try again.';
+        }
+
+        console.error('syncLocationRelations insert amenities error:', error.message);
+        return error.message;
+      }
+    }
+
+    if (location.spec_ids.length > 0) {
+      const { error } = await this.adminSupabase
+        .from('tjs_location_specs')
+        .insert(location.spec_ids.map((specId) => ({
+          location_id: locationId,
+          spec_id: specId,
+        })));
+
+      if (error) {
+        if (this.isMissingSchemaError(error)) {
+          return 'Location tables are missing in the database. Run db/022_tjs_locations.sql and try again.';
+        }
+
+        console.error('syncLocationRelations insert specs error:', error.message);
+        return error.message;
+      }
+    }
+
+    if (location.location_type_id) {
+      const { error } = await this.adminSupabase
+        .from('tjs_location_types')
+        .insert({
+          location_id: locationId,
+          location_type_id: location.location_type_id,
+        });
+
+      if (error) {
+        if (this.isMissingSchemaError(error)) {
+          return 'Location tables are missing in the database. Run db/022_tjs_locations.sql and try again.';
+        }
+
+        console.error('syncLocationRelations insert type error:', error.message);
+        return error.message;
+      }
+    }
+
+    return null;
   }
 
   /** Fetch host types for the dropdown. */
@@ -3336,6 +4094,373 @@ export class SupabaseService {
         tjs_artist_id: matchedTjsId,
       };
     });
+  }
+
+  async acceptEventRequestForHost(eventId: string, hostId: number, selectedBy?: string): Promise<string | null> {
+    const timestamp = new Date().toISOString();
+    const ensureEventError = await this.ensureEventExistsForHostRequest(eventId, selectedBy, timestamp);
+    if (ensureEventError) {
+      return ensureEventError;
+    }
+
+    const { error: hostError } = await this.adminSupabase
+      .from('tjs_event_hosts')
+      .upsert({
+        event_id: eventId,
+        host_id: hostId,
+        host_status: 'PENDING',
+        selected_at: timestamp,
+      }, { onConflict: 'event_id,host_id' });
+
+    if (hostError) {
+      console.error('acceptEventRequestForHost host assignment error:', hostError.message);
+      return hostError.message;
+    }
+
+    const { error: eventError } = await this.adminSupabase
+      .from('tjs_events')
+      .update({
+        status: 'SELECTED',
+        updated_at: timestamp,
+      })
+      .eq('id', eventId);
+
+    if (eventError) {
+      console.error('acceptEventRequestForHost event update error:', eventError.message);
+      return eventError.message;
+    }
+
+    return null;
+  }
+
+  private normalizeArtistRequestStatus(status: string | null): string {
+    switch ((status ?? '').toLowerCase()) {
+      case 'approved':
+        return 'APPROVED';
+      case 'rejected':
+        return 'CANCELLED';
+      case 'accepted':
+      case 'selected':
+        return 'SELECTED';
+      case 'available':
+        return 'AVAILABLE';
+      case 'pending':
+      default:
+        return 'PENDING';
+    }
+  }
+
+  private async ensureEventExistsForHostRequest(eventId: string, selectedBy: string | undefined, timestamp: string): Promise<string | null> {
+    const { data: existingEvent, error: existingEventError } = await this.adminSupabase
+      .from('tjs_events')
+      .select('id')
+      .eq('id', eventId)
+      .maybeSingle();
+
+    if (existingEventError) {
+      console.error('ensureEventExistsForHostRequest existing event lookup error:', existingEventError.message);
+      return existingEventError.message;
+    }
+
+    if (existingEvent?.id) {
+      return null;
+    }
+
+    const [requestResult, datesResult, artistsResult] = await Promise.all([
+      this.adminSupabase
+        .from('tjs_artist_requests')
+        .select('id, event_title, description, teaser, created_by, created_at, updated_at, start_date')
+        .eq('id', eventId)
+        .maybeSingle(),
+      this.adminSupabase
+        .from('tjs_artist_request_dates')
+        .select('start_date')
+        .eq('request_id', eventId)
+        .order('start_date', { ascending: true }),
+      this.adminSupabase
+        .from('tjs_artist_request_artists')
+        .select('artist_id, invited_artist_id')
+        .eq('request_id', eventId),
+    ]);
+
+    if (requestResult.error) {
+      console.error('ensureEventExistsForHostRequest request lookup error:', requestResult.error.message);
+      return requestResult.error.message;
+    }
+
+    if (!requestResult.data) {
+      return 'Request not found.';
+    }
+
+    if (datesResult.error && !this.isMissingSchemaError(datesResult.error)) {
+      console.error('ensureEventExistsForHostRequest dates lookup error:', datesResult.error.message);
+      return datesResult.error.message;
+    }
+
+    if (artistsResult.error && !this.isMissingSchemaError(artistsResult.error)) {
+      console.error('ensureEventExistsForHostRequest artists lookup error:', artistsResult.error.message);
+      return artistsResult.error.message;
+    }
+
+    const proposedDates = ((datesResult.data ?? []) as Array<{ start_date: string | null }>)
+      .map((entry) => entry.start_date)
+      .filter((value): value is string => !!value);
+
+    if (proposedDates.length === 0 && requestResult.data.start_date) {
+      proposedDates.push(requestResult.data.start_date);
+    }
+
+    const { error: insertEventError } = await this.adminSupabase
+      .from('tjs_events')
+      .insert({
+        id: requestResult.data.id,
+        title: requestResult.data.event_title ?? 'Untitled Request',
+        description: requestResult.data.description ?? requestResult.data.teaser ?? null,
+        event_type: 'REQUEST',
+        status: 'SELECTED',
+        origin_website: 'TJS',
+        visibility_scope: ['TJS'],
+        parent_event_id: null,
+        created_by: requestResult.data.created_by ?? selectedBy ?? null,
+        proposed_dates: proposedDates,
+        department: null,
+        city: null,
+        source: 'TJS',
+        created_at: requestResult.data.created_at ?? timestamp,
+        updated_at: timestamp,
+      });
+
+    if (insertEventError) {
+      console.error('ensureEventExistsForHostRequest event insert error:', insertEventError.message);
+      return insertEventError.message;
+    }
+
+    const uniqueArtistIds = Array.from(
+      new Set(
+        ((artistsResult.data ?? []) as Array<{ artist_id: string | null; invited_artist_id: string | null }>)
+          .flatMap((artist) => [artist.artist_id, artist.invited_artist_id])
+          .filter((value): value is string => !!value)
+      )
+    );
+
+    if (uniqueArtistIds.length === 0) {
+      return null;
+    }
+
+    const { error: insertArtistsError } = await this.adminSupabase
+      .from('tjs_event_artists')
+      .upsert(
+        uniqueArtistIds.map((artistId, index) => ({
+          event_id: eventId,
+          artist_id: artistId,
+          role: index === 0 ? 'PRIMARY' : 'INVITED',
+        })),
+        { onConflict: 'event_id,artist_id,role' }
+      );
+
+    if (insertArtistsError) {
+      console.error('ensureEventExistsForHostRequest event artists insert error:', insertArtistsError.message);
+      return insertArtistsError.message;
+    }
+
+    return null;
+  }
+
+  async getPagArtistProfile(pagArtistId: string): Promise<PagArtistProfile | null> {
+    const normalizedId = Number(pagArtistId);
+    if (!Number.isFinite(normalizedId)) {
+      return null;
+    }
+
+    const [
+      artistResult,
+      performancesResult,
+      educationsResult,
+      awardsResult,
+      instrumentsResult,
+      mediaResult,
+      availabilityResult,
+      requirementsResult,
+    ] = await Promise.all([
+      this.adminSupabase
+        .from('artists')
+        .select(`
+          id,
+          id_profile,
+          fname,
+          lname,
+          title,
+          teaser,
+          short_bio,
+          long_bio,
+          dob,
+          pob,
+          email,
+          phone,
+          website,
+          address,
+          city,
+          country,
+          gender,
+          photo,
+          credit_photo,
+          cover,
+          credit_cover,
+          is_featured,
+          is_active,
+          created_on
+        `)
+        .eq('id', normalizedId)
+        .maybeSingle(),
+      this.adminSupabase
+        .from('vw_artist_performance')
+        .select('id_performance, performance_type')
+        .eq('id_artist', normalizedId),
+      this.adminSupabase
+        .from('artist_education')
+        .select('id, school, course, year')
+        .eq('id_artist', normalizedId)
+        .order('year', { ascending: false }),
+      this.adminSupabase
+        .from('artist_awards')
+        .select('id, award, description, year')
+        .eq('id_artist', normalizedId)
+        .order('year', { ascending: false }),
+      this.adminSupabase
+        .from('vw_artist_instruments')
+        .select('id_instrument, instrument')
+        .eq('id_artist', normalizedId),
+      this.adminSupabase
+        .from('artist_media')
+        .select('id, title, image, description, url, id_media')
+        .eq('id_artist', normalizedId)
+        .order('created_on', { ascending: true }),
+      this.adminSupabase
+        .from('artist_availability')
+        .select('id, start_date, end_date, notes')
+        .eq('id_artist', normalizedId)
+        .order('start_date', { ascending: true }),
+      this.adminSupabase
+        .from('artist_requirement')
+        .select('id_artist, rib, guso_nb, security_nb, arlergies, food_restriction, requirement')
+        .eq('id_artist', normalizedId)
+        .maybeSingle(),
+    ]);
+
+    if (artistResult.error) {
+      console.error('getPagArtistProfile artist error:', artistResult.error.message);
+      return null;
+    }
+
+    if (!artistResult.data) {
+      return null;
+    }
+
+    if (performancesResult.error) {
+      console.error('getPagArtistProfile performances error:', performancesResult.error.message);
+    }
+
+    if (educationsResult.error) {
+      console.error('getPagArtistProfile educations error:', educationsResult.error.message);
+    }
+
+    if (awardsResult.error) {
+      console.error('getPagArtistProfile awards error:', awardsResult.error.message);
+    }
+
+    if (instrumentsResult.error) {
+      console.error('getPagArtistProfile instruments error:', instrumentsResult.error.message);
+    }
+
+    if (mediaResult.error) {
+      console.error('getPagArtistProfile media error:', mediaResult.error.message);
+    }
+
+    if (availabilityResult.error) {
+      console.error('getPagArtistProfile availability error:', availabilityResult.error.message);
+    }
+
+    if (requirementsResult.error) {
+      console.error('getPagArtistProfile requirements error:', requirementsResult.error.message);
+    }
+
+    const artist = artistResult.data as any;
+
+    return {
+      id: artist.id,
+      id_profile: artist.id_profile ?? null,
+      fname: artist.fname ?? null,
+      lname: artist.lname ?? null,
+      title: artist.title ?? null,
+      teaser: artist.teaser ?? null,
+      short_bio: artist.short_bio ?? null,
+      long_bio: artist.long_bio ?? null,
+      dob: artist.dob ?? null,
+      pob: artist.pob ?? null,
+      email: artist.email ?? null,
+      phone: artist.phone ?? null,
+      website: artist.website ?? null,
+      address: artist.address ?? null,
+      city: artist.city ?? null,
+      country: artist.country ?? null,
+      gender: artist.gender ?? null,
+      photo: artist.photo ?? null,
+      credit_photo: artist.credit_photo ?? null,
+      cover: artist.cover ?? null,
+      credit_cover: artist.credit_cover ?? null,
+      is_featured: artist.is_featured ?? null,
+      is_active: artist.is_active ?? null,
+      created_on: artist.created_on ?? null,
+      performances: ((performancesResult.data ?? []) as any[])
+        .filter((row) => typeof row.id_performance === 'number' && typeof row.performance_type === 'string')
+        .map((row) => ({
+          id: row.id_performance,
+          name: row.performance_type,
+        })),
+      educations: ((educationsResult.data ?? []) as any[]).map((row) => ({
+        id: String(row.id),
+        school_name: row.school ?? '',
+        course_name: row.course ?? '',
+        year: row.year ? Number(row.year) || null : null,
+      })),
+      awards: ((awardsResult.data ?? []) as any[]).map((row) => ({
+        id: String(row.id),
+        award: row.award ?? '',
+        description: row.description ?? '',
+        year: row.year ? Number(row.year) || null : null,
+      })),
+      instruments: ((instrumentsResult.data ?? []) as any[])
+        .filter((row) => typeof row.id_instrument === 'number' && typeof row.instrument === 'string')
+        .map((row) => ({
+          id: row.id_instrument,
+          name: row.instrument,
+        })),
+      media: ((mediaResult.data ?? []) as any[]).map((row) => ({
+        id: String(row.id),
+        media_type: Number(row.id_media) === 2 ? 'cd' : 'video',
+        image_url: row.image ?? null,
+        name: row.title ?? '',
+        description: row.description ?? '',
+        urls: row.url ? [row.url] : [],
+      })),
+      availability: ((availabilityResult.data ?? []) as any[]).map((row) => ({
+        id: String(row.id),
+        start_date: row.start_date ?? '',
+        end_date: row.end_date ?? '',
+        note: row.notes ?? '',
+      })),
+      requirements: requirementsResult.data
+        ? {
+            profile_id: String(normalizedId),
+            rib_number: requirementsResult.data.rib ?? '',
+            guso_number: requirementsResult.data.guso_nb ?? '',
+            security_number: requirementsResult.data.security_nb ?? '',
+            allergies: requirementsResult.data.arlergies ?? '',
+            food_restriction: requirementsResult.data.food_restriction ?? '',
+            additional_requirements: requirementsResult.data.requirement ?? '',
+          }
+        : null,
+    };
   }
 
   async promotePagArtistToTjs(

@@ -11,6 +11,7 @@ import {
   ArtistRequestDetail,
   ArtistRequestListItem,
   ArtistWorkspaceProfile,
+  PagArtistProfile,
   SupabaseService,
   TjsArtist,
 } from '../../services/supabase.service';
@@ -38,6 +39,7 @@ export class CommitteeArtistDetail implements OnInit {
   artist: TjsArtist | null = null;
   activeTab: CommitteeArtistDetailTab = 'profile';
   profile: ArtistWorkspaceProfile | null = null;
+  pagProfile: PagArtistProfile | null = null;
   instruments: ArtistInstrumentOption[] = [];
   media: ArtistMediaEntry[] = [];
   availability: ArtistAvailabilityEntry[] = [];
@@ -63,7 +65,7 @@ export class CommitteeArtistDetail implements OnInit {
 
   displayName(): string {
     if (!this.artist) {
-      return 'Artist';
+      return this.pagDisplayName();
     }
 
     return this.artist.profile?.full_name || this.artist.artist_name || 'Artist';
@@ -74,14 +76,54 @@ export class CommitteeArtistDetail implements OnInit {
   }
 
   artistEmail(): string {
-    return this.profile?.email || this.artist?.profile?.email || '-';
+    return this.profile?.email || this.artist?.profile?.email || this.pagEmail();
   }
 
   artistPhone(): string {
-    return this.profile?.phone || this.artist?.profile?.phone || '-';
+    return this.profile?.phone || this.artist?.profile?.phone || this.pagPhone();
+  }
+
+  hasPagProfile(): boolean {
+    return !!this.pagProfile;
+  }
+
+  pagDisplayName(): string {
+    if (!this.pagProfile) {
+      return 'PAG Artist';
+    }
+
+    return `${this.pagProfile.fname ?? ''} ${this.pagProfile.lname ?? ''}`.trim() || 'PAG Artist';
+  }
+
+  pagEmail(): string {
+    return this.pagProfile?.email || '-';
+  }
+
+  pagPhone(): string {
+    return this.pagProfile?.phone || '-';
+  }
+
+  pagStatusLabel(): string {
+    return this.pagProfile?.is_active ? 'Active' : 'Inactive';
+  }
+
+  get isPagOnlyProfile(): boolean {
+    return !this.artist && !!this.pagProfile;
+  }
+
+  get isInvitedArtistProfile(): boolean {
+    return !!this.artist?.is_invited_artist && !this.artist?.is_tjs_artist;
+  }
+
+  looksLikeUuid(value: string): boolean {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
   }
 
   activationStatusLabel(): string {
+    if (!this.artist) {
+      return this.pagStatusLabel();
+    }
+
     switch (this.artist?.activation_status) {
       case 'active':
         return 'Activated';
@@ -100,8 +142,20 @@ export class CommitteeArtistDetail implements OnInit {
     return this.profile.performance_types.map((item) => item.name).join(', ');
   }
 
+  pagPerformanceTypeLabel(): string {
+    if (!this.pagProfile?.performances.length) {
+      return 'No PAG performance types added';
+    }
+
+    return this.pagProfile.performances.map((item) => item.name).join(', ');
+  }
+
   mediaByType(type: 'video' | 'cd'): ArtistMediaEntry[] {
     return this.media.filter((item) => item.media_type === type);
+  }
+
+  pagMediaByType(type: 'video' | 'cd'): ArtistMediaEntry[] {
+    return (this.pagProfile?.media ?? []).filter((item) => item.media_type === type);
   }
 
   availabilityDays(entry: ArtistAvailabilityEntry): number {
@@ -220,9 +274,26 @@ export class CommitteeArtistDetail implements OnInit {
     this.error = '';
 
     try {
+      if (!this.looksLikeUuid(artistId)) {
+        this.artist = null;
+        this.profile = null;
+        this.instruments = [];
+        this.media = [];
+        this.availability = [];
+        this.pendingRequests = [];
+        this.selectedRequest = null;
+        this.pagProfile = await this.supabase.getPagArtistProfile(artistId);
+
+        if (!this.pagProfile) {
+          this.error = 'Artist profile could not be loaded.';
+        }
+
+        return;
+      }
+
       const artist = await this.supabase.getArtistById(artistId);
 
-      if (!artist || !artist.is_tjs_artist || !artist.profile_id) {
+      if (!artist || !artist.profile_id) {
         this.error = 'Artist profile could not be loaded.';
         this.isLoading = false;
         return;
@@ -230,15 +301,17 @@ export class CommitteeArtistDetail implements OnInit {
 
       this.artist = artist;
 
-      const [profile, instruments, media, availability, requests] = await Promise.all([
+      const [profile, instruments, media, availability, requests, pagProfile] = await Promise.all([
         this.supabase.getArtistWorkspaceProfile(artist.profile_id),
         this.supabase.getArtistWorkspaceInstruments(artist.profile_id),
         this.supabase.getArtistWorkspaceMedia(artist.profile_id),
         this.supabase.getArtistWorkspaceAvailability(artist.profile_id),
         this.supabase.getArtistWorkspaceRequests(artist.profile_id),
+        artist.pag_artist_id ? this.supabase.getPagArtistProfile(artist.pag_artist_id) : Promise.resolve(null),
       ]);
 
       this.profile = profile;
+      this.pagProfile = pagProfile;
       this.instruments = instruments;
       this.media = media;
       this.availability = availability;

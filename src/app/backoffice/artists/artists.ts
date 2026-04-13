@@ -143,7 +143,7 @@ export class Artists implements OnInit {
   }
 
   async openArtistDetail(artist: TjsArtist) {
-    if (!this.isCommittee || !artist.profile_id || this.activeTab !== 'tjs') {
+    if (!this.isCommittee || !artist.profile_id) {
       return;
     }
     await this.router.navigate(['/backoffice/artists', artist.id]);

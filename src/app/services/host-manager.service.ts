@@ -59,19 +59,8 @@ export class HostManagerService {
    */
   getAssignedHosts(managerId: string): Observable<TjsHost[]> {
     return from(
-      this.adminSupabase
-        .from('tjs_host_managers')
-        .select(`
-          host_id,
-          tjs_hosts (*)
-        `)
-        .eq('manager_id', managerId)
-        .eq('is_active', true)
+      this.getAssignedHostsInternal(managerId)
     ).pipe(
-      map(({ data, error }) => {
-        if (error) throw new Error(error.message);
-        return (data as any[]).map(row => row.tjs_hosts as TjsHost).filter(h => h !== null);
-      }),
       catchError(error => {
         console.error('getAssignedHosts error:', error);
         return throwError(() => error);
@@ -310,5 +299,40 @@ export class HostManagerService {
       }),
       catchError(() => from(Promise.resolve(null)))
     );
+  }
+
+  private async getAssignedHostsInternal(managerId: string): Promise<TjsHost[]> {
+    const { data, error } = await this.adminSupabase
+      .from('tjs_host_managers')
+      .select(`
+        host_id,
+        host:tjs_hosts (*)
+      `)
+      .eq('manager_id', managerId)
+      .eq('is_active', true);
+
+    if (error) {
+      if (this.isMissingHostManagerTableError(error)) {
+        return this.supabaseService.getManagedHosts(managerId);
+      }
+
+      throw new Error(error.message);
+    }
+
+    const assignedHosts = ((data as any[]) ?? [])
+      .map((row) => row.host as TjsHost | null)
+      .filter((host): host is TjsHost => host !== null);
+
+    if (assignedHosts.length > 0) {
+      return assignedHosts;
+    }
+
+    // Backward compatibility: older admin flows stored the host manager on tjs_hosts.created_by.
+    return this.supabaseService.getManagedHosts(managerId);
+  }
+
+  private isMissingHostManagerTableError(error: { code?: string; message?: string | null }): boolean {
+    return error.code === 'PGRST205'
+      || error.message?.includes("Could not find the table 'public.tjs_host_managers'") === true;
   }
 }

@@ -94,6 +94,18 @@
           </li>
           <li>
             <a
+              routerLink="/backoffice/committee/locations/public"
+              routerLinkActive="bg-zinc-700 text-white"
+              class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+            >
+              <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/>
+              </svg>
+              <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Public Locations</span>
+            </a>
+          </li>
+          <li>
+            <a
               routerLink="/backoffice/events"
               routerLinkActive="bg-zinc-700 text-white"
               class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
@@ -297,7 +309,7 @@
                 <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
                 <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
               </svg>
-              <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Dashboard</span>
+              <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">{{ isInvitedArtist ? 'Workspace' : 'Dashboard' }}</span>
             </a>
           </li>
           <li>
@@ -329,19 +341,6 @@
           </li>
           <li>
             <a
-              routerLink="/backoffice/artist-requirements"
-              routerLinkActive="bg-zinc-700 text-white"
-              class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
-            >
-              <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M9 11l3 3L22 4"></path>
-                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
-              </svg>
-              <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Requirements</span>
-            </a>
-          </li>
-          <li>
-            <a
               routerLink="/backoffice/artist-media"
               routerLinkActive="bg-zinc-700 text-white"
               class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
@@ -354,7 +353,7 @@
               <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Media</span>
             </a>
           </li>
-          <li>
+          <li *ngIf="!isInvitedArtist">
             <a
               routerLink="/backoffice/artist-requests"
               routerLinkActive="bg-zinc-700 text-white"
@@ -424,6 +423,7 @@
           </li>
           <li>
             <a
+              *ngIf="!isInvitedArtist"
               routerLink="/backoffice/artist-settings"
               routerLinkActive="bg-zinc-700 text-white"
               class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
@@ -441,23 +441,38 @@
           </li>
         </ng-container>
 
-        <ng-container *ngIf="isHost && !isAdmin && !isCommitteeMember">
+        <ng-container *ngIf="isHostManager && !isAdmin && !isCommitteeMember">
           <li>
             <a
-              routerLink="/backoffice/my-hosts"
+              routerLink="/backoffice/host-manager"
+              routerLinkActive="bg-zinc-700 text-white"
+              [routerLinkActiveOptions]="{ exact: true }"
+              class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+            >
+              <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+              </svg>
+              <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Dashboard</span>
+            </a>
+          </li>
+          <li>
+            <a
+              routerLink="/backoffice/host-manager/hosts"
               routerLinkActive="bg-zinc-700 text-white"
               class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
             >
               <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-                <polyline points="9 22 9 12 15 12 15 22"/>
+                <path d="M3 21h18"/>
+                <path d="M5 21V7l8-4 8 4v14"/>
+                <path d="M17 21v-8.5a1.5 1.5 0 0 0-1.5-1.5h-5a1.5 1.5 0 0 0-1.5 1.5V21"/>
               </svg>
               <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">My Hosts</span>
             </a>
           </li>
           <li>
             <a
-              routerLink="/backoffice/events"
+              routerLink="/backoffice/host-manager/events"
               routerLinkActive="bg-zinc-700 text-white"
               class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
             >
@@ -471,7 +486,131 @@
           </li>
           <li>
             <a
-              routerLink="/backoffice/event-requests"
+              routerLink="/backoffice/host-manager/requests"
+              routerLinkActive="bg-zinc-700 text-white"
+              class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+            >
+              <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+              </svg>
+              <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Request</span>
+            </a>
+          </li>
+          <li>
+            <button
+              type="button"
+              (click)="toggleSubmenu('host-manager-artists')"
+              class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+              [class.bg-zinc-700]="isExpanded('host-manager-artists')"
+              [class.text-white]="isExpanded('host-manager-artists')"
+            >
+              <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
+              </svg>
+              <span *ngIf="!sidebarCollapsed" class="flex-1 text-left text-sm font-medium">Artists</span>
+              <svg *ngIf="!sidebarCollapsed" class="h-4 w-4 transition-transform duration-200" [class.rotate-180]="isExpanded('host-manager-artists')" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+            <ul *ngIf="isExpanded('host-manager-artists') && !sidebarCollapsed" class="ml-8 mt-1 space-y-1">
+              <li>
+                <a
+                  routerLink="/backoffice/host-manager/artists/tjs"
+                  routerLinkActive="font-semibold text-red-400"
+                  class="block rounded-lg px-3 py-2 text-sm transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+                >
+                  TJS Artists
+                </a>
+              </li>
+            </ul>
+          </li>
+          <li>
+            <button
+              type="button"
+              (click)="toggleSubmenu('host-manager-locations')"
+              class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+              [class.bg-zinc-700]="isExpanded('host-manager-locations')"
+              [class.text-white]="isExpanded('host-manager-locations')"
+            >
+              <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                <circle cx="12" cy="10" r="3"/>
+              </svg>
+              <span *ngIf="!sidebarCollapsed" class="flex-1 text-left text-sm font-medium">Location</span>
+              <svg *ngIf="!sidebarCollapsed" class="h-4 w-4 transition-transform duration-200" [class.rotate-180]="isExpanded('host-manager-locations')" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+            <ul *ngIf="isExpanded('host-manager-locations') && !sidebarCollapsed" class="ml-8 mt-1 space-y-1">
+              <li>
+                <a
+                  routerLink="/backoffice/host-manager/locations/public"
+                  routerLinkActive="font-semibold text-red-400"
+                  class="block rounded-lg px-3 py-2 text-sm transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+                >
+                  Public Locations
+                </a>
+              </li>
+              <li>
+                <a
+                  routerLink="/backoffice/host-manager/locations/private"
+                  routerLinkActive="font-semibold text-red-400"
+                  class="block rounded-lg px-3 py-2 text-sm transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+                >
+                  Private Locations
+                </a>
+              </li>
+            </ul>
+          </li>
+          <li><div class="mx-3 my-2 border-t border-zinc-700"></div></li>
+          <li>
+            <button
+              type="button"
+              (click)="openChangePasswordModal()"
+              class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+            >
+              <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
+              <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Change Password</span>
+            </button>
+          </li>
+        </ng-container>
+
+        <ng-container *ngIf="isHost && !isHostManager && !isAdmin && !isCommitteeMember">
+          <li>
+            <a
+              routerLink="/backoffice/host/dashboard"
+              routerLinkActive="bg-zinc-700 text-white"
+              [routerLinkActiveOptions]="{ exact: true }"
+              class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+            >
+              <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                <polyline points="9 22 9 12 15 12 15 22"/>
+              </svg>
+              <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Dashboard</span>
+            </a>
+          </li>
+          <li>
+            <a
+              routerLink="/backoffice/host/events"
+              routerLinkActive="bg-zinc-700 text-white"
+              class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+            >
+              <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+              <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Events</span>
+            </a>
+          </li>
+          <li>
+            <a
+              routerLink="/backoffice/host/requests"
               routerLinkActive="bg-zinc-700 text-white"
               class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
             >
@@ -480,12 +619,12 @@
                 <polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/>
                 <line x1="9" y1="15" x2="15" y2="15"/>
               </svg>
-              <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Requests</span>
+              <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Artist Request</span>
             </a>
           </li>
           <li>
             <a
-              routerLink="/backoffice/artists"
+              routerLink="/backoffice/host/artists"
               routerLinkActive="bg-zinc-700 text-white"
               class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
             >
@@ -494,6 +633,44 @@
               </svg>
               <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Artists</span>
             </a>
+          </li>
+          <li>
+            <button
+              type="button"
+              (click)="toggleSubmenu('host-locations')"
+              class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+              [class.bg-zinc-700]="isExpanded('host-locations')"
+              [class.text-white]="isExpanded('host-locations')"
+            >
+              <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                <circle cx="12" cy="10" r="3"/>
+              </svg>
+              <span *ngIf="!sidebarCollapsed" class="flex-1 text-left text-sm font-medium">Location</span>
+              <svg *ngIf="!sidebarCollapsed" class="h-4 w-4 transition-transform duration-200" [class.rotate-180]="isExpanded('host-locations')" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+            <ul *ngIf="isExpanded('host-locations') && !sidebarCollapsed" class="ml-8 mt-1 space-y-1">
+              <li>
+                <a
+                  routerLink="/backoffice/host/locations/my"
+                  routerLinkActive="font-semibold text-red-400"
+                  class="block rounded-lg px-3 py-2 text-sm transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+                >
+                  My Location
+                </a>
+              </li>
+              <li>
+                <a
+                  routerLink="/backoffice/host/locations/public"
+                  routerLinkActive="font-semibold text-red-400"
+                  class="block rounded-lg px-3 py-2 text-sm transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+                >
+                  Public Location
+                </a>
+              </li>
+            </ul>
           </li>
           <li><div class="mx-3 my-2 border-t border-zinc-700"></div></li>
           <li>

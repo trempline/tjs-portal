@@ -137,7 +137,7 @@
             class="transition-colors hover:bg-zinc-50"
             [class.bg-amber-50/30]="artist.is_featured"
             [class.bg-red-50/20]="needsAssignment(artist) && !isCommittee"
-            [class.cursor-pointer]="isCommittee && activeTab === 'tjs'"
+            [class.cursor-pointer]="isCommittee"
             (click)="openArtistDetail(artist)"
           >
             <td class="px-6 py-4">
