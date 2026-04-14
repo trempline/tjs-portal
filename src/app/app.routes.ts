@@ -30,6 +30,7 @@ import { HostPrivateLocationDetail } from './backoffice/host-private-location-de
 import { HostManagerPublicLocationDetail } from './backoffice/host-manager-public-location-detail/host-manager-public-location-detail';
 import { HostManagerPublicLocations } from './backoffice/host-manager-public-locations/host-manager-public-locations';
 import { HostArtistRequestDetail } from './backoffice/host-artist-request-detail/host-artist-request-detail';
+import { HostCreateEvent } from './backoffice/host-create-event/host-create-event';
 import { NonTjsArtists } from './backoffice/non-tjs-artists/non-tjs-artists';
 import { CommitteeArtistDetail } from './backoffice/committee-artist-detail/committee-artist-detail';
 import { ArtistWorkspacePage } from './backoffice/artist-workspace-page/artist-workspace-page';
@@ -118,6 +119,7 @@ export const routes: Routes = [
             { path: 'host/events', component: ArtistWorkspacePage, canActivate: [roleGuard(['Host', 'Host+'])], data: { title: 'Events', description: 'This host events page is intentionally blank for now.' } },
             { path: 'host/requests', component: EventRequests, canActivate: [roleGuard(['Host', 'Host+'])] },
             { path: 'host/requests/:id', component: HostArtistRequestDetail, canActivate: [roleGuard(['Host', 'Host+'])] },
+            { path: 'host/requests/:id/create-event', component: HostCreateEvent, canActivate: [roleGuard(['Host', 'Host+'])] },
             { path: 'host/artists', component: ArtistWorkspacePage, canActivate: [roleGuard(['Host', 'Host+'])], data: { title: 'Artist', description: 'This host artist page is intentionally blank for now.' } },
             { path: 'host/locations/my', component: HostPrivateLocations, canActivate: [roleGuard(['Host', 'Host+'])] },
             { path: 'host/locations/my/:id', component: HostPrivateLocationDetail, canActivate: [roleGuard(['Host', 'Host+'])] },

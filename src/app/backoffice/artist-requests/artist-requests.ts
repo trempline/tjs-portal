@@ -13,7 +13,14 @@ import {
   SupabaseService,
 } from '../../services/supabase.service';
 
-type RequestTab = 'details' | 'dates' | 'image' | 'media' | 'artist' | 'comments';
+type RequestTab = 'details' | 'dates' | 'proposed_dates' | 'image' | 'media' | 'artist' | 'comments';
+
+interface HostProposalSummary {
+  edition: string | null;
+  eventType: string | null;
+  dateLines: string[];
+  rawBody: string;
+}
 
 @Component({
   selector: 'app-artist-requests',
@@ -30,6 +37,7 @@ export class ArtistRequests implements OnInit {
   private currentArtistId: string | null = null;
   private currentArtistName = '';
   private seenCommentMap: Record<string, string> = {};
+  private isSubmittingArtistProposal = false;
 
   isLoading = true;
   isSaving = false;
@@ -92,6 +100,7 @@ export class ArtistRequests implements OnInit {
     this.initialCommentPreview = '';
     this.inviteArtist = { email: '', fullName: '' };
     this.showInviteArtistForm = false;
+    this.isSubmittingArtistProposal = false;
     this.isEditing = true;
   }
 
@@ -109,6 +118,7 @@ export class ArtistRequests implements OnInit {
     this.initialCommentPreview = '';
     this.inviteArtist = { email: '', fullName: '' };
     this.showInviteArtistForm = false;
+    this.isSubmittingArtistProposal = false;
 
     const detail = await this.supabase.getArtistWorkspaceRequestDetail(requestId);
     if (!detail) {
@@ -133,6 +143,7 @@ export class ArtistRequests implements OnInit {
     this.commentDraft = '';
     this.initialCommentPreview = '';
     this.showInviteArtistForm = false;
+    this.isSubmittingArtistProposal = false;
   }
 
   startEditing() {
@@ -168,7 +179,7 @@ export class ArtistRequests implements OnInit {
       ...detail,
       id: undefined,
       event_title: `${detail.event_title}_COPY`,
-      status: 'pending',
+      status: 'new_request',
       comments: [],
       artists: detail.artists.map((artist) => ({
         ...artist,
@@ -376,6 +387,7 @@ export class ArtistRequests implements OnInit {
       }
     }
 
+    const isNewRequestSubmission = !this.request.id;
     this.isSaving = true;
     const result = await this.supabase.saveArtistWorkspaceRequest(profileId, this.request);
     if (result.error || !result.requestId) {
@@ -385,6 +397,25 @@ export class ArtistRequests implements OnInit {
     }
 
     this.selectedRequestId = result.requestId;
+    if (isNewRequestSubmission) {
+      const requestDateLines = this.request.dates.map((date) =>
+        date.request_type === 'period'
+          ? `- Period | ${date.start_date} to ${date.end_date || 'TBD'}${date.event_time ? ` | ${date.event_time}` : ''}`
+          : `- One Day | ${date.start_date}${date.event_time ? ` | ${date.event_time}` : ''}`
+      );
+      const datesCommentError = await this.supabase.addArtistWorkspaceRequestComment(
+        result.requestId,
+        profileId,
+        ['[ARTIST_REQUEST_DATES]', 'Artist proposed dates:', ...requestDateLines].join('\n')
+      );
+
+      if (datesCommentError) {
+        this.error = datesCommentError;
+        this.isSaving = false;
+        return;
+      }
+    }
+
     const initialComment = this.initialCommentPreview || this.commentDraft.trim();
     if (initialComment) {
       const commentError = await this.supabase.addArtistWorkspaceRequestComment(result.requestId, profileId, initialComment);
@@ -421,8 +452,35 @@ export class ArtistRequests implements OnInit {
       this.request.id = result.requestId;
     }
 
-    this.successMessage = 'Request submitted successfully.';
+    if (this.isSubmittingArtistProposal) {
+      const proposedDateLines = this.request.dates.map((date) =>
+        date.request_type === 'period'
+          ? `- Period | ${date.start_date} to ${date.end_date || 'TBD'}${date.event_time ? ` | ${date.event_time}` : ''}`
+          : `- One Day | ${date.start_date}${date.event_time ? ` | ${date.event_time}` : ''}`
+      );
+      const proposalCommentError = await this.supabase.addArtistWorkspaceRequestComment(
+        result.requestId,
+        profileId,
+        ['[ARTIST_PROPOSED]', 'Artist proposed new dates:', ...proposedDateLines].join('\n')
+      );
+
+      if (proposalCommentError) {
+        this.error = proposalCommentError;
+        this.isSaving = false;
+        return;
+      }
+
+      const proposalRefreshed = await this.supabase.getArtistWorkspaceRequestDetail(result.requestId);
+      if (proposalRefreshed) {
+        this.request = this.applyPrimaryArtist(proposalRefreshed);
+      }
+    }
+
+    this.successMessage = this.isSubmittingArtistProposal
+      ? 'New proposed dates sent to the host.'
+      : 'Request submitted successfully.';
     this.isSaving = false;
+    this.isSubmittingArtistProposal = false;
     await this.loadRequests(profileId);
     await this.router.navigate(['/backoffice/artist-requests', result.requestId]);
   }
@@ -560,6 +618,79 @@ export class ArtistRequests implements OnInit {
     return !!artist.invited_email || (!!artist.invited_artist_id && !artist.artist_id);
   }
 
+  get latestHostProposal(): HostProposalSummary | null {
+    const hostAcceptedComment = [...this.request.comments]
+      .reverse()
+      .find((comment) => comment.body.startsWith('[HOST_ACCEPTED]'));
+
+    if (!hostAcceptedComment) {
+      return null;
+    }
+
+    const lines = hostAcceptedComment.body.split('\n').map((line) => line.trim()).filter(Boolean);
+    const editionLine = lines.find((line) => line.startsWith('Edition:'));
+    const eventTypeLine = lines.find((line) => line.startsWith('Event Type:'));
+    const proposedDateIndex = lines.findIndex((line) => line === 'Proposed Dates:');
+
+    return {
+      edition: editionLine ? editionLine.replace('Edition:', '').trim() : null,
+      eventType: eventTypeLine ? eventTypeLine.replace('Event Type:', '').trim() : null,
+      dateLines: proposedDateIndex >= 0
+        ? lines.slice(proposedDateIndex + 1).map((line) => line.replace(/^- /, '').trim()).filter(Boolean)
+        : [],
+      rawBody: hostAcceptedComment.body,
+    };
+  }
+
+  get canRespondToHostProposal(): boolean {
+    return !!this.request.id && this.request.status === 'host_proposed' && !this.isEditing;
+  }
+
+  async acceptHostProposal() {
+    const profileId = this.authService.currentUser?.id;
+    if (!profileId || !this.request.id) {
+      this.error = 'Request could not be approved.';
+      return;
+    }
+
+    this.error = '';
+    this.successMessage = '';
+    this.isSaving = true;
+
+    const statusError = await this.supabase.updateArtistWorkspaceRequestStatus(profileId, this.request.id, 'approved');
+    if (statusError) {
+      this.error = statusError;
+      this.isSaving = false;
+      return;
+    }
+
+    const commentError = await this.supabase.addArtistWorkspaceRequestComment(
+      this.request.id,
+      profileId,
+      '[ARTIST_APPROVED]\nArtist accepted the host proposal.'
+    );
+
+    if (commentError) {
+      this.error = commentError;
+      this.isSaving = false;
+      return;
+    }
+
+    await this.refreshCurrentRequest();
+    await this.loadRequests(profileId);
+    this.successMessage = 'Host proposal accepted.';
+    this.isSaving = false;
+  }
+
+  proposeNewDates() {
+    this.error = '';
+    this.successMessage = 'Update your request dates and submit again to propose new dates.';
+    this.request.status = 'artist_proposed';
+    this.isSubmittingArtistProposal = true;
+    this.isEditing = true;
+    this.activeTab = 'dates';
+  }
+
   private blankRequest(): ArtistRequestDetail {
     return this.applyPrimaryArtist({
       event_domain_id: null,
@@ -568,7 +699,7 @@ export class ArtistRequests implements OnInit {
       long_teaser: '',
       description: '',
       image_url: null,
-      status: 'pending',
+      status: 'new_request',
       dates: [this.blankDate()],
       media: [],
       artists: [],
@@ -609,6 +740,19 @@ export class ArtistRequests implements OnInit {
 
   private async loadRequests(profileId: string) {
     this.requests = await this.supabase.getArtistWorkspaceRequests(profileId);
+  }
+
+  private async refreshCurrentRequest() {
+    if (!this.request.id) {
+      return;
+    }
+
+    const refreshed = await this.supabase.getArtistWorkspaceRequestDetail(this.request.id);
+    if (!refreshed) {
+      return;
+    }
+
+    this.request = this.applyPrimaryArtist(refreshed);
   }
 
   private async syncEditorWithRoute() {

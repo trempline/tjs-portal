@@ -101,6 +101,7 @@ export interface AdminEventOverviewItem {
   city: string | null;
   creator_name: string;
   creator_email: string;
+  accepted_host_profile_ids: string[];
   host_ids: number[];
   host_names: string[];
   host_statuses: string[];
@@ -274,6 +275,32 @@ export interface ArtistInstrumentOption {
   name: string;
 }
 
+export interface EventEditionOption {
+  id: number;
+  name: string;
+  year?: string | null;
+  label?: string;
+}
+
+export interface EventTypeOption {
+  id: number;
+  name: string;
+}
+
+export interface CreateHostEventFromRequestPayload {
+  hostId: number;
+  title: string;
+  description: string;
+  editionId: number | null;
+  eventTypeId: number | null;
+  startDate: string;
+  endDate: string | null;
+  showTime: string;
+  locationId: string | null;
+  isOpenToMembers: boolean;
+  notes: string;
+}
+
 export interface ArtistEducationEntry {
   id?: string;
   school_name: string;
@@ -396,7 +423,7 @@ export interface ArtistConversationMessage {
 export interface ArtistRequestListItem {
   id: string;
   event_title: string;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'new_request' | 'accepted_by_host' | 'host_proposed' | 'artist_proposed' | 'artist_accepted' | 'approved' | 'rejected';
   date_summary: string;
   created_at: string;
   event_domain_name: string | null;
@@ -426,6 +453,7 @@ export interface ArtistRequestArtistEntry {
   id?: string;
   artist_id: string | null;
   invited_artist_id: string | null;
+  profile_id?: string | null;
   invited_email: string;
   display_name: string;
   invited_full_name?: string;
@@ -445,12 +473,13 @@ export interface ArtistRequestCommentEntry {
 export interface ArtistRequestDetail {
   id?: string;
   event_domain_id: number | null;
+  event_domain_name?: string | null;
   event_title: string;
   teaser: string;
   long_teaser: string;
   description: string;
   image_url: string | null;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'new_request' | 'accepted_by_host' | 'host_proposed' | 'artist_proposed' | 'artist_accepted' | 'approved' | 'rejected';
   dates: ArtistRequestDateEntry[];
   media: ArtistRequestMediaEntry[];
   artists: ArtistRequestArtistEntry[];
@@ -762,6 +791,69 @@ export class SupabaseService {
     }
 
     return (data ?? []) as ArtistInstrumentOption[];
+  }
+
+  async listEventEditionOptions(): Promise<EventEditionOption[]> {
+    const { data, error } = await this.adminSupabase
+      .from('sys_event_edition')
+      .select('id, name')
+      .order('name', { ascending: true });
+
+    if (error) {
+      if (!this.isMissingSchemaError(error)) {
+        console.error('listEventEditionOptions error:', error.message);
+      }
+      return [];
+    }
+
+    return (data ?? []) as EventEditionOption[];
+  }
+
+  async listConcreteEventEditionOptions(): Promise<EventEditionOption[]> {
+    const { data, error } = await this.adminSupabase
+      .from('event_edition')
+      .select('id, name, year')
+      .order('year', { ascending: false })
+      .order('name', { ascending: true });
+
+    if (error) {
+      if (!this.isMissingSchemaError(error)) {
+        console.error('listConcreteEventEditionOptions error:', error.message);
+      }
+
+      const fallback = await this.listEventEditionOptions();
+      return fallback.map((item) => ({
+        ...item,
+        label: item.name,
+      }));
+    }
+
+    return ((data ?? []) as Array<{ id: number; name: string | null; year: string | null }>).map((item) => {
+      const name = item.name?.trim() || `Edition #${item.id}`;
+      const year = item.year?.trim() || null;
+      return {
+        id: item.id,
+        name,
+        year,
+        label: year ? `${name} ${year}` : name,
+      };
+    });
+  }
+
+  async listEventTypeOptions(): Promise<EventTypeOption[]> {
+    const { data, error } = await this.adminSupabase
+      .from('sys_event_type')
+      .select('id, name')
+      .order('name', { ascending: true });
+
+    if (error) {
+      if (!this.isMissingSchemaError(error)) {
+        console.error('listEventTypeOptions error:', error.message);
+      }
+      return [];
+    }
+
+    return (data ?? []) as EventTypeOption[];
   }
 
   private isMissingSchemaError(error: { code?: string | null; message?: string | null } | null | undefined): boolean {
@@ -1945,10 +2037,11 @@ export class SupabaseService {
     }
 
     let commentSummaryByRequestId = new Map<string, { count: number; latestAt: string | null; latestAuthorProfileId: string | null }>();
+    const workflowStatusByRequestId = new Map<string, ArtistRequestListItem['status']>();
     if (requestIds.length > 0) {
       const { data: commentData, error: commentError } = await this.adminSupabase
         .from('tjs_artist_request_comments')
-        .select('request_id, author_profile_id, created_at')
+        .select('request_id, author_profile_id, created_at, body')
         .in('request_id', requestIds)
         .order('created_at', { ascending: true });
 
@@ -1958,6 +2051,20 @@ export class SupabaseService {
         }
         console.error('getArtistWorkspaceRequests comments error:', commentError.message);
       } else {
+        for (const row of (commentData ?? []) as any[]) {
+          if (typeof row.request_id !== 'string' || typeof row.body !== 'string') {
+            continue;
+          }
+
+          if (row.body.startsWith('[HOST_ACCEPTED]')) {
+            workflowStatusByRequestId.set(row.request_id, 'host_proposed');
+          } else if (row.body.startsWith('[ARTIST_PROPOSED]')) {
+            workflowStatusByRequestId.set(row.request_id, 'artist_proposed');
+          } else if (row.body.startsWith('[ARTIST_APPROVED]')) {
+            workflowStatusByRequestId.set(row.request_id, 'artist_accepted');
+          }
+        }
+
         commentSummaryByRequestId = (commentData ?? []).reduce((map, row: any) => {
           const current = map.get(row.request_id) ?? {
             count: 0,
@@ -1987,7 +2094,8 @@ export class SupabaseService {
           }),
       id: row.id,
       event_title: row.event_title ?? '',
-      status: row.status ?? 'pending',
+      status: workflowStatusByRequestId.get(row.id)
+        ?? this.mapBaseRequestStatus(row.status ?? 'pending'),
       date_summary: this.summarizeArtistRequestDates(
         (datesByRequestId.get(row.id) ?? []).length > 0
           ? datesByRequestId.get(row.id) ?? []
@@ -2007,7 +2115,10 @@ export class SupabaseService {
     const [requestResult, datesResult, mediaResult, artistsResult, commentsResult] = await Promise.all([
       this.adminSupabase
         .from('tjs_artist_requests')
-        .select('*')
+        .select(`
+          *,
+          event_domain:sys_event_domain(name)
+        `)
         .eq('id', requestId)
         .maybeSingle(),
       this.adminSupabase
@@ -2140,15 +2251,32 @@ export class SupabaseService {
       }
     }
 
+    const rawComments = (commentsResult.data ?? []) as any[];
+    let derivedStatus: ArtistRequestDetail['status'] = this.mapBaseRequestStatus(requestResult.data.status ?? 'pending');
+    for (const row of rawComments) {
+      if (typeof row.body !== 'string') {
+        continue;
+      }
+
+      if (row.body.startsWith('[HOST_ACCEPTED]')) {
+        derivedStatus = 'host_proposed';
+      } else if (row.body.startsWith('[ARTIST_PROPOSED]')) {
+        derivedStatus = 'artist_proposed';
+      } else if (row.body.startsWith('[ARTIST_APPROVED]')) {
+        derivedStatus = 'artist_accepted';
+      }
+    }
+
     return {
       id: requestResult.data.id,
       event_domain_id: requestResult.data.event_domain_id ?? null,
+      event_domain_name: requestResult.data.event_domain?.name ?? null,
       event_title: requestResult.data.event_title ?? '',
       teaser: requestResult.data.teaser ?? '',
       long_teaser: requestResult.data.long_teaser ?? '',
       description: requestResult.data.description ?? '',
       image_url: requestResult.data.image_url ?? null,
-      status: requestResult.data.status ?? 'pending',
+      status: derivedStatus,
       dates: (((datesResult.data ?? []) as any[]).length > 0
         ? (datesResult.data ?? []) as any[]
         : [{
@@ -2181,6 +2309,7 @@ export class SupabaseService {
           id: row.id,
           artist_id: row.artist_id ?? null,
           invited_artist_id: row.invited_artist_id ?? null,
+          profile_id: selectedArtist?.profile_id ?? invitedArtist?.profile_id ?? invitedProfile?.id ?? null,
           invited_email: row.invited_email ?? invitedProfile?.email ?? '',
           display_name: selectedArtist?.artist_name || invitedProfile?.full_name || invitedArtist?.artist_name || row.invited_email || '',
           invited_full_name: invitedProfile?.full_name || invitedArtist?.artist_name || '',
@@ -2233,7 +2362,7 @@ export class SupabaseService {
       end_date: primaryDate?.request_type === 'period' ? (primaryDate.end_date || null) : null,
       event_time: null,
       image_url: request.image_url || null,
-      status: request.status || 'pending',
+      status: this.mapArtistWorkflowStatusToDb(request.status),
       updated_at: new Date().toISOString(),
     };
 
@@ -2619,7 +2748,7 @@ export class SupabaseService {
     const eventIds = eventRows.map((event) => event.id as string);
     const artistRequestIds = artistRequestRows.map((request) => request.id as string);
 
-    const [profilesResult, hostAssignmentsResult, eventArtistsResult, artistRequestDatesResult, artistRequestArtistsResult] = await Promise.all([
+    const [profilesResult, hostAssignmentsResult, eventArtistsResult, artistRequestDatesResult, artistRequestArtistsResult, artistRequestCommentsResult] = await Promise.all([
       creatorIds.length > 0
         ? this.adminSupabase
             .from('tjs_profiles')
@@ -2680,6 +2809,12 @@ export class SupabaseService {
             `)
             .in('request_id', artistRequestIds)
         : Promise.resolve({ data: [], error: null }),
+      artistRequestIds.length > 0
+        ? this.adminSupabase
+            .from('tjs_artist_request_comments')
+            .select('request_id, author_profile_id, body')
+            .in('request_id', artistRequestIds)
+        : Promise.resolve({ data: [], error: null }),
     ]);
 
     if (profilesResult.error) {
@@ -2700,6 +2835,10 @@ export class SupabaseService {
 
     if (artistRequestArtistsResult.error && !this.isMissingSchemaError(artistRequestArtistsResult.error)) {
       console.error('getAdminEventOverview artist request artists error:', artistRequestArtistsResult.error.message);
+    }
+
+    if (artistRequestCommentsResult.error && !this.isMissingSchemaError(artistRequestCommentsResult.error)) {
+      console.error('getAdminEventOverview artist request comments error:', artistRequestCommentsResult.error.message);
     }
 
     const profilesById = new Map<string, Partial<TjsProfile>>();
@@ -2743,6 +2882,33 @@ export class SupabaseService {
       requestArtistsById.set(requestId, existing);
     }
 
+    const acceptedHostProfileIdsByRequestId = new Map<string, string[]>();
+    const workflowStatusByRequestId = new Map<string, string>();
+    for (const comment of ((artistRequestCommentsResult.data ?? []) as any[])) {
+      const requestId = comment.request_id as string;
+      const authorProfileId = comment.author_profile_id as string | null;
+      const body = comment.body as string | null;
+
+      if (!body) {
+        continue;
+      }
+
+      if (body.startsWith('[HOST_ACCEPTED]')) {
+        workflowStatusByRequestId.set(requestId, 'host_proposed');
+        if (authorProfileId) {
+          const existing = acceptedHostProfileIdsByRequestId.get(requestId) ?? [];
+          if (!existing.includes(authorProfileId)) {
+            existing.push(authorProfileId);
+          }
+          acceptedHostProfileIdsByRequestId.set(requestId, existing);
+        }
+      } else if (body.startsWith('[ARTIST_PROPOSED]')) {
+        workflowStatusByRequestId.set(requestId, 'artist_proposed');
+      } else if (body.startsWith('[ARTIST_APPROVED]')) {
+        workflowStatusByRequestId.set(requestId, 'artist_accepted');
+      }
+    }
+
     const eventItems = eventRows.map((event) => {
       const profile = event.created_by ? profilesById.get(event.created_by) : null;
       const assignments = hostsByEventId.get(event.id) ?? [];
@@ -2755,7 +2921,9 @@ export class SupabaseService {
         teaser: null,
         event_domain_name: null,
         event_type: event.event_type,
-        status: event.status,
+        status: event.event_type === 'REQUEST'
+          ? this.mapBaseRequestStatus(event.status)
+          : event.status,
         origin_website: event.origin_website,
         visibility_scope: event.visibility_scope ?? [],
         parent_event_id: event.parent_event_id ?? null,
@@ -2767,6 +2935,7 @@ export class SupabaseService {
         city: event.city ?? null,
         creator_name: profile?.full_name || profile?.email || 'Utilisateur inconnu',
         creator_email: profile?.email || '',
+        accepted_host_profile_ids: [],
         host_ids: assignments
           .map((assignment) => assignment.host?.id as number | null | undefined)
           .filter((value: number | null | undefined): value is number => value !== null && value !== undefined),
@@ -2794,6 +2963,8 @@ export class SupabaseService {
     const artistRequestItems = artistRequestRows.map((request) => {
       const profile = request.created_by ? profilesById.get(request.created_by) : null;
       const artistAssignments = requestArtistsById.get(request.id) ?? [];
+      const acceptedHostProfileIds = acceptedHostProfileIdsByRequestId.get(request.id as string) ?? [];
+      const workflowStatus = workflowStatusByRequestId.get(request.id as string);
       const explicitDates = requestDatesById.get(request.id) ?? [];
       const fallbackDates = request.start_date ? [request.start_date as string] : [];
       const artistIds = Array.from(
@@ -2822,7 +2993,7 @@ export class SupabaseService {
         teaser: (request.teaser as string | null) ?? null,
         event_domain_name: (request.event_domain?.name as string | null | undefined) ?? null,
         event_type: 'REQUEST' as const,
-        status: this.normalizeArtistRequestStatus(request.status as string | null),
+        status: workflowStatus ?? this.normalizeArtistRequestStatus(request.status as string | null),
         origin_website: 'TJS',
         visibility_scope: ['TJS'],
         parent_event_id: null,
@@ -2834,6 +3005,7 @@ export class SupabaseService {
         city: null,
         creator_name: profile?.full_name || profile?.email || 'Utilisateur inconnu',
         creator_email: profile?.email || '',
+        accepted_host_profile_ids: acceptedHostProfileIds,
         host_ids: [],
         host_names: [],
         host_statuses: [],
@@ -3597,6 +3769,31 @@ export class SupabaseService {
     return null;
   }
 
+  async updateArtistWorkspaceRequestStatus(
+    profileId: string,
+    requestId: string,
+    status: 'pending' | 'approved' | 'rejected'
+  ): Promise<string | null> {
+    const { error } = await this.adminSupabase
+      .from('tjs_artist_requests')
+      .update({
+        status,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', requestId)
+      .eq('created_by', profileId);
+
+    if (error) {
+      if (this.isMissingSchemaError(error)) {
+        return 'Artist request tables are missing in the database. Run db/021_artist_workspace_requests.sql.';
+      }
+      console.error('updateArtistWorkspaceRequestStatus error:', error.message);
+      return error.message;
+    }
+
+    return null;
+  }
+
   async uploadLocationImage(profileId: string, file: File): Promise<{ url: string | null; error: string | null }> {
     const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
     const path = `locations/${profileId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
@@ -4133,20 +4330,196 @@ export class SupabaseService {
     return null;
   }
 
+  async createHostEventFromRequest(
+    requestId: string,
+    createdBy: string,
+    payload: CreateHostEventFromRequestPayload,
+  ): Promise<{ eventId: string | null; error: string | null }> {
+    const timestamp = new Date().toISOString();
+    const [requestResult, artistsResult, editionOptions, eventTypeOptions] = await Promise.all([
+      this.adminSupabase
+        .from('tjs_artist_requests')
+        .select('id, event_title, description, teaser')
+        .eq('id', requestId)
+        .maybeSingle(),
+      this.adminSupabase
+        .from('tjs_artist_request_artists')
+        .select('artist_id, invited_artist_id')
+        .eq('request_id', requestId),
+      this.listConcreteEventEditionOptions(),
+      this.listEventTypeOptions(),
+    ]);
+
+    if (requestResult.error) {
+      console.error('createHostEventFromRequest request lookup error:', requestResult.error.message);
+      return { eventId: null, error: requestResult.error.message };
+    }
+
+    if (!requestResult.data) {
+      return { eventId: null, error: 'Request not found.' };
+    }
+
+    if (artistsResult.error && !this.isMissingSchemaError(artistsResult.error)) {
+      console.error('createHostEventFromRequest artists lookup error:', artistsResult.error.message);
+      return { eventId: null, error: artistsResult.error.message };
+    }
+
+    const selectedEdition = editionOptions.find((item) => item.id === payload.editionId);
+    const selectedEventType = eventTypeOptions.find((item) => item.id === payload.eventTypeId);
+    const existingEventResult = await this.adminSupabase
+      .from('tjs_events')
+      .select('id, tjs_event_hosts!inner(host_id)')
+      .eq('parent_event_id', requestId)
+      .eq('event_type', 'EVENT_INSTANCE');
+
+    if (existingEventResult.error && !this.isMissingSchemaError(existingEventResult.error)) {
+      console.error('createHostEventFromRequest existing event lookup error:', existingEventResult.error.message);
+      return { eventId: null, error: existingEventResult.error.message };
+    }
+
+    const existingEventId = ((existingEventResult.data ?? []) as Array<{ id: string; tjs_event_hosts?: Array<{ host_id: number | null }> }>)
+      .find((row) => (row.tjs_event_hosts ?? []).some((assignment) => assignment.host_id === payload.hostId))
+      ?.id;
+
+    if (existingEventId) {
+      return { eventId: existingEventId, error: null };
+    }
+
+    const { data: insertedEvent, error: insertEventError } = await this.adminSupabase
+      .from('tjs_events')
+      .insert({
+        title: payload.title.trim() || requestResult.data.event_title || 'Untitled Event',
+        description: payload.description.trim() || requestResult.data.description || requestResult.data.teaser || null,
+        event_type: 'EVENT_INSTANCE',
+        status: 'APPROVED',
+        origin_website: 'TJS',
+        visibility_scope: ['TJS'],
+        parent_event_id: requestId,
+        created_by: createdBy,
+        source: 'TJS',
+        created_at: timestamp,
+        updated_at: timestamp,
+      })
+      .select('id')
+      .single();
+
+    if (insertEventError || !insertedEvent?.id) {
+      console.error('createHostEventFromRequest event insert error:', insertEventError?.message);
+      return { eventId: null, error: insertEventError?.message ?? 'Event could not be created.' };
+    }
+
+    const eventNotes = [
+      selectedEdition ? `Edition: ${selectedEdition.label ?? selectedEdition.name}` : null,
+      selectedEventType ? `Event Type: ${selectedEventType.name}` : null,
+      payload.showTime ? `Show Time: ${payload.showTime}` : null,
+      payload.notes.trim() ? payload.notes.trim() : null,
+    ].filter((item): item is string => !!item);
+
+    const selectedDates = payload.endDate && payload.endDate !== payload.startDate
+      ? [payload.startDate, payload.endDate]
+      : [payload.startDate];
+
+    const { error: hostAssignmentError } = await this.adminSupabase
+      .from('tjs_event_hosts')
+      .insert({
+        event_id: insertedEvent.id,
+        host_id: payload.hostId,
+        selected_dates: selectedDates,
+        location_id: payload.locationId,
+        host_status: 'CONFIRMED',
+        selected_at: timestamp,
+        notes: eventNotes.join('\n'),
+      });
+
+    if (hostAssignmentError) {
+      console.error('createHostEventFromRequest host assignment error:', hostAssignmentError.message);
+      return { eventId: null, error: hostAssignmentError.message };
+    }
+
+    const uniqueArtistIds = Array.from(
+      new Set(
+        ((artistsResult.data ?? []) as Array<{ artist_id: string | null; invited_artist_id: string | null }>)
+          .flatMap((artist) => [artist.artist_id, artist.invited_artist_id])
+          .filter((value): value is string => !!value)
+      )
+    );
+
+    if (uniqueArtistIds.length > 0) {
+      const { error: artistInsertError } = await this.adminSupabase
+        .from('tjs_event_artists')
+        .upsert(
+          uniqueArtistIds.map((artistId, index) => ({
+            event_id: insertedEvent.id,
+            artist_id: artistId,
+            role: index === 0 ? 'PRIMARY' : 'INVITED',
+          })),
+          { onConflict: 'event_id,artist_id,role' }
+        );
+
+      if (artistInsertError) {
+        console.error('createHostEventFromRequest artist assignment error:', artistInsertError.message);
+        return { eventId: null, error: artistInsertError.message };
+      }
+    }
+
+    await this.addArtistWorkspaceRequestComment(
+      requestId,
+      createdBy,
+      `[EVENT_CREATED]\nEvent created from request.\nEvent ID: ${insertedEvent.id}`
+    );
+
+    return { eventId: insertedEvent.id, error: null };
+  }
+
   private normalizeArtistRequestStatus(status: string | null): string {
     switch ((status ?? '').toLowerCase()) {
       case 'approved':
-        return 'APPROVED';
+        return 'approved';
       case 'rejected':
-        return 'CANCELLED';
+        return 'rejected';
       case 'accepted':
       case 'selected':
-        return 'SELECTED';
+        return 'accepted_by_host';
       case 'available':
-        return 'AVAILABLE';
+        return 'accepted_by_host';
       case 'pending':
       default:
-        return 'PENDING';
+        return 'new_request';
+    }
+  }
+
+  private mapBaseRequestStatus(status: string | null): ArtistRequestListItem['status'] {
+    switch ((status ?? '').toLowerCase()) {
+      case 'approved':
+        return 'approved';
+      case 'rejected':
+        return 'rejected';
+      case 'selected':
+      case 'accepted':
+      case 'available':
+        return 'accepted_by_host';
+      case 'pending':
+      default:
+        return 'new_request';
+    }
+  }
+
+  private mapArtistWorkflowStatusToDb(
+    status: ArtistRequestDetail['status'] | ArtistRequestListItem['status'] | string | null
+  ): 'pending' | 'approved' | 'rejected' {
+    switch ((status ?? '').toLowerCase()) {
+      case 'approved':
+      case 'artist_accepted':
+        return 'approved';
+      case 'rejected':
+        return 'rejected';
+      case 'new_request':
+      case 'accepted_by_host':
+      case 'host_proposed':
+      case 'artist_proposed':
+      case 'pending':
+      default:
+        return 'pending';
     }
   }
 

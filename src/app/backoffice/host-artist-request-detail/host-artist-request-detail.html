@@ -9,12 +9,34 @@
         Back to Artist Requests
       </button>
       <h1 class="mt-3 text-2xl font-bold text-zinc-900">Artist Request Detail</h1>
-      <p class="mt-1 text-sm text-zinc-500">Read-only detail view of the artist-submitted request.</p>
+      <p class="mt-1 text-sm text-zinc-500">Review the request, inspect artist context, propose dates, and record your response.</p>
+    </div>
+    <div class="flex flex-wrap items-center gap-3">
+      <button
+        *ngIf="canCreateEvent"
+        type="button"
+        (click)="openCreateEvent()"
+        class="inline-flex items-center justify-center rounded-2xl border border-zinc-900 bg-white px-5 py-3 text-sm font-semibold text-zinc-900 transition-colors hover:bg-zinc-50"
+      >
+        Create Event
+      </button>
+      <button
+        type="button"
+        (click)="acceptRequest()"
+        [disabled]="isSaving || acceptedByHost"
+        class="inline-flex items-center justify-center rounded-2xl bg-red-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {{ acceptedByHost ? 'Accepted' : (isSaving ? 'Saving...' : 'Accept') }}
+      </button>
     </div>
   </div>
 
   <div *ngIf="error" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
     {{ error }}
+  </div>
+
+  <div *ngIf="successMessage" class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+    {{ successMessage }}
   </div>
 
   <div *ngIf="isLoading" class="flex items-center justify-center rounded-3xl border border-zinc-200 bg-white py-20 shadow-sm">
@@ -30,95 +52,249 @@
           <p class="mt-2 text-sm text-zinc-500">Primary artist: {{ primaryArtistName() }}</p>
         </div>
         <div class="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-600">
-          <div>Status: <span class="font-semibold capitalize text-zinc-900">{{ request.status }}</span></div>
+          <div>Status: <span class="font-semibold text-zinc-900">{{ requestStatusLabel(request.status) }}</span></div>
+        </div>
+      </div>
+      <div class="mt-5 grid gap-3 text-sm text-zinc-700 md:grid-cols-3">
+        <div class="rounded-2xl bg-zinc-50 px-4 py-3">
+          <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">Domain</div>
+          <div class="mt-1 font-medium text-zinc-900">{{ request.event_domain_name || 'No domain' }}</div>
+        </div>
+        <div class="rounded-2xl bg-zinc-50 px-4 py-3">
+          <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">Artists</div>
+          <div class="mt-1 font-medium text-zinc-900">{{ request.artists.length }}</div>
+        </div>
+        <div class="rounded-2xl bg-zinc-50 px-4 py-3">
+          <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">Dates</div>
+          <div class="mt-1 font-medium text-zinc-900">{{ request.dates.length }}</div>
         </div>
       </div>
     </section>
 
-    <div class="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(20rem,1fr)]">
-      <div class="space-y-6">
-        <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
-          <h3 class="text-lg font-semibold text-zinc-900">Request Summary</h3>
-          <div class="mt-5 grid gap-5 md:grid-cols-2">
-            <div>
-              <p class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Teaser</p>
-              <div class="mt-2 text-sm text-zinc-700">{{ request.teaser || 'No teaser provided.' }}</div>
-            </div>
-            <div>
-              <p class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Long Teaser</p>
-              <div class="mt-2 whitespace-pre-line text-sm text-zinc-700">{{ request.long_teaser || 'No long teaser provided.' }}</div>
-            </div>
-          </div>
-          <div class="mt-5">
-            <p class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Description</p>
-            <div class="mt-2 whitespace-pre-line text-sm leading-6 text-zinc-700">{{ request.description || 'No description provided.' }}</div>
-          </div>
-        </section>
-
-        <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
-          <h3 class="text-lg font-semibold text-zinc-900">Request Dates</h3>
-          <div *ngIf="request.dates.length === 0" class="mt-4 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-8 text-center text-sm text-zinc-500">
-            No dates provided.
-          </div>
-          <div *ngIf="request.dates.length > 0" class="mt-4 overflow-hidden rounded-2xl border border-zinc-200">
-            <table class="w-full text-sm">
-              <thead class="bg-zinc-50 text-zinc-600">
-                <tr>
-                  <th class="px-4 py-3 text-left font-semibold">Type</th>
-                  <th class="px-4 py-3 text-left font-semibold">Start Date</th>
-                  <th class="px-4 py-3 text-left font-semibold">End Date</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-zinc-100">
-                <tr *ngFor="let date of request.dates; trackBy: trackByOptionalId" class="hover:bg-zinc-50">
-                  <td class="px-4 py-3 text-zinc-700">{{ date.request_type === 'period' ? 'Period' : 'Day Show' }}</td>
-                  <td class="px-4 py-3 text-zinc-700">{{ date.start_date | date:'mediumDate' }}</td>
-                  <td class="px-4 py-3 text-zinc-700">{{ date.request_type === 'period' ? (date.end_date | date:'mediumDate') : '-' }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
+    <div class="rounded-3xl border border-zinc-200 bg-white shadow-sm">
+      <div class="border-b border-zinc-200 bg-zinc-50/80 px-6 py-4">
+        <div class="flex flex-wrap gap-2">
+          <button type="button" (click)="setTab('request')" [ngClass]="activeTab === 'request' ? 'bg-zinc-900 text-white shadow-sm' : 'bg-white text-zinc-600 hover:bg-zinc-100'" class="rounded-full px-4 py-2 text-sm font-medium transition-colors">Request</button>
+          <button type="button" (click)="setTab('instruments')" [ngClass]="activeTab === 'instruments' ? 'bg-zinc-900 text-white shadow-sm' : 'bg-white text-zinc-600 hover:bg-zinc-100'" class="rounded-full px-4 py-2 text-sm font-medium transition-colors">Instruments</button>
+          <button type="button" (click)="setTab('dates')" [ngClass]="activeTab === 'dates' ? 'bg-zinc-900 text-white shadow-sm' : 'bg-white text-zinc-600 hover:bg-zinc-100'" class="rounded-full px-4 py-2 text-sm font-medium transition-colors">Proposed Dates</button>
+          <button type="button" (click)="setTab('comments')" [ngClass]="activeTab === 'comments' ? 'bg-zinc-900 text-white shadow-sm' : 'bg-white text-zinc-600 hover:bg-zinc-100'" class="rounded-full px-4 py-2 text-sm font-medium transition-colors">Comments</button>
+        </div>
       </div>
 
-      <div class="space-y-6">
-        <section *ngIf="request.image_url" class="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm">
-          <img [src]="request.image_url" alt="Request image" class="h-56 w-full object-cover" />
-        </section>
-
-        <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
-          <h3 class="text-lg font-semibold text-zinc-900">Artists</h3>
-          <div *ngIf="request.artists.length === 0" class="mt-4 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-8 text-center text-sm text-zinc-500">
-            No artists attached to this request.
-          </div>
-          <div *ngIf="request.artists.length > 0" class="mt-4 space-y-3">
-            <div *ngFor="let artist of request.artists; trackBy: trackByOptionalId" class="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
-              <div class="text-sm font-semibold text-zinc-900">{{ artist.display_name || 'Unnamed artist' }}</div>
-              <div class="mt-1 text-xs text-zinc-500">
-                {{ artist.is_primary ? 'Primary artist' : (artist.invited_email ? 'Invited artist' : 'Linked artist') }}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
-          <h3 class="text-lg font-semibold text-zinc-900">Media</h3>
-          <div *ngIf="request.media.length === 0" class="mt-4 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-8 text-center text-sm text-zinc-500">
-            No media attached to this request.
-          </div>
-          <div *ngIf="request.media.length > 0" class="mt-4 space-y-3">
-            <div *ngFor="let item of request.media; trackBy: trackByOptionalId" class="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
-              <div class="flex items-start justify-between gap-3">
+      <div class="bg-[radial-gradient(circle_at_top_left,#fafafa_0%,#ffffff_45%,#f4f4f5_100%)] px-6 py-6">
+        <div *ngIf="activeTab === 'request'" class="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(20rem,1fr)]">
+          <div class="space-y-6">
+            <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+              <h3 class="text-lg font-semibold text-zinc-900">Request Details</h3>
+              <div class="mt-5 space-y-5">
                 <div>
-                  <div class="text-sm font-semibold text-zinc-900">{{ item.name || item.media_type }}</div>
-                  <div class="mt-1 text-xs uppercase tracking-wide text-zinc-500">{{ item.media_type }}</div>
+                  <p class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Teaser</p>
+                  <div class="mt-2 text-sm text-zinc-700">{{ request.teaser || 'No teaser provided.' }}</div>
                 </div>
-                <a *ngIf="item.url" [href]="item.url" target="_blank" rel="noreferrer" class="text-sm font-semibold text-red-600 hover:text-red-700">Open</a>
+                <div>
+                  <p class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Long Teaser</p>
+                  <div class="mt-2 whitespace-pre-line text-sm text-zinc-700">{{ request.long_teaser || 'No long teaser provided.' }}</div>
+                </div>
+                <div>
+                  <p class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Description</p>
+                  <div class="mt-2 whitespace-pre-line text-sm leading-6 text-zinc-700">{{ request.description || 'No description provided.' }}</div>
+                </div>
               </div>
-              <div *ngIf="item.description" class="mt-3 text-sm text-zinc-600">{{ item.description }}</div>
-            </div>
+            </section>
+
+            <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+              <h3 class="text-lg font-semibold text-zinc-900">Artists</h3>
+              <div *ngIf="request.artists.length === 0" class="mt-4 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-8 text-center text-sm text-zinc-500">
+                No artists attached to this request.
+              </div>
+              <div *ngIf="request.artists.length > 0" class="mt-4 space-y-3">
+                <div *ngFor="let artist of request.artists; trackBy: trackByOptionalId" class="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                  <div class="text-sm font-semibold text-zinc-900">{{ artist.display_name || 'Unnamed artist' }}</div>
+                  <div class="mt-1 text-xs text-zinc-500">
+                    {{ artist.is_primary ? 'Primary artist' : (artist.invited_email ? 'Invited artist' : 'Linked artist') }}
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+              <h3 class="text-lg font-semibold text-zinc-900">Artist Proposed Dates</h3>
+              <div *ngIf="request.dates.length === 0" class="mt-4 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-8 text-center text-sm text-zinc-500">
+                No proposed dates were added to this request.
+              </div>
+              <div *ngIf="request.dates.length > 0" class="mt-4 space-y-3">
+                <div *ngFor="let date of request.dates; let i = index; trackBy: trackByOptionalId" class="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                  <div class="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                    {{ date.request_type === 'period' ? 'Period' : 'One Day' }}
+                  </div>
+                  <div class="mt-2 text-sm font-medium text-zinc-900">{{ artistRequestedDateLabel(date) }}</div>
+                </div>
+              </div>
+            </section>
           </div>
-        </section>
+
+          <div class="space-y-6">
+            <section *ngIf="request.image_url" class="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm">
+              <img [src]="request.image_url" alt="Request image" class="h-56 w-full object-cover" />
+            </section>
+
+            <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+              <h3 class="text-lg font-semibold text-zinc-900">Media</h3>
+              <div *ngIf="request.media.length === 0" class="mt-4 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-8 text-center text-sm text-zinc-500">
+                No media attached to this request.
+              </div>
+              <div *ngIf="request.media.length > 0" class="mt-4 space-y-3">
+                <div *ngFor="let item of request.media; trackBy: trackByOptionalId" class="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                  <div class="flex items-start justify-between gap-3">
+                    <div>
+                      <div class="text-sm font-semibold text-zinc-900">{{ item.name || item.media_type }}</div>
+                      <div class="mt-1 text-xs uppercase tracking-wide text-zinc-500">{{ item.media_type }}</div>
+                    </div>
+                    <a *ngIf="item.url" [href]="item.url" target="_blank" rel="noreferrer" class="text-sm font-semibold text-red-600 hover:text-red-700">Open</a>
+                  </div>
+                  <div *ngIf="item.description" class="mt-3 text-sm text-zinc-600">{{ item.description }}</div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <div *ngIf="activeTab === 'instruments'" class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <h3 class="text-lg font-semibold text-zinc-900">Artist Instruments</h3>
+          <div *ngIf="instrumentOptions.length > 0" class="mt-5 flex flex-wrap gap-3">
+            <span *ngFor="let instrument of instrumentOptions; trackBy: trackByNumericId" class="inline-flex rounded-full border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700">
+              {{ instrument.name }}
+            </span>
+          </div>
+          <div *ngIf="instrumentOptions.length === 0" class="mt-5 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-10 text-center text-sm text-zinc-500">
+            No instruments added for the primary artist.
+          </div>
+        </div>
+
+        <div *ngIf="activeTab === 'dates'" class="space-y-6">
+          <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+            <h3 class="text-lg font-semibold text-zinc-900">Host Proposal</h3>
+            <p class="mt-1 text-sm text-zinc-500">Choose the edition and event type, then enter the dates you can host for this request.</p>
+            <div class="mt-5 grid gap-5 md:grid-cols-2">
+              <div>
+                <label class="text-sm font-medium text-zinc-700">Event Edition</label>
+                <select [(ngModel)]="selectedEditionId" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100">
+                  <option [ngValue]="null">Select edition</option>
+                  <option *ngFor="let edition of editionOptions" [ngValue]="edition.id">{{ edition.name }}</option>
+                </select>
+              </div>
+              <div>
+                <label class="text-sm font-medium text-zinc-700">Event Type</label>
+                <select [(ngModel)]="selectedEventTypeId" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100">
+                  <option [ngValue]="null">Select event type</option>
+                  <option *ngFor="let eventType of eventTypeOptions" [ngValue]="eventType.id">{{ eventType.name }}</option>
+                </select>
+              </div>
+            </div>
+          </section>
+
+          <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <h3 class="text-lg font-semibold text-zinc-900">Proposed Dates</h3>
+                <p class="mt-1 text-sm text-zinc-500">For each proposal, choose whether it is a one-day show or a period, then add show time and location.</p>
+              </div>
+              <button type="button" (click)="addProposedDate()" class="rounded-2xl border border-zinc-200 px-4 py-3 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50">
+                Add Date
+              </button>
+            </div>
+
+            <div class="mt-5 space-y-4">
+              <div *ngFor="let proposedDate of proposedDates; let i = index" class="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                <div class="grid gap-4 md:grid-cols-2">
+                  <div class="space-y-2 md:col-span-2">
+                    <label class="text-sm font-medium text-zinc-700">Proposal Type</label>
+                    <div class="flex flex-wrap gap-3">
+                      <label class="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm">
+                        <input [(ngModel)]="proposedDate.mode" type="radio" value="one_day" />
+                        One Day
+                      </label>
+                      <label class="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm">
+                        <input [(ngModel)]="proposedDate.mode" type="radio" value="period" />
+                        Period
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="space-y-2">
+                    <label class="text-sm font-medium text-zinc-700">Start Date</label>
+                    <input [(ngModel)]="proposedDate.start_date" type="date" class="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+                  </div>
+
+                  <div *ngIf="proposedDate.mode === 'period'" class="space-y-2">
+                    <label class="text-sm font-medium text-zinc-700">End Date</label>
+                    <input [(ngModel)]="proposedDate.end_date" type="date" class="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+                  </div>
+
+                  <div class="space-y-2">
+                    <label class="text-sm font-medium text-zinc-700">Show Time</label>
+                    <input [(ngModel)]="proposedDate.show_time" type="time" class="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+                  </div>
+
+                  <div class="space-y-2 md:col-span-2">
+                    <label class="text-sm font-medium text-zinc-700">Location</label>
+                    <select [(ngModel)]="proposedDate.location_id" class="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100">
+                      <option [ngValue]="null">Select location</option>
+                      <optgroup *ngIf="privateLocations.length > 0" label="Private Locations">
+                        <option *ngFor="let location of privateLocations; trackBy: trackByLocationId" [ngValue]="location.id">{{ locationLabel(location) }}</option>
+                      </optgroup>
+                      <optgroup *ngIf="publicLocations.length > 0" label="Public Locations">
+                        <option *ngFor="let location of publicLocations; trackBy: trackByLocationId" [ngValue]="location.id">{{ locationLabel(location) }}</option>
+                      </optgroup>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="mt-4 flex justify-end">
+                  <button type="button" (click)="removeProposedDate(i)" class="rounded-xl border border-red-200 px-4 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50">
+                    Remove
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div *ngIf="activeTab === 'comments'" class="space-y-6">
+          <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+            <h3 class="text-lg font-semibold text-zinc-900">Add Comment</h3>
+            <textarea [(ngModel)]="commentDraft" rows="5" placeholder="Write your host comment..." class="mt-4 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100"></textarea>
+            <div class="mt-4 flex justify-end">
+              <button
+                type="button"
+                (click)="submitComment()"
+                [disabled]="isSaving || !commentDraft.trim()"
+                class="rounded-2xl bg-zinc-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {{ isSaving ? 'Saving...' : 'Post Comment' }}
+              </button>
+            </div>
+          </section>
+
+          <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+            <h3 class="text-lg font-semibold text-zinc-900">Comments</h3>
+            <div *ngIf="request.comments.length === 0" class="mt-4 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-8 text-center text-sm text-zinc-500">
+              No comments yet.
+            </div>
+            <div *ngIf="request.comments.length > 0" class="mt-4 space-y-3">
+              <div *ngFor="let comment of request.comments; trackBy: trackByOptionalId" class="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                <div class="flex items-start justify-between gap-3">
+                  <div>
+                    <div class="text-sm font-semibold text-zinc-900">{{ comment.author_name }}</div>
+                    <div class="mt-1 text-xs text-zinc-500">{{ comment.author_role || 'User' }}</div>
+                  </div>
+                  <div class="text-xs text-zinc-400">{{ comment.created_at | date:'medium' }}</div>
+                </div>
+                <div class="mt-3 whitespace-pre-line text-sm text-zinc-700">{{ comment.body }}</div>
+              </div>
+            </div>
+          </section>
+        </div>
       </div>
     </div>
   </ng-container>

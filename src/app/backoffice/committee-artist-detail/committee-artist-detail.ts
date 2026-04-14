@@ -315,7 +315,7 @@ export class CommitteeArtistDetail implements OnInit {
       this.instruments = instruments;
       this.media = media;
       this.availability = availability;
-      this.pendingRequests = requests.filter((request) => request.status === 'pending');
+      this.pendingRequests = requests.filter((request) => request.status === 'new_request');
 
       if (this.pendingRequests.length > 0) {
         await this.openRequest(this.pendingRequests[0].id);

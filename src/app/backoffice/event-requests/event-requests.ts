@@ -106,23 +106,33 @@ export class EventRequests implements OnInit {
   get filteredRequests() {
     const query = this.searchQuery.trim().toLowerCase();
     const hostIds = new Set(this.hostOptions.map((host) => host.id));
+    const currentUserId = this.authService.currentUser?.id ?? '';
 
     return this.items.filter((item) => {
-      if (this.isHostWorkspace && !['PENDING', 'SELECTED', 'APPROVED'].includes(item.status)) {
+      if (this.isHostWorkspace && !['new_request', 'accepted_by_host', 'host_proposed', 'artist_proposed', 'artist_accepted', 'approved'].includes(item.status)) {
         return false;
       }
 
       const isAssignedToHost = item.host_ids.some((hostId) => hostIds.has(hostId));
+      const isAcceptedByCurrentHost = item.accepted_host_profile_ids.includes(currentUserId);
+      const matchesActiveTab = this.activeTab === 'PENDING'
+        ? ['new_request', 'artist_proposed'].includes(item.status)
+        : this.activeTab === 'SELECTED'
+          ? ['accepted_by_host', 'host_proposed'].includes(item.status)
+          : this.activeTab === 'APPROVED'
+            ? ['artist_accepted', 'approved'].includes(item.status)
+            : ['accepted_by_host', 'host_proposed'].includes(item.status);
       const matchesHostWorkflow = !this.isHostWorkspace
-        || item.status === 'PENDING'
-        || ((item.status === 'SELECTED' || item.status === 'APPROVED') && isAssignedToHost);
+        || item.status === 'new_request'
+        || item.status === 'artist_proposed'
+        || (['accepted_by_host', 'host_proposed', 'artist_accepted', 'approved'].includes(item.status) && (isAssignedToHost || isAcceptedByCurrentHost));
 
       const matchesScope =
         !this.isCommitteeMember ||
         this.showAllPlatform ||
         item.artist_ids.some((artistId) => this.myArtistIds.has(artistId));
 
-      if (!matchesHostWorkflow || !matchesScope || item.status !== this.activeTab) {
+      if (!matchesHostWorkflow || !matchesScope || !matchesActiveTab) {
         return false;
       }
 
@@ -149,40 +159,37 @@ export class EventRequests implements OnInit {
 
   badgeClass(status: string): string {
     switch (status) {
-      case 'PENDING':
+      case 'new_request':
         return 'bg-amber-50 text-amber-700 border border-amber-200';
-      case 'SELECTED':
+      case 'accepted_by_host':
         return 'bg-cyan-50 text-cyan-700 border border-cyan-200';
-      case 'APPROVED':
-        return 'bg-blue-50 text-blue-700 border border-blue-200';
-      case 'AVAILABLE':
+      case 'host_proposed':
+        return 'bg-sky-50 text-sky-700 border border-sky-200';
+      case 'artist_proposed':
+        return 'bg-violet-50 text-violet-700 border border-violet-200';
+      case 'artist_accepted':
         return 'bg-emerald-50 text-emerald-700 border border-emerald-200';
+      case 'approved':
+        return 'bg-blue-50 text-blue-700 border border-blue-200';
       default:
         return 'bg-zinc-100 text-zinc-700 border border-zinc-200';
     }
   }
 
   requestStatusLabel(status: string): string {
-    if (this.isHostWorkspace) {
-      switch (status) {
-        case 'PENDING':
-          return 'Pending';
-        case 'SELECTED':
-          return 'Accepted';
-        case 'APPROVED':
-          return 'Approved';
-        default:
-          return status;
-      }
-    }
-
     switch (status) {
-      case 'PENDING':
-        return 'Pending';
-      case 'APPROVED':
+      case 'new_request':
+        return 'New Request';
+      case 'accepted_by_host':
+        return 'Accepted by Host';
+      case 'host_proposed':
+        return 'Host Proposed';
+      case 'artist_proposed':
+        return 'Artist Proposed';
+      case 'artist_accepted':
+        return 'Artist Accepted';
+      case 'approved':
         return 'Approved';
-      case 'AVAILABLE':
-        return 'Available';
       default:
         return status;
     }
