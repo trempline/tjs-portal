@@ -63,4 +63,5 @@ plans
 HOST_ACCOUNT_MANAGEMENT.md
 PROJECT_CONTEXT.md
 supabase-schema.sql
-db
+db/*
+/db
