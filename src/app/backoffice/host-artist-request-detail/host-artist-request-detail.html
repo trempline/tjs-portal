@@ -18,7 +18,7 @@
         (click)="openCreateEvent()"
         class="inline-flex items-center justify-center rounded-2xl border border-zinc-900 bg-white px-5 py-3 text-sm font-semibold text-zinc-900 transition-colors hover:bg-zinc-50"
       >
-        Create Event
+        Open Event Editor
       </button>
       <button
         type="button"
@@ -77,7 +77,12 @@
           <button type="button" (click)="setTab('request')" [ngClass]="activeTab === 'request' ? 'bg-zinc-900 text-white shadow-sm' : 'bg-white text-zinc-600 hover:bg-zinc-100'" class="rounded-full px-4 py-2 text-sm font-medium transition-colors">Request</button>
           <button type="button" (click)="setTab('instruments')" [ngClass]="activeTab === 'instruments' ? 'bg-zinc-900 text-white shadow-sm' : 'bg-white text-zinc-600 hover:bg-zinc-100'" class="rounded-full px-4 py-2 text-sm font-medium transition-colors">Instruments</button>
           <button type="button" (click)="setTab('dates')" [ngClass]="activeTab === 'dates' ? 'bg-zinc-900 text-white shadow-sm' : 'bg-white text-zinc-600 hover:bg-zinc-100'" class="rounded-full px-4 py-2 text-sm font-medium transition-colors">Proposed Dates</button>
-          <button type="button" (click)="setTab('comments')" [ngClass]="activeTab === 'comments' ? 'bg-zinc-900 text-white shadow-sm' : 'bg-white text-zinc-600 hover:bg-zinc-100'" class="rounded-full px-4 py-2 text-sm font-medium transition-colors">Comments</button>
+          <button type="button" (click)="setTab('comments')" [ngClass]="activeTab === 'comments' ? 'bg-zinc-900 text-white shadow-sm' : 'bg-white text-zinc-600 hover:bg-zinc-100'" class="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors">
+            <span>Comments</span>
+            <span *ngIf="request.comments.length > 0" class="inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1.5 text-xs font-semibold" [ngClass]="activeTab === 'comments' ? 'bg-white/20 text-white' : 'bg-zinc-200 text-zinc-700'">
+              {{ request.comments.length }}
+            </span>
+          </button>
         </div>
       </div>
 
@@ -108,10 +113,37 @@
                 No artists attached to this request.
               </div>
               <div *ngIf="request.artists.length > 0" class="mt-4 space-y-3">
-                <div *ngFor="let artist of request.artists; trackBy: trackByOptionalId" class="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
-                  <div class="text-sm font-semibold text-zinc-900">{{ artist.display_name || 'Unnamed artist' }}</div>
-                  <div class="mt-1 text-xs text-zinc-500">
-                    {{ artist.is_primary ? 'Primary artist' : (artist.invited_email ? 'Invited artist' : 'Linked artist') }}
+                <div *ngFor="let artist of request.artists; trackBy: trackByOptionalId" class="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                  <div class="flex items-start gap-4">
+                    <div class="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-zinc-200 bg-white">
+                      <img *ngIf="artist.image_url; else artistImageFallback" [src]="artist.image_url" alt="Artist image" class="h-full w-full object-cover" />
+                      <ng-template #artistImageFallback>
+                        <div class="text-lg font-semibold uppercase text-zinc-400">
+                          {{ (artist.display_name || artist.invited_full_name || artist.invited_email || '?').slice(0, 1) }}
+                        </div>
+                      </ng-template>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                      <div class="text-sm font-semibold text-zinc-900">{{ artist.display_name || 'Unnamed artist' }}</div>
+                      <div class="mt-1 text-xs text-zinc-500">
+                        {{ artist.is_primary ? 'Primary artist' : (artist.invited_email ? 'Invited artist' : 'Linked artist') }}
+                      </div>
+                      <div class="mt-4">
+                        <div class="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Teaser</div>
+                        <div class="mt-1 text-sm text-zinc-700">{{ artist.tagline || 'No teaser provided.' }}</div>
+                      </div>
+                      <div class="mt-4">
+                        <div class="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Instruments</div>
+                        <div *ngIf="artist.instruments?.length; else noArtistInstruments" class="mt-2 flex flex-wrap gap-2">
+                          <span *ngFor="let instrument of artist.instruments" class="inline-flex rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
+                            {{ instrument }}
+                          </span>
+                        </div>
+                        <ng-template #noArtistInstruments>
+                          <div class="mt-1 text-sm text-zinc-500">No instruments added.</div>
+                        </ng-template>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -136,6 +168,38 @@
           <div class="space-y-6">
             <section *ngIf="request.image_url" class="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm">
               <img [src]="request.image_url" alt="Request image" class="h-56 w-full object-cover" />
+            </section>
+
+            <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <h3 class="text-lg font-semibold text-zinc-900">Latest Comments</h3>
+                  <p class="mt-1 text-sm text-zinc-500">Recent conversation updates stay visible here regardless of the request status.</p>
+                </div>
+                <button
+                  type="button"
+                  (click)="setTab('comments')"
+                  class="rounded-2xl border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50"
+                >
+                  Open Comments
+                </button>
+              </div>
+
+              <div *ngIf="recentComments.length === 0" class="mt-4 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-8 text-center text-sm text-zinc-500">
+                No comments yet.
+              </div>
+              <div *ngIf="recentComments.length > 0" class="mt-4 space-y-3">
+                <div *ngFor="let comment of recentComments; trackBy: trackByOptionalId" class="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                  <div class="flex items-start justify-between gap-3">
+                    <div>
+                      <div class="text-sm font-semibold text-zinc-900">{{ comment.author_name }}</div>
+                      <div class="mt-1 text-xs text-zinc-500">{{ comment.author_role || 'User' }}</div>
+                    </div>
+                    <div class="text-xs text-zinc-400">{{ comment.created_at | date:'medium' }}</div>
+                  </div>
+                  <div class="mt-3 whitespace-pre-line text-sm leading-6 text-zinc-700">{{ comment.body }}</div>
+                </div>
+              </div>
             </section>
 
             <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">

@@ -16,7 +16,7 @@ export class EventRequests implements OnInit {
   private supabase = inject(SupabaseService);
   private router = inject(Router);
 
-  activeTab: 'PENDING' | 'APPROVED' | 'AVAILABLE' | 'SELECTED' = 'PENDING';
+  activeTab: 'PENDING' | 'APPROVED' | 'AVAILABLE' | 'SELECTED' | 'new_request' | 'accepted_by_host' | 'host_proposed' | 'artist_proposed' | 'artist_accepted' | 'published' | 'rejected' = 'new_request';
   isLoading = true;
   error = '';
   searchQuery = '';
@@ -30,6 +30,10 @@ export class EventRequests implements OnInit {
     if (!this.supportsOverview) {
       this.isLoading = false;
       return;
+    }
+
+    if (!this.isHostWorkspace) {
+      this.activeTab = 'PENDING';
     }
 
     await this.loadData();
@@ -61,7 +65,7 @@ export class EventRequests implements OnInit {
     }
   }
 
-  setTab(tab: 'PENDING' | 'APPROVED' | 'AVAILABLE' | 'SELECTED') {
+  setTab(tab: 'PENDING' | 'APPROVED' | 'AVAILABLE' | 'SELECTED' | 'new_request' | 'accepted_by_host' | 'host_proposed' | 'artist_proposed' | 'artist_accepted' | 'published' | 'rejected') {
     this.activeTab = tab;
   }
 
@@ -92,10 +96,6 @@ export class EventRequests implements OnInit {
   }
 
   get scopeLabel(): string {
-    if (this.isHostWorkspace) {
-      return 'All artist requests';
-    }
-
     if (!this.isCommitteeMember) {
       return 'All platform requests';
     }
@@ -109,23 +109,25 @@ export class EventRequests implements OnInit {
     const currentUserId = this.authService.currentUser?.id ?? '';
 
     return this.items.filter((item) => {
-      if (this.isHostWorkspace && !['new_request', 'accepted_by_host', 'host_proposed', 'artist_proposed', 'artist_accepted', 'approved'].includes(item.status)) {
+      if (this.isHostWorkspace && !['new_request', 'accepted_by_host', 'host_proposed', 'artist_proposed', 'artist_accepted', 'approved', 'published'].includes(item.status)) {
         return false;
       }
 
       const isAssignedToHost = item.host_ids.some((hostId) => hostIds.has(hostId));
       const isAcceptedByCurrentHost = item.accepted_host_profile_ids.includes(currentUserId);
-      const matchesActiveTab = this.activeTab === 'PENDING'
-        ? ['new_request', 'artist_proposed'].includes(item.status)
-        : this.activeTab === 'SELECTED'
-          ? ['accepted_by_host', 'host_proposed'].includes(item.status)
-          : this.activeTab === 'APPROVED'
-            ? ['artist_accepted', 'approved'].includes(item.status)
-            : ['accepted_by_host', 'host_proposed'].includes(item.status);
+      const matchesActiveTab = this.isHostWorkspace
+        ? item.status === this.activeTab
+        : this.activeTab === 'PENDING'
+          ? ['new_request', 'artist_proposed'].includes(item.status)
+          : this.activeTab === 'SELECTED'
+            ? ['accepted_by_host', 'host_proposed'].includes(item.status)
+            : this.activeTab === 'APPROVED'
+              ? ['artist_accepted', 'approved', 'published'].includes(item.status)
+              : ['accepted_by_host', 'host_proposed'].includes(item.status);
       const matchesHostWorkflow = !this.isHostWorkspace
         || item.status === 'new_request'
         || item.status === 'artist_proposed'
-        || (['accepted_by_host', 'host_proposed', 'artist_accepted', 'approved'].includes(item.status) && (isAssignedToHost || isAcceptedByCurrentHost));
+        || (['accepted_by_host', 'host_proposed', 'artist_accepted', 'approved', 'published'].includes(item.status) && (isAssignedToHost || isAcceptedByCurrentHost));
 
       const matchesScope =
         !this.isCommitteeMember ||
@@ -171,6 +173,8 @@ export class EventRequests implements OnInit {
         return 'bg-emerald-50 text-emerald-700 border border-emerald-200';
       case 'approved':
         return 'bg-blue-50 text-blue-700 border border-blue-200';
+      case 'published':
+        return 'bg-emerald-50 text-emerald-700 border border-emerald-200';
       default:
         return 'bg-zinc-100 text-zinc-700 border border-zinc-200';
     }
@@ -190,6 +194,8 @@ export class EventRequests implements OnInit {
         return 'Artist Accepted';
       case 'approved':
         return 'Approved';
+      case 'published':
+        return 'Published';
       default:
         return status;
     }
@@ -207,6 +213,14 @@ export class EventRequests implements OnInit {
     return item.proposed_dates ?? [];
   }
 
+  primaryRequestDate(item: AdminEventOverviewItem): string | null {
+    return this.requestDates(item)[0] ?? null;
+  }
+
+  additionalRequestDateCount(item: AdminEventOverviewItem): number {
+    return Math.max(0, this.requestDates(item).length - 1);
+  }
+
   teaserText(item: AdminEventOverviewItem): string {
     return item.teaser || item.description || 'No teaser';
   }
@@ -216,6 +230,10 @@ export class EventRequests implements OnInit {
       return;
     }
 
-    await this.router.navigate(['/backoffice/host/requests', item.id]);
+    const target = ['artist_accepted', 'approved', 'published'].includes(item.status)
+      ? ['/backoffice/host/requests', item.id, 'create-event']
+      : ['/backoffice/host/requests', item.id];
+
+    await this.router.navigate(target);
   }
 }

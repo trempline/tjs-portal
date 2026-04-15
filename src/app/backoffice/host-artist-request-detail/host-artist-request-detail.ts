@@ -241,6 +241,8 @@ export class HostArtistRequestDetail implements OnInit {
         return 'Artist Accepted';
       case 'approved':
         return 'Approved';
+      case 'published':
+        return 'Published';
       default:
         return status;
     }
@@ -248,6 +250,10 @@ export class HostArtistRequestDetail implements OnInit {
 
   get canCreateEvent(): boolean {
     return ['artist_accepted', 'approved'].includes(this.request?.status ?? '');
+  }
+
+  get recentComments() {
+    return (this.request?.comments ?? []).slice(-3).reverse();
   }
 
   async openCreateEvent() {
@@ -315,7 +321,7 @@ export class HostArtistRequestDetail implements OnInit {
   }
 
   private isHostAcceptedWorkflow(status: string): boolean {
-    return ['accepted_by_host', 'host_proposed', 'artist_accepted', 'approved'].includes(status);
+    return ['accepted_by_host', 'host_proposed', 'artist_accepted', 'approved', 'published'].includes(status);
   }
 
   private hydrateHostProposalFromComments() {

@@ -38,17 +38,22 @@ export class ArtistRequests implements OnInit {
   private currentArtistName = '';
   private seenCommentMap: Record<string, string> = {};
   private isSubmittingArtistProposal = false;
+  private originalDatesSignature = '';
 
   isLoading = true;
+  isDetailLoading = false;
   isSaving = false;
+  isAddingComment = false;
   isRequestImageUploading = false;
   isEditing = false;
+  isDeleteConfirmOpen = false;
+  isDeletingRequest = false;
   error = '';
   successMessage = '';
 
   requests: ArtistRequestListItem[] = [];
   eventDomains: Array<{ id: number; name: string }> = [];
-  tjsArtists: Array<{ id: string; artist_name: string; profile_id: string }> = [];
+  tjsArtists: Array<{ id: string; artist_name: string; profile_id: string; instruments: string[] }> = [];
 
   isEditorOpen = false;
   activeTab: RequestTab = 'details';
@@ -93,6 +98,7 @@ export class ArtistRequests implements OnInit {
     this.error = '';
     this.successMessage = '';
     this.isEditorOpen = true;
+    this.isDetailLoading = false;
     this.activeTab = 'details';
     this.selectedRequestId = null;
     this.request = this.blankRequest();
@@ -101,6 +107,7 @@ export class ArtistRequests implements OnInit {
     this.inviteArtist = { email: '', fullName: '' };
     this.showInviteArtistForm = false;
     this.isSubmittingArtistProposal = false;
+    this.originalDatesSignature = this.buildDatesSignature(this.request.dates);
     this.isEditing = true;
   }
 
@@ -112,6 +119,7 @@ export class ArtistRequests implements OnInit {
     this.error = '';
     this.successMessage = '';
     this.isEditorOpen = true;
+    this.isDetailLoading = true;
     this.activeTab = 'details';
     this.selectedRequestId = requestId;
     this.commentDraft = '';
@@ -123,12 +131,15 @@ export class ArtistRequests implements OnInit {
     const detail = await this.supabase.getArtistWorkspaceRequestDetail(requestId);
     if (!detail) {
       this.error = 'Request details could not be loaded.';
+      this.isDetailLoading = false;
       return;
     }
 
     this.request = this.applyPrimaryArtist(detail);
     this.markRequestCommentsAsSeen(requestId, detail.comments.at(-1)?.created_at ?? null);
+    this.originalDatesSignature = this.buildDatesSignature(this.request.dates);
     this.isEditing = false;
+    this.isDetailLoading = false;
   }
 
   async closeEditor() {
@@ -137,13 +148,16 @@ export class ArtistRequests implements OnInit {
 
   private resetEditorState() {
     this.isEditorOpen = false;
+    this.isDetailLoading = false;
     this.selectedRequestId = null;
     this.request = this.blankRequest();
     this.isEditing = false;
+    this.isDeleteConfirmOpen = false;
     this.commentDraft = '';
     this.initialCommentPreview = '';
     this.showInviteArtistForm = false;
     this.isSubmittingArtistProposal = false;
+    this.originalDatesSignature = this.buildDatesSignature(this.request.dates);
   }
 
   startEditing() {
@@ -198,6 +212,24 @@ export class ArtistRequests implements OnInit {
     await this.router.navigate(['/backoffice/artist-requests/new']);
   }
 
+  openDeleteConfirm() {
+    if (!this.canDeleteSelectedRequest()) {
+      return;
+    }
+
+    this.error = '';
+    this.successMessage = '';
+    this.isDeleteConfirmOpen = true;
+  }
+
+  closeDeleteConfirm() {
+    if (this.isDeletingRequest) {
+      return;
+    }
+
+    this.isDeleteConfirmOpen = false;
+  }
+
   async deleteRequest() {
     const profileId = this.authService.currentUser?.id;
     if (!profileId || !this.request.id) {
@@ -205,12 +237,16 @@ export class ArtistRequests implements OnInit {
       return;
     }
 
+    this.isDeletingRequest = true;
     const deleteError = await this.supabase.deleteArtistWorkspaceRequest(profileId, this.request.id);
     if (deleteError) {
       this.error = deleteError;
+      this.isDeletingRequest = false;
       return;
     }
 
+    this.isDeleteConfirmOpen = false;
+    this.isDeletingRequest = false;
     this.successMessage = 'Request deleted successfully.';
     await this.closeEditor();
     await this.loadRequests(profileId);
@@ -388,6 +424,14 @@ export class ArtistRequests implements OnInit {
     }
 
     const isNewRequestSubmission = !this.request.id;
+    const datesChanged = !isNewRequestSubmission
+      && this.buildDatesSignature(this.request.dates) !== this.originalDatesSignature;
+
+    if (datesChanged) {
+      this.request.status = 'artist_proposed';
+      this.isSubmittingArtistProposal = true;
+    }
+
     this.isSaving = true;
     const result = await this.supabase.saveArtistWorkspaceRequest(profileId, this.request);
     if (result.error || !result.requestId) {
@@ -448,8 +492,10 @@ export class ArtistRequests implements OnInit {
     const refreshed = await this.supabase.getArtistWorkspaceRequestDetail(result.requestId);
     if (refreshed) {
       this.request = this.applyPrimaryArtist(refreshed);
+      this.originalDatesSignature = this.buildDatesSignature(this.request.dates);
     } else {
       this.request.id = result.requestId;
+      this.originalDatesSignature = this.buildDatesSignature(this.request.dates);
     }
 
     if (this.isSubmittingArtistProposal) {
@@ -473,6 +519,7 @@ export class ArtistRequests implements OnInit {
       const proposalRefreshed = await this.supabase.getArtistWorkspaceRequestDetail(result.requestId);
       if (proposalRefreshed) {
         this.request = this.applyPrimaryArtist(proposalRefreshed);
+        this.originalDatesSignature = this.buildDatesSignature(this.request.dates);
       }
     }
 
@@ -504,9 +551,14 @@ export class ArtistRequests implements OnInit {
       return;
     }
 
+    this.error = '';
+    this.successMessage = '';
+    this.isAddingComment = true;
+
     const error = await this.supabase.addArtistWorkspaceRequestComment(this.request.id, profileId, this.commentDraft);
     if (error) {
       this.error = error;
+      this.isAddingComment = false;
       return;
     }
 
@@ -515,6 +567,8 @@ export class ArtistRequests implements OnInit {
       this.request = refreshed;
     }
     this.commentDraft = '';
+    this.successMessage = 'Comment added.';
+    this.isAddingComment = false;
   }
 
   async inviteAdditionalArtist() {
@@ -589,6 +643,14 @@ export class ArtistRequests implements OnInit {
     return item.id;
   }
 
+  formatArtistOptionLabel(artist: { artist_name: string; instruments: string[] }): string {
+    if (!artist.instruments.length) {
+      return artist.artist_name;
+    }
+
+    return `${artist.artist_name} - (${artist.instruments.join(', ')})`;
+  }
+
   hasUnreadComments(request: ArtistRequestListItem): boolean {
     if (!this.currentProfileId || !request.latest_comment_at) {
       return false;
@@ -640,6 +702,10 @@ export class ArtistRequests implements OnInit {
         : [],
       rawBody: hostAcceptedComment.body,
     };
+  }
+
+  get sortedComments(): ArtistRequestCommentEntry[] {
+    return [...this.request.comments].reverse();
   }
 
   get canRespondToHostProposal(): boolean {
@@ -731,6 +797,7 @@ export class ArtistRequests implements OnInit {
       this.currentArtistId = currentArtist?.id ?? null;
       this.currentArtistName = currentArtist?.artist_name ?? this.authService.currentUser?.email ?? '';
       this.request = this.blankRequest();
+      this.originalDatesSignature = this.buildDatesSignature(this.request.dates);
     } catch (error) {
       this.error = error instanceof Error ? error.message : 'Artist requests could not be loaded.';
     } finally {
@@ -753,6 +820,7 @@ export class ArtistRequests implements OnInit {
     }
 
     this.request = this.applyPrimaryArtist(refreshed);
+    this.originalDatesSignature = this.buildDatesSignature(this.request.dates);
   }
 
   private async syncEditorWithRoute() {
@@ -831,5 +899,16 @@ export class ArtistRequests implements OnInit {
         })),
       ],
     };
+  }
+
+  private buildDatesSignature(dates: ArtistRequestDateEntry[]): string {
+    return JSON.stringify(
+      dates.map((date) => ({
+        request_type: date.request_type,
+        start_date: date.start_date || '',
+        end_date: date.end_date || '',
+        event_time: date.event_time || '',
+      }))
+    );
   }
 }

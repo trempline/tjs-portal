@@ -11,7 +11,7 @@
         <h1 class="text-2xl font-bold text-zinc-900">{{ isHostWorkspace ? 'Artist Requests' : 'Event Requests' }}</h1>
         <p class="mt-1 text-sm text-zinc-500">
           {{ isHostWorkspace
-            ? 'Browse artist requests in a read-only list. Click any request to open its full details on a separate page.'
+            ? 'Browse artist requests. Approved requests open directly in the event editor, while other requests open the negotiation detail page.'
             : (isCommitteeMember
             ? 'Read-only request monitoring for your assigned artists, with optional platform-wide visibility for coordination.'
             : 'Platform request overview.') }}
@@ -48,60 +48,128 @@
 
     <ng-container *ngIf="supportsOverview">
       <div class="flex flex-wrap items-center gap-3">
-        <div class="flex gap-1 rounded-lg bg-zinc-100 p-1">
+        <div *ngIf="isHostWorkspace; else groupedRequestTabs" class="flex flex-wrap gap-1 rounded-lg bg-zinc-100 p-1">
           <button
-            (click)="setTab('PENDING')"
-            [class.bg-white]="activeTab === 'PENDING'"
-            [class.shadow-sm]="activeTab === 'PENDING'"
-            [class.text-zinc-800]="activeTab === 'PENDING'"
-            [class.font-semibold]="activeTab === 'PENDING'"
-            [class.text-zinc-500]="activeTab !== 'PENDING'"
+            (click)="setTab('new_request')"
+            [class.bg-white]="activeTab === 'new_request'"
+            [class.shadow-sm]="activeTab === 'new_request'"
+            [class.text-zinc-800]="activeTab === 'new_request'"
+            [class.font-semibold]="activeTab === 'new_request'"
+            [class.text-zinc-500]="activeTab !== 'new_request'"
             class="rounded-md px-4 py-1.5 text-sm transition-all duration-200"
           >
-            Pending
+            New Request
           </button>
           <button
-            *ngIf="isHostWorkspace"
-            (click)="setTab('SELECTED')"
-            [class.bg-white]="activeTab === 'SELECTED'"
-            [class.shadow-sm]="activeTab === 'SELECTED'"
-            [class.text-zinc-800]="activeTab === 'SELECTED'"
-            [class.font-semibold]="activeTab === 'SELECTED'"
-            [class.text-zinc-500]="activeTab !== 'SELECTED'"
+            (click)="setTab('accepted_by_host')"
+            [class.bg-white]="activeTab === 'accepted_by_host'"
+            [class.shadow-sm]="activeTab === 'accepted_by_host'"
+            [class.text-zinc-800]="activeTab === 'accepted_by_host'"
+            [class.font-semibold]="activeTab === 'accepted_by_host'"
+            [class.text-zinc-500]="activeTab !== 'accepted_by_host'"
             class="rounded-md px-4 py-1.5 text-sm transition-all duration-200"
           >
-            Accepted
+            Accepted by Host
           </button>
           <button
-            (click)="setTab('APPROVED')"
-            [class.bg-white]="activeTab === 'APPROVED'"
-            [class.shadow-sm]="activeTab === 'APPROVED'"
-            [class.text-zinc-800]="activeTab === 'APPROVED'"
-            [class.font-semibold]="activeTab === 'APPROVED'"
-            [class.text-zinc-500]="activeTab !== 'APPROVED'"
+            (click)="setTab('host_proposed')"
+            [class.bg-white]="activeTab === 'host_proposed'"
+            [class.shadow-sm]="activeTab === 'host_proposed'"
+            [class.text-zinc-800]="activeTab === 'host_proposed'"
+            [class.font-semibold]="activeTab === 'host_proposed'"
+            [class.text-zinc-500]="activeTab !== 'host_proposed'"
             class="rounded-md px-4 py-1.5 text-sm transition-all duration-200"
           >
-            Approved
+            Host Proposed
           </button>
           <button
-            *ngIf="!isHostWorkspace"
-            (click)="setTab('AVAILABLE')"
-            [class.bg-white]="activeTab === 'AVAILABLE'"
-            [class.shadow-sm]="activeTab === 'AVAILABLE'"
-            [class.text-zinc-800]="activeTab === 'AVAILABLE'"
-            [class.font-semibold]="activeTab === 'AVAILABLE'"
-            [class.text-zinc-500]="activeTab !== 'AVAILABLE'"
+            (click)="setTab('artist_proposed')"
+            [class.bg-white]="activeTab === 'artist_proposed'"
+            [class.shadow-sm]="activeTab === 'artist_proposed'"
+            [class.text-zinc-800]="activeTab === 'artist_proposed'"
+            [class.font-semibold]="activeTab === 'artist_proposed'"
+            [class.text-zinc-500]="activeTab !== 'artist_proposed'"
             class="rounded-md px-4 py-1.5 text-sm transition-all duration-200"
           >
-            Available
+            Artist Proposed
+          </button>
+          <button
+            (click)="setTab('artist_accepted')"
+            [class.bg-white]="activeTab === 'artist_accepted'"
+            [class.shadow-sm]="activeTab === 'artist_accepted'"
+            [class.text-zinc-800]="activeTab === 'artist_accepted'"
+            [class.font-semibold]="activeTab === 'artist_accepted'"
+            [class.text-zinc-500]="activeTab !== 'artist_accepted'"
+            class="rounded-md px-4 py-1.5 text-sm transition-all duration-200"
+          >
+            Artist Accepted
+          </button>
+          <button
+            (click)="setTab('published')"
+            [class.bg-white]="activeTab === 'published'"
+            [class.shadow-sm]="activeTab === 'published'"
+            [class.text-zinc-800]="activeTab === 'published'"
+            [class.font-semibold]="activeTab === 'published'"
+            [class.text-zinc-500]="activeTab !== 'published'"
+            class="rounded-md px-4 py-1.5 text-sm transition-all duration-200"
+          >
+            Published
+          </button>
+          <button
+            (click)="setTab('rejected')"
+            [class.bg-white]="activeTab === 'rejected'"
+            [class.shadow-sm]="activeTab === 'rejected'"
+            [class.text-zinc-800]="activeTab === 'rejected'"
+            [class.font-semibold]="activeTab === 'rejected'"
+            [class.text-zinc-500]="activeTab !== 'rejected'"
+            class="rounded-md px-4 py-1.5 text-sm transition-all duration-200"
+          >
+            Rejected
           </button>
         </div>
+        <ng-template #groupedRequestTabs>
+          <div class="flex gap-1 rounded-lg bg-zinc-100 p-1">
+            <button
+              (click)="setTab('PENDING')"
+              [class.bg-white]="activeTab === 'PENDING'"
+              [class.shadow-sm]="activeTab === 'PENDING'"
+              [class.text-zinc-800]="activeTab === 'PENDING'"
+              [class.font-semibold]="activeTab === 'PENDING'"
+              [class.text-zinc-500]="activeTab !== 'PENDING'"
+              class="rounded-md px-4 py-1.5 text-sm transition-all duration-200"
+            >
+              Pending
+            </button>
+            <button
+              (click)="setTab('APPROVED')"
+              [class.bg-white]="activeTab === 'APPROVED'"
+              [class.shadow-sm]="activeTab === 'APPROVED'"
+              [class.text-zinc-800]="activeTab === 'APPROVED'"
+              [class.font-semibold]="activeTab === 'APPROVED'"
+              [class.text-zinc-500]="activeTab !== 'APPROVED'"
+              class="rounded-md px-4 py-1.5 text-sm transition-all duration-200"
+            >
+              Approved
+            </button>
+            <button
+              (click)="setTab('AVAILABLE')"
+              [class.bg-white]="activeTab === 'AVAILABLE'"
+              [class.shadow-sm]="activeTab === 'AVAILABLE'"
+              [class.text-zinc-800]="activeTab === 'AVAILABLE'"
+              [class.font-semibold]="activeTab === 'AVAILABLE'"
+              [class.text-zinc-500]="activeTab !== 'AVAILABLE'"
+              class="rounded-md px-4 py-1.5 text-sm transition-all duration-200"
+            >
+              Available
+            </button>
+          </div>
+        </ng-template>
 
-        <span class="inline-flex rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-semibold text-zinc-600">
+        <span *ngIf="!isHostWorkspace" class="inline-flex rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-semibold text-zinc-600">
           {{ scopeLabel }}
         </span>
 
-        <span *ngIf="isCommitteeMember || isHostWorkspace" class="inline-flex rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+        <span *ngIf="isCommitteeMember" class="inline-flex rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
           Read only
         </span>
       </div>
@@ -144,11 +212,12 @@
                 </td>
                 <td class="px-5 py-4 text-zinc-600">{{ item.event_domain_name || 'No domain' }}</td>
                 <td class="px-5 py-4 text-zinc-600">
-                  <div *ngIf="requestDates(item).length === 0">Not scheduled</div>
-                  <div *ngIf="requestDates(item).length > 0" class="space-y-1">
-                    <div *ngFor="let date of requestDates(item)">
-                      {{ date | date:'dd/MM/yyyy' }}
-                    </div>
+                  <div *ngIf="!primaryRequestDate(item)">Not scheduled</div>
+                  <div *ngIf="primaryRequestDate(item)" class="flex items-center gap-2">
+                    <span>{{ primaryRequestDate(item) | date:'dd/MM/yyyy' }}</span>
+                    <span *ngIf="additionalRequestDateCount(item) > 0" class="inline-flex rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-xs font-semibold text-zinc-600">
+                      +{{ additionalRequestDateCount(item) }}
+                    </span>
                   </div>
                 </td>
                 <td class="px-5 py-4 text-zinc-600">{{ primaryArtist(item) }}</td>

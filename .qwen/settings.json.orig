@@ -3,6 +3,5 @@
     "allow": [
       "Bash(ng *)"
     ]
-  },
-  "$version": 3
+  }
 }

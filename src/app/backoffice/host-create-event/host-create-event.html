@@ -8,16 +8,17 @@
       >
         Back to Request
       </button>
-      <h1 class="mt-3 text-2xl font-bold text-zinc-900">Create Event</h1>
-      <p class="mt-1 text-sm text-zinc-500">Create the event from the accepted artist request and the agreed host proposal.</p>
+      <h1 class="mt-3 text-3xl font-bold tracking-tight text-zinc-900">Event Editor</h1>
+      <p class="mt-2 max-w-2xl text-sm text-zinc-600">Shape the approved artist request into a host-ready event. Nothing is published until you save, and the event can be saved as active or inactive.</p>
     </div>
     <button
+      *ngIf="!isRequestPublished"
       type="button"
       (click)="createEvent()"
       [disabled]="isLoading || isSaving"
-      class="inline-flex items-center justify-center rounded-2xl bg-red-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+      class="inline-flex items-center justify-center rounded-2xl bg-red-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
     >
-      {{ isSaving ? 'Creating...' : 'Create Event' }}
+      {{ isSaving ? 'Creating...' : 'Create an Event' }}
     </button>
   </div>
 
@@ -34,10 +35,51 @@
   </div>
 
   <ng-container *ngIf="!isLoading && request">
+    <section class="overflow-hidden rounded-[2rem] border border-amber-100 bg-[linear-gradient(135deg,#fff8ef_0%,#ffffff_48%,#f6f7fb_100%)] shadow-sm">
+      <div class="grid gap-5 p-6 md:grid-cols-[minmax(0,2fr)_minmax(16rem,1fr)]">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.28em] text-red-600">Host Workspace</p>
+          <h2 class="mt-3 text-2xl font-semibold tracking-tight text-zinc-900">{{ form.title || request.event_title || 'Untitled Event' }}</h2>
+          <p class="mt-2 text-sm text-zinc-600">Source request from {{ primaryArtistName() }} in {{ request.event_domain_name || 'unassigned domain' }}.</p>
+          <div class="mt-5 flex flex-wrap gap-3">
+            <span class="inline-flex rounded-full border border-white/80 bg-white/80 px-4 py-2 text-sm font-medium text-zinc-700 shadow-sm">
+              Host: {{ selectedHostLabel }}
+            </span>
+            <span class="inline-flex rounded-full border px-4 py-2 text-sm font-medium shadow-sm" [class.border-emerald-200]="form.isActive" [class.bg-emerald-50]="form.isActive" [class.text-emerald-700]="form.isActive" [class.border-zinc-200]="!form.isActive" [class.bg-zinc-100]="!form.isActive" [class.text-zinc-700]="!form.isActive">
+              {{ eventStatusLabel }}
+            </span>
+            <span class="inline-flex rounded-full border border-white/80 bg-white/80 px-4 py-2 text-sm font-medium text-zinc-700 shadow-sm">
+              {{ selectedDomainName }}
+            </span>
+          </div>
+        </div>
+        <div class="rounded-3xl border border-white/70 bg-white/80 p-5 shadow-sm backdrop-blur">
+          <div class="grid gap-4 sm:grid-cols-2 md:grid-cols-1">
+            <div>
+              <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">Artist</div>
+              <div class="mt-2 text-sm font-semibold text-zinc-900">{{ primaryArtistName() }}</div>
+            </div>
+            <div>
+              <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">Requested Title</div>
+              <div class="mt-2 text-sm font-semibold text-zinc-900">{{ request.event_title || 'Untitled Request' }}</div>
+            </div>
+            <div>
+              <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">Domain</div>
+              <div class="mt-2 text-sm font-semibold text-zinc-900">{{ selectedDomainName }}</div>
+            </div>
+            <div>
+              <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">Event State</div>
+              <div class="mt-2 text-sm font-semibold text-zinc-900">{{ eventStatusLabel }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
       <div class="grid gap-4 md:grid-cols-3">
         <div>
-          <div class="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Request</div>
+          <div class="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Request Source</div>
           <div class="mt-2 text-lg font-semibold text-zinc-900">{{ request.event_title || 'Untitled Request' }}</div>
         </div>
         <div>
@@ -51,88 +93,265 @@
       </div>
     </section>
 
-    <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
-      <h2 class="text-lg font-semibold text-zinc-900">Event Form</h2>
-      <div class="mt-5 grid gap-5 md:grid-cols-2">
-        <div class="md:col-span-2">
-          <label class="text-sm font-medium text-zinc-700">Event Title</label>
-          <input [(ngModel)]="form.title" type="text" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
-        </div>
-
-        <div class="md:col-span-2">
-          <label class="text-sm font-medium text-zinc-700">Description</label>
-          <textarea [(ngModel)]="form.description" rows="5" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100"></textarea>
-        </div>
-
-        <div>
-          <label class="text-sm font-medium text-zinc-700">Host</label>
-          <select [(ngModel)]="form.hostId" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100">
-            <option [ngValue]="0">Select host</option>
-            <option *ngFor="let host of hosts; trackBy: trackByHostId" [ngValue]="host.id">{{ host.name || host.public_name || ('Host #' + host.id) }}</option>
-          </select>
-        </div>
-
-        <div>
-          <label class="text-sm font-medium text-zinc-700">Edition</label>
-          <select [(ngModel)]="form.editionId" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100">
-            <option [ngValue]="null">Select edition</option>
-            <option *ngFor="let edition of editionOptions; trackBy: trackByEditionId" [ngValue]="edition.id">{{ edition.label || edition.name }}</option>
-          </select>
-        </div>
-
-        <div>
-          <label class="text-sm font-medium text-zinc-700">Event Type</label>
-          <select [(ngModel)]="form.eventTypeId" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100">
-            <option [ngValue]="null">Select event type</option>
-            <option *ngFor="let eventType of eventTypeOptions; trackBy: trackByEventTypeId" [ngValue]="eventType.id">{{ eventType.name }}</option>
-          </select>
-        </div>
-
-        <div>
-          <label class="text-sm font-medium text-zinc-700">Start Date</label>
-          <input [(ngModel)]="form.startDate" type="date" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
-        </div>
-
-        <div>
-          <label class="text-sm font-medium text-zinc-700">End Date</label>
-          <input [(ngModel)]="form.endDate" type="date" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
-        </div>
-
-        <div>
-          <label class="text-sm font-medium text-zinc-700">Show Time</label>
-          <input [(ngModel)]="form.showTime" type="time" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
-        </div>
-
-        <div>
-          <label class="text-sm font-medium text-zinc-700">Location</label>
-          <select [(ngModel)]="form.locationId" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100">
-            <option [ngValue]="null">Select location</option>
-            <optgroup *ngIf="privateLocations.length > 0" label="Private Locations">
-              <option *ngFor="let location of privateLocations; trackBy: trackByLocationId" [ngValue]="location.id">{{ locationLabel(location) }}</option>
-            </optgroup>
-            <optgroup *ngIf="publicLocations.length > 0" label="Public Locations">
-              <option *ngFor="let location of publicLocations; trackBy: trackByLocationId" [ngValue]="location.id">{{ locationLabel(location) }}</option>
-            </optgroup>
-          </select>
-        </div>
-
-        <div class="md:col-span-2">
-          <label class="text-sm font-medium text-zinc-700">Host Notes</label>
-          <textarea [(ngModel)]="form.notes" rows="4" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100"></textarea>
+    <section class="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm">
+      <div class="border-b border-zinc-200 bg-zinc-50/80 px-6 py-4">
+        <div class="flex flex-wrap gap-2">
+          <button type="button" (click)="setTab('details')" [class.bg-zinc-900]="activeTab === 'details'" [class.text-white]="activeTab === 'details'" class="rounded-full bg-white px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100">Details</button>
+          <button type="button" (click)="setTab('instruments')" [class.bg-zinc-900]="activeTab === 'instruments'" [class.text-white]="activeTab === 'instruments'" class="rounded-full bg-white px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100">Instruments</button>
+          <button type="button" (click)="setTab('proposed-dates')" [class.bg-zinc-900]="activeTab === 'proposed-dates'" [class.text-white]="activeTab === 'proposed-dates'" class="rounded-full bg-white px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100">Proposed Dates</button>
+          <button type="button" (click)="setTab('image')" [class.bg-zinc-900]="activeTab === 'image'" [class.text-white]="activeTab === 'image'" class="rounded-full bg-white px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100">Image</button>
+          <button type="button" (click)="setTab('media')" [class.bg-zinc-900]="activeTab === 'media'" [class.text-white]="activeTab === 'media'" class="rounded-full bg-white px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100">Media</button>
+          <button type="button" (click)="setTab('comments')" [class.bg-zinc-900]="activeTab === 'comments'" [class.text-white]="activeTab === 'comments'" class="rounded-full bg-white px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100">Comments</button>
         </div>
       </div>
-    </section>
 
-    <section *ngIf="hostProposalEntries.length > 0" class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
-      <h2 class="text-lg font-semibold text-zinc-900">Agreed Host Proposal</h2>
-      <div class="mt-4 space-y-3">
-        <div *ngFor="let item of hostProposalEntries; trackBy: trackByProposalIndex" class="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
-          <div class="text-xs font-semibold uppercase tracking-wide text-zinc-500">{{ item.mode === 'period' ? 'Period' : 'One Day' }}</div>
-          <div class="mt-2 text-sm font-medium text-zinc-900">
-            {{ item.startDate }}<span *ngIf="item.mode === 'period'"> to {{ item.endDate || 'TBD' }}</span>
-            <span *ngIf="item.showTime"> | {{ item.showTime }}</span>
-            <span *ngIf="item.locationLabel"> | {{ item.locationLabel }}</span>
+      <div class="bg-[radial-gradient(circle_at_top_left,#fafafa_0%,#ffffff_45%,#f4f4f5_100%)] px-6 py-6">
+        <div *ngIf="activeTab === 'details'" class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <h2 class="text-lg font-semibold text-zinc-900">Event Details</h2>
+          <div class="mt-5 grid gap-5 md:grid-cols-2">
+            <div>
+              <label class="text-sm font-medium text-zinc-700">Event Domain</label>
+              <select [(ngModel)]="request.event_domain_id" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100">
+                <option [ngValue]="null">Select domain</option>
+                <option *ngFor="let domain of eventDomains; trackBy: trackByNumericId" [ngValue]="domain.id">{{ domain.name }}</option>
+              </select>
+            </div>
+
+            <div class="md:col-span-2">
+              <label class="text-sm font-medium text-zinc-700">Event Title</label>
+              <input [(ngModel)]="form.title" type="text" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+            </div>
+
+            <div class="md:col-span-2">
+              <label class="text-sm font-medium text-zinc-700">Description</label>
+              <textarea [(ngModel)]="form.description" rows="5" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100"></textarea>
+            </div>
+
+            <div>
+              <label class="text-sm font-medium text-zinc-700">Host</label>
+              <div class="mt-2 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-medium text-zinc-800">
+                {{ selectedHostLabel }}
+              </div>
+            </div>
+
+            <div>
+              <label class="text-sm font-medium text-zinc-700">Edition</label>
+              <select [(ngModel)]="form.editionId" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100">
+                <option [ngValue]="null">Select edition</option>
+                <option *ngFor="let edition of editionOptions; trackBy: trackByEditionId" [ngValue]="edition.id">{{ edition.label || edition.name }}</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="text-sm font-medium text-zinc-700">Event Type</label>
+              <select [(ngModel)]="form.eventTypeId" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100">
+                <option [ngValue]="null">Select event type</option>
+                <option *ngFor="let eventType of eventTypeOptions; trackBy: trackByEventTypeId" [ngValue]="eventType.id">{{ eventType.name }}</option>
+              </select>
+            </div>
+
+            <div class="md:col-span-2">
+              <label class="text-sm font-medium text-zinc-700">Event Availability</label>
+              <div class="mt-2 grid gap-3 sm:grid-cols-2">
+                <button type="button" (click)="form.isActive = true" class="rounded-2xl border px-4 py-4 text-left transition-colors" [class.border-emerald-200]="form.isActive" [class.bg-emerald-50]="form.isActive" [class.text-emerald-800]="form.isActive" [class.border-zinc-200]="!form.isActive" [class.bg-white]="!form.isActive" [class.text-zinc-700]="!form.isActive">
+                  <div class="text-sm font-semibold">Active</div>
+                  <div class="mt-1 text-xs">The saved event is immediately active.</div>
+                </button>
+                <button type="button" (click)="form.isActive = false" class="rounded-2xl border px-4 py-4 text-left transition-colors" [class.border-zinc-300]="form.isActive" [class.bg-white]="form.isActive" [class.text-zinc-700]="form.isActive" [class.border-amber-200]="!form.isActive" [class.bg-amber-50]="!form.isActive" [class.text-amber-800]="!form.isActive">
+                  <div class="text-sm font-semibold">Inactive</div>
+                  <div class="mt-1 text-xs">The event is saved but remains inactive for later activation.</div>
+                </button>
+              </div>
+            </div>
+
+            <div class="md:col-span-2">
+              <label class="text-sm font-medium text-zinc-700">Host Notes</label>
+              <textarea [(ngModel)]="form.notes" rows="4" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100"></textarea>
+            </div>
           </div>
+        </div>
+
+        <div *ngIf="activeTab === 'instruments'" class="space-y-6">
+          <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+            <h2 class="text-lg font-semibold text-zinc-900">Artist Instruments</h2>
+            <div *ngIf="instrumentOptions.length > 0" class="mt-5 flex flex-wrap gap-3">
+              <span *ngFor="let instrument of instrumentOptions; trackBy: trackByNumericId" class="inline-flex rounded-full border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700">
+                {{ instrument.name }}
+              </span>
+            </div>
+            <div *ngIf="instrumentOptions.length === 0" class="mt-5 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-10 text-center text-sm text-zinc-500">
+              No instruments are attached to the primary artist.
+            </div>
+          </section>
+
+          <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+            <h2 class="text-lg font-semibold text-zinc-900">Additional Instruments</h2>
+            <p class="mt-1 text-sm text-zinc-500">Choose extra instruments from the shared instrument catalogue. They are stored in the event notes on save.</p>
+            <div class="mt-5 flex flex-col gap-3 sm:flex-row">
+              <select [(ngModel)]="selectedAdditionalInstrumentId" class="flex-1 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100">
+                <option [ngValue]="null">Select an instrument</option>
+                <option *ngFor="let instrument of instrumentCatalog; trackBy: trackByNumericId" [ngValue]="instrument.id">{{ instrument.name }}</option>
+              </select>
+              <button type="button" (click)="addAdditionalInstrument()" class="rounded-2xl border border-zinc-200 px-4 py-3 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50">
+                Add Instrument
+              </button>
+            </div>
+
+            <div *ngIf="additionalInstruments.length > 0" class="mt-5 flex flex-wrap gap-3">
+              <span *ngFor="let instrument of additionalInstruments; let i = index; trackBy: trackByInstrumentName" class="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800">
+                {{ instrument }}
+                <button type="button" (click)="removeAdditionalInstrument(i)" class="text-amber-700 transition-colors hover:text-amber-900">x</button>
+              </span>
+            </div>
+          </section>
+        </div>
+
+        <div *ngIf="activeTab === 'proposed-dates'" class="space-y-6">
+          <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+            <h2 class="text-lg font-semibold text-zinc-900">Agreed Request Dates</h2>
+            <div *ngIf="request.dates.length === 0" class="mt-4 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-8 text-center text-sm text-zinc-500">
+              The original request did not include any dates.
+            </div>
+            <div *ngIf="request.dates.length > 0" class="mt-4 space-y-3">
+              <div *ngFor="let date of request.dates; trackBy: trackByProposalIndex" class="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                <div class="text-sm font-medium text-zinc-900">{{ artistRequestedDateLabel(date) }}</div>
+              </div>
+            </div>
+          </section>
+
+          <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+            <h2 class="text-lg font-semibold text-zinc-900">Editable Event Date</h2>
+            <p class="mt-1 text-sm text-zinc-500">Adjust the final date, time, and venue before saving the event.</p>
+            <div class="mt-5 grid gap-5 md:grid-cols-2">
+              <div>
+                <label class="text-sm font-medium text-zinc-700">Start Date</label>
+                <input [(ngModel)]="form.startDate" type="date" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+              </div>
+
+              <div>
+                <label class="text-sm font-medium text-zinc-700">End Date</label>
+                <input [(ngModel)]="form.endDate" type="date" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+              </div>
+
+              <div>
+                <label class="text-sm font-medium text-zinc-700">Show Time</label>
+                <input [(ngModel)]="form.showTime" type="time" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+              </div>
+
+              <div>
+                <label class="text-sm font-medium text-zinc-700">Venue</label>
+                <select [(ngModel)]="form.locationId" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100">
+                  <option [ngValue]="null">Select location</option>
+                  <optgroup *ngIf="privateLocations.length > 0" label="Private Locations">
+                    <option *ngFor="let location of privateLocations; trackBy: trackByLocationId" [ngValue]="location.id">{{ locationLabel(location) }}</option>
+                  </optgroup>
+                  <optgroup *ngIf="publicLocations.length > 0" label="Public Locations">
+                    <option *ngFor="let location of publicLocations; trackBy: trackByLocationId" [ngValue]="location.id">{{ locationLabel(location) }}</option>
+                  </optgroup>
+                </select>
+              </div>
+            </div>
+          </section>
+
+          <section *ngIf="hostProposalEntries.length > 0" class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+            <h2 class="text-lg font-semibold text-zinc-900">Last Agreed Host Proposal</h2>
+            <div class="mt-4 space-y-3">
+              <div *ngFor="let item of hostProposalEntries; trackBy: trackByProposalIndex" class="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                <div class="text-xs font-semibold uppercase tracking-wide text-zinc-500">{{ item.mode === 'period' ? 'Period' : 'One Day' }}</div>
+                <div class="mt-2 text-sm font-medium text-zinc-900">
+                  {{ item.startDate }}<span *ngIf="item.mode === 'period'"> to {{ item.endDate || 'TBD' }}</span>
+                  <span *ngIf="item.showTime"> | {{ item.showTime }}</span>
+                  <span *ngIf="item.locationLabel"> | {{ item.locationLabel }}</span>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div *ngIf="activeTab === 'image'" class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <h2 class="text-lg font-semibold text-zinc-900">Event Image</h2>
+          <p class="mt-1 text-sm text-zinc-500">Replace the inherited request image if the event needs a different visual.</p>
+          <div *ngIf="request.image_url" class="mt-5 overflow-hidden rounded-3xl border border-zinc-200 bg-zinc-50">
+            <img [src]="request.image_url" alt="Event request image" class="h-80 w-full object-cover" />
+          </div>
+          <div *ngIf="!request.image_url" class="mt-5 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-12 text-center text-sm text-zinc-500">
+            No image was attached to the original request.
+          </div>
+          <label class="mt-5 inline-flex cursor-pointer items-center rounded-2xl bg-zinc-900 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-zinc-800">
+            {{ isRequestImageUploading ? 'Uploading...' : (request.image_url ? 'Replace Image' : 'Upload Image') }}
+            <input type="file" accept="image/*" class="hidden" (change)="onEventImageSelected($event)" />
+          </label>
+        </div>
+
+        <div *ngIf="activeTab === 'media'" class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <h2 class="text-lg font-semibold text-zinc-900">Request Media</h2>
+          <p class="mt-1 text-sm text-zinc-500">These media items are inherited from the request. Their images are visible here and can be replaced before saving the event.</p>
+          <div *ngIf="request.media.length === 0" class="mt-5 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-12 text-center text-sm text-zinc-500">
+            No media was attached to the request.
+          </div>
+          <div *ngIf="request.media.length > 0" class="mt-5 space-y-3">
+            <div *ngFor="let item of request.media; let i = index; trackBy: trackByMedia" class="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+              <div class="grid gap-4 md:grid-cols-[9rem_minmax(0,1fr)]">
+                <div class="overflow-hidden rounded-2xl border border-zinc-200 bg-white">
+                  <img *ngIf="item.image_url; else mediaImageFallback" [src]="item.image_url" alt="Media image" class="h-36 w-full object-cover" />
+                  <ng-template #mediaImageFallback>
+                    <div class="flex h-36 items-center justify-center px-3 text-center text-xs text-zinc-500">No image</div>
+                  </ng-template>
+                </div>
+                <div class="space-y-3">
+                  <div class="flex items-start justify-between gap-3">
+                    <div>
+                      <div class="text-sm font-semibold text-zinc-900">{{ item.name || item.media_type }}</div>
+                      <div class="mt-1 text-xs uppercase tracking-wide text-zinc-500">{{ item.media_type }}</div>
+                    </div>
+                    <a *ngIf="item.url" [href]="item.url" target="_blank" rel="noreferrer" class="text-sm font-semibold text-red-600 hover:text-red-700">Open</a>
+                  </div>
+                  <div *ngIf="item.description" class="text-sm text-zinc-600">{{ item.description }}</div>
+                  <label class="inline-flex cursor-pointer items-center rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50">
+                    {{ item.image_url ? 'Replace Image' : 'Upload Image' }}
+                    <input type="file" accept="image/*" class="hidden" (change)="onMediaImageSelected($event, i)" />
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div *ngIf="activeTab === 'comments'" class="space-y-6">
+          <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+            <h2 class="text-lg font-semibold text-zinc-900">Add Comment</h2>
+            <p class="mt-1 text-sm text-zinc-500">Keep the request conversation visible throughout the workflow, including after the artist accepts the proposal.</p>
+            <textarea [(ngModel)]="commentDraft" rows="5" placeholder="Write your comment..." class="mt-4 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100"></textarea>
+            <div class="mt-4 flex justify-end">
+              <button
+                type="button"
+                (click)="submitComment()"
+                [disabled]="isSaving || !commentDraft.trim()"
+                class="rounded-2xl bg-zinc-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {{ isSaving ? 'Saving...' : 'Post Comment' }}
+              </button>
+            </div>
+          </section>
+
+          <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+            <h2 class="text-lg font-semibold text-zinc-900">Comments</h2>
+            <div *ngIf="request.comments.length === 0" class="mt-4 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-8 text-center text-sm text-zinc-500">
+              No comments yet.
+            </div>
+            <div *ngIf="request.comments.length > 0" class="mt-4 space-y-3">
+              <div *ngFor="let comment of request.comments; trackBy: trackByComment" class="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                <div class="flex items-start justify-between gap-3">
+                  <div>
+                    <div class="text-sm font-semibold text-zinc-900">{{ comment.author_name }}</div>
+                    <div class="mt-1 text-xs text-zinc-500">{{ comment.author_role || 'User' }}</div>
+                  </div>
+                  <div class="text-xs text-zinc-400">{{ comment.created_at | date:'medium' }}</div>
+                </div>
+                <div class="mt-3 whitespace-pre-line text-sm text-zinc-700">{{ comment.body }}</div>
+              </div>
+            </div>
+          </section>
         </div>
       </div>
     </section>
