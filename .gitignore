@@ -49,3 +49,18 @@ Thumbs.db
 # Local environment variables (contains secrets — never commit)
 .env
 .env.local
+
+.claude
+.cline
+.clinerules
+.codex
+.kilo
+.qwen
+.vscode
+dist
+node_modules
+plans
+HOST_ACCOUNT_MANAGEMENT.md
+PROJECT_CONTEXT.md
+supabase-schema.sql
+db
