@@ -12,6 +12,7 @@ import {
   CreateHostEventFromRequestPayload,
   EventEditionOption,
   EventTypeOption,
+  HostWorkspaceEventDetail,
   SupabaseService,
   TjsHost,
   TjsLocation,
@@ -30,6 +31,8 @@ interface HostCreateEventScheduleEntryForm {
   mode: 'day_show' | 'period';
   startDate: string;
   endDate: string;
+  showTime: string;
+  locationId: string | null;
 }
 
 @Component({
@@ -65,7 +68,8 @@ export class HostCreateEvent implements OnInit {
   additionalInstruments: string[] = [];
   createdEventId: string | null = null;
   commentDraft = '';
-  scheduleEntries: HostCreateEventScheduleEntryForm[] = [{ mode: 'day_show', startDate: '', endDate: '' }];
+  scheduleEntries: HostCreateEventScheduleEntryForm[] = [{ mode: 'day_show', startDate: '', endDate: '', showTime: '', locationId: null }];
+  publishedEvent: HostWorkspaceEventDetail | null = null;
 
   form: CreateHostEventFromRequestPayload = {
     hostId: 0,
@@ -121,6 +125,7 @@ export class HostCreateEvent implements OnInit {
       this.hostProposalEntries = this.parseHostProposal(this.request.comments);
       await this.loadInstruments();
       this.prefillForm();
+      await this.loadPublishedEventSchedule(profileId);
     } catch (error) {
       this.error = error instanceof Error ? error.message : 'Event creation could not be loaded.';
     } finally {
@@ -169,14 +174,14 @@ export class HostCreateEvent implements OnInit {
   addScheduleEntry() {
     this.scheduleEntries = [
       ...this.scheduleEntries,
-      { mode: 'day_show', startDate: '', endDate: '' },
+      { mode: 'day_show', startDate: '', endDate: '', showTime: '', locationId: null },
     ];
   }
 
   removeScheduleEntry(index: number) {
     this.scheduleEntries = this.scheduleEntries.filter((_, currentIndex) => currentIndex !== index);
     if (this.scheduleEntries.length === 0) {
-      this.scheduleEntries = [{ mode: 'day_show', startDate: '', endDate: '' }];
+      this.scheduleEntries = [{ mode: 'day_show', startDate: '', endDate: '', showTime: '', locationId: null }];
     }
   }
 
@@ -333,6 +338,8 @@ export class HostCreateEvent implements OnInit {
         mode: entry.mode,
         startDate: entry.startDate,
         endDate: entry.mode === 'period' ? entry.endDate : '',
+        showTime: entry.showTime,
+        locationId: entry.locationId,
       }));
 
     if (entries.length === 0) {
@@ -345,6 +352,16 @@ export class HostCreateEvent implements OnInit {
         this.error = `Schedule entry ${index + 1} requires an end date.`;
         return;
       }
+
+      if (!entry.showTime) {
+        this.error = `Schedule entry ${index + 1} requires a time.`;
+        return;
+      }
+
+      if (!entry.locationId) {
+        this.error = `Schedule entry ${index + 1} requires a venue.`;
+        return;
+      }
     }
 
     const overlapError = this.findScheduleOverlap(entries);
@@ -353,24 +370,25 @@ export class HostCreateEvent implements OnInit {
       return;
     }
 
-    if (!this.form.locationId) {
-      this.error = 'Location is required.';
-      return;
-    }
-
     this.error = '';
     this.successMessage = '';
     this.isSaving = true;
 
-    const persistedLocationId = this.publicLocations.some((location) => location.id === this.form.locationId)
-      ? this.form.locationId
+    const firstEntry = entries[0];
+    const persistedLocationId = this.publicLocations.some((location) => location.id === firstEntry.locationId)
+      ? firstEntry.locationId
       : null;
 
     const payload: CreateHostEventFromRequestPayload = {
       ...this.form,
-      entries,
+      entries: entries.map((entry) => ({
+        mode: entry.mode,
+        startDate: entry.startDate,
+        endDate: entry.endDate,
+      })),
       locationId: persistedLocationId,
-      notes: this.buildEventNotes(),
+      showTime: firstEntry.showTime,
+      notes: this.buildEventNotes(entries),
     };
 
     const result = await this.supabase.createHostEventFromRequest(this.request.id, profileId, payload);
@@ -402,8 +420,8 @@ export class HostCreateEvent implements OnInit {
       editionId: this.matchEditionIdFromComments(this.request.comments),
       eventTypeId: this.matchEventTypeIdFromComments(this.request.comments),
       entries: [],
-      showTime: firstProposal?.showTime ?? '',
-      locationId: firstProposal?.locationId ?? null,
+      showTime: '',
+      locationId: null,
       isActive: true,
       isOpenToMembers: false,
       notes: '',
@@ -413,8 +431,10 @@ export class HostCreateEvent implements OnInit {
           mode: entry.mode === 'period' ? 'period' : 'day_show',
           startDate: entry.startDate,
           endDate: entry.mode === 'period' ? entry.endDate : '',
+          showTime: entry.showTime,
+          locationId: entry.locationId,
         }))
-      : [{ mode: 'day_show', startDate: '', endDate: '' }];
+      : [{ mode: 'day_show', startDate: '', endDate: '', showTime: '', locationId: null }];
   }
 
   private async loadInstruments() {
@@ -523,13 +543,8 @@ export class HostCreateEvent implements OnInit {
     })?.id ?? null;
   }
 
-  private buildEventNotes(): string {
+  private buildEventNotes(entries: Array<{ mode: 'day_show' | 'period'; startDate: string; endDate: string; showTime: string; locationId: string | null }>): string {
     const notes = [this.form.notes.trim()];
-
-    const selectedLocationLabel = this.resolveSelectedLocationLabel();
-    if (selectedLocationLabel && !this.publicLocations.some((location) => location.id === this.form.locationId)) {
-      notes.push(`Venue: ${selectedLocationLabel}`);
-    }
 
     if (this.request?.event_domain_id) {
       notes.push(`Event Domain: ${this.selectedDomainName}`);
@@ -560,16 +575,28 @@ export class HostCreateEvent implements OnInit {
       notes.push(...mediaLines);
     }
 
+    if (entries.length > 0) {
+      notes.push('Event Schedule:');
+      notes.push(...entries.map((entry) => {
+        const venueLabel = this.resolveScheduleEntryLocationLabel(entry.locationId) || 'No venue';
+        const dateLabel = entry.mode === 'period'
+          ? `${entry.startDate} to ${entry.endDate || 'TBD'}`
+          : entry.startDate;
+
+        return `- ${entry.mode === 'period' ? 'Period' : 'Day Show'} | ${dateLabel} | ${entry.showTime || 'No time'} | ${venueLabel}`;
+      }));
+    }
+
     return notes.filter(Boolean).join('\n');
   }
 
-  private resolveSelectedLocationLabel(): string | null {
-    if (!this.form.locationId) {
+  private resolveScheduleEntryLocationLabel(locationId: string | null): string | null {
+    if (!locationId) {
       return null;
     }
 
     const selectedLocation = [...this.privateLocations, ...this.publicLocations]
-      .find((location) => location.id === this.form.locationId);
+      .find((location) => location.id === locationId);
 
     return selectedLocation ? this.locationLabel(selectedLocation) : null;
   }
@@ -616,5 +643,47 @@ export class HostCreateEvent implements OnInit {
 
     this.request = refreshed;
     this.hostProposalEntries = this.parseHostProposal(refreshed.comments);
+    const profileId = this.authService.currentProfile?.id ?? this.authService.currentUser?.id;
+    if (profileId) {
+      await this.loadPublishedEventSchedule(profileId);
+    }
+  }
+
+  private async loadPublishedEventSchedule(profileId: string) {
+    this.publishedEvent = null;
+
+    if (!this.request || this.request.status !== 'published') {
+      return;
+    }
+
+    const eventCreatedComment = [...this.request.comments]
+      .reverse()
+      .find((comment) => comment.body.startsWith('[EVENT_CREATED]'));
+
+    const eventId = eventCreatedComment?.body
+      .split('\n')
+      .map((line) => line.trim())
+      .find((line) => line.startsWith('Event ID:'))
+      ?.replace('Event ID:', '')
+      .trim();
+
+    if (!eventId) {
+      return;
+    }
+
+    this.publishedEvent = await this.supabase.getHostWorkspaceEventDetail(profileId, eventId);
+    if (!this.publishedEvent) {
+      return;
+    }
+
+    this.scheduleEntries = (this.publishedEvent.schedule_entries ?? []).length > 0
+      ? (this.publishedEvent.schedule_entries ?? []).map((entry) => ({
+          mode: entry.mode,
+          startDate: entry.start_date,
+          endDate: entry.end_date,
+          showTime: this.publishedEvent?.show_time ?? '',
+          locationId: this.publishedEvent?.location_id ?? null,
+        }))
+      : this.scheduleEntries;
   }
 }

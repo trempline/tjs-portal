@@ -8,6 +8,7 @@ import {
   ArtistRequestDetail,
   EventEditionOption,
   EventTypeOption,
+  HostWorkspaceEventDetail,
   SupabaseService,
   TjsLocation,
 } from '../../services/supabase.service';
@@ -54,6 +55,7 @@ export class HostArtistRequestDetail implements OnInit {
   draftSelectedEventTypeId: number | null = null;
   acceptedByHost = false;
   isProposalModalOpen = false;
+  publishedEvent: HostWorkspaceEventDetail | null = null;
 
   async ngOnInit() {
     const requestId = this.route.snapshot.paramMap.get('id');
@@ -83,6 +85,7 @@ export class HostArtistRequestDetail implements OnInit {
       await Promise.all([this.loadInstruments(), this.loadLocations()]);
       this.hydrateArtistProposalFromComments();
       this.hydrateHostProposalFromComments();
+      await this.loadPublishedEvent();
     } catch (error) {
       this.error = error instanceof Error ? error.message : 'Request details could not be loaded.';
     } finally {
@@ -318,6 +321,10 @@ export class HostArtistRequestDetail implements OnInit {
     return item.id;
   }
 
+  trackByProposalIndex(index: number) {
+    return index;
+  }
+
   locationLabel(location: TjsLocation): string {
     return location.name || location.city || location.address || 'Unnamed location';
   }
@@ -369,6 +376,27 @@ export class HostArtistRequestDetail implements OnInit {
 
   get sortedComments() {
     return [...(this.request?.comments ?? [])].reverse();
+  }
+
+  get publishedEventDateLines(): string[] {
+    const lines = (this.publishedEvent?.host_notes ?? '')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const headerIndex = lines.findIndex((line) => line === 'Event Schedule:');
+
+    if (headerIndex >= 0) {
+      return lines
+        .slice(headerIndex + 1)
+        .filter((line) => line.startsWith('- '))
+        .map((line) => line.replace(/^- /, '').trim());
+    }
+
+    return (this.publishedEvent?.schedule_entries ?? []).map((entry) =>
+      entry.mode === 'period'
+        ? `Period | ${entry.start_date} to ${entry.end_date || 'TBD'}${this.publishedEvent?.show_time ? ` | ${this.publishedEvent.show_time}` : ''}${this.publishedEvent?.location_name ? ` | ${this.publishedEvent.location_name}` : ''}`
+        : `Day Show | ${entry.start_date}${this.publishedEvent?.show_time ? ` | ${this.publishedEvent.show_time}` : ''}${this.publishedEvent?.location_name ? ` | ${this.publishedEvent.location_name}` : ''}`
+    );
   }
 
   async openCreateEvent() {
@@ -434,6 +462,37 @@ export class HostArtistRequestDetail implements OnInit {
     this.acceptedByHost = this.isHostAcceptedWorkflow(this.request.status);
     this.hydrateArtistProposalFromComments();
     this.hydrateHostProposalFromComments();
+    await this.loadPublishedEvent();
+  }
+
+  private async loadPublishedEvent() {
+    this.publishedEvent = null;
+
+    if (!this.request || this.request.status !== 'published') {
+      return;
+    }
+
+    const profileId = this.authService.currentProfile?.id ?? this.authService.currentUser?.id;
+    const eventCreatedComment = [...this.request.comments]
+      .reverse()
+      .find((comment) => comment.body.startsWith('[EVENT_CREATED]'));
+
+    if (!profileId || !eventCreatedComment) {
+      return;
+    }
+
+    const eventId = eventCreatedComment.body
+      .split('\n')
+      .map((line) => line.trim())
+      .find((line) => line.startsWith('Event ID:'))
+      ?.replace('Event ID:', '')
+      .trim();
+
+    if (!eventId) {
+      return;
+    }
+
+    this.publishedEvent = await this.supabase.getHostWorkspaceEventDetail(profileId, eventId);
   }
 
   private cloneProposalDates(source: HostProposedDateEntry[]): HostProposedDateEntry[] {

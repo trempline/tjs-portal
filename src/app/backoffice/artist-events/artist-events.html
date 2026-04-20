@@ -1,0 +1,67 @@
+<div class="space-y-6">
+  <section class="overflow-hidden rounded-[2rem] border border-blue-100 bg-[linear-gradient(145deg,#eef6ff_0%,#fffdfa_45%,#f7fbff_100%)] shadow-sm">
+    <div class="grid gap-6 p-6 lg:grid-cols-[minmax(0,2fr)_18rem]">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-[0.28em] text-blue-600">Artist Workspace</p>
+        <h1 class="mt-3 text-3xl font-bold tracking-tight text-zinc-900">Events</h1>
+        <p class="mt-3 max-w-3xl text-sm leading-6 text-zinc-600">View all events linked to your artist profile and open any event for full details.</p>
+      </div>
+      <div class="rounded-3xl border border-white/70 bg-white/85 p-5 shadow-sm backdrop-blur">
+        <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">Visible Events</div>
+        <div class="mt-2 text-3xl font-semibold text-zinc-900">{{ filteredEvents.length }}</div>
+      </div>
+    </div>
+  </section>
+
+  <div *ngIf="error" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+    {{ error }}
+  </div>
+
+  <section class="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
+    <label class="text-sm font-medium text-zinc-700">Search events</label>
+    <input [(ngModel)]="searchQuery" type="text" placeholder="Search title, artist, domain, instrument..." class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+  </section>
+
+  <div class="overflow-hidden rounded-[2rem] border border-zinc-200 bg-white shadow-sm">
+    <div *ngIf="isLoading" class="flex items-center justify-center py-20">
+      <div class="h-8 w-8 animate-spin rounded-full border-4 border-zinc-200 border-t-red-600"></div>
+    </div>
+
+    <div *ngIf="!isLoading && filteredEvents.length === 0" class="px-6 py-20 text-center text-zinc-400">
+      <p class="text-sm font-medium text-zinc-700">No events found</p>
+    </div>
+
+    <div *ngIf="!isLoading && filteredEvents.length > 0" class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="border-b border-zinc-200 bg-zinc-50/80">
+          <tr>
+            <th class="px-5 py-3 text-left font-semibold text-zinc-600">Event</th>
+            <th class="px-5 py-3 text-left font-semibold text-zinc-600">Domain</th>
+            <th class="px-5 py-3 text-left font-semibold text-zinc-600">Edition</th>
+            <th class="px-5 py-3 text-left font-semibold text-zinc-600">Event Type</th>
+            <th class="px-5 py-3 text-left font-semibold text-zinc-600">Artist</th>
+            <th class="px-5 py-3 text-left font-semibold text-zinc-600">Instruments</th>
+            <th class="px-5 py-3 text-left font-semibold text-zinc-600">Upcoming Date</th>
+            <th class="px-5 py-3 text-left font-semibold text-zinc-600">Status</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-zinc-100">
+          <tr *ngFor="let item of filteredEvents" (click)="openEvent(item)" class="cursor-pointer transition-colors hover:bg-blue-50/40">
+            <td class="px-5 py-4 align-top"><div class="font-semibold text-zinc-900">{{ item.title }}</div></td>
+            <td class="px-5 py-4 text-zinc-600">{{ item.event_domain_name || 'No domain' }}</td>
+            <td class="px-5 py-4 text-zinc-600">{{ item.edition || 'Not set' }}</td>
+            <td class="px-5 py-4 text-zinc-600">{{ item.event_type_name || 'Not set' }}</td>
+            <td class="px-5 py-4 text-zinc-600">{{ primaryArtist(item) }}</td>
+            <td class="px-5 py-4 text-zinc-600">{{ instrumentsLabel(item) }}</td>
+            <td class="px-5 py-4 text-zinc-600">{{ item.primary_upcoming_date ? (item.primary_upcoming_date | date:'dd/MM/yyyy') : 'Not scheduled' }}</td>
+            <td class="px-5 py-4">
+              <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold" [ngClass]="badgeClass(item.status)">
+                {{ statusLabel(item.status) }}
+              </span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

@@ -3404,6 +3404,154 @@ export class SupabaseService {
       });
   }
 
+  async getArtistWorkspaceEvents(profileId: string): Promise<HostWorkspaceEventItem[]> {
+    const { data: artistRow, error: artistError } = await this.adminSupabase
+      .from('tjs_artists')
+      .select('id')
+      .eq('profile_id', profileId)
+      .maybeSingle();
+
+    if (artistError && !this.isMissingSchemaError(artistError)) {
+      console.error('getArtistWorkspaceEvents artist lookup error:', artistError.message);
+      return [];
+    }
+
+    const artistId = artistRow?.id as string | undefined;
+    if (!artistId) {
+      return [];
+    }
+
+    const overview = await this.getAdminEventOverview();
+    const events = overview.filter((item) =>
+      item.event_type === 'EVENT_INSTANCE' && item.artist_ids.includes(artistId)
+    );
+
+    if (events.length === 0) {
+      return [];
+    }
+
+    const eventIds = events.map((event) => event.id);
+    const parentRequestIds = Array.from(
+      new Set(
+        events
+          .map((event) => event.parent_event_id)
+          .filter((value): value is string => !!value)
+      )
+    );
+
+    const [requestDomainsResult, hostNotesResult, eventArtistsResult] = await Promise.all([
+      parentRequestIds.length > 0
+        ? this.adminSupabase
+            .from('tjs_artist_requests')
+            .select('id, event_domain_id, event_domain:sys_event_domain(name)')
+            .in('id', parentRequestIds)
+        : Promise.resolve({ data: [], error: null }),
+      eventIds.length > 0
+        ? this.adminSupabase
+            .from('tjs_event_hosts')
+            .select('event_id, notes')
+            .in('event_id', eventIds)
+        : Promise.resolve({ data: [], error: null }),
+      eventIds.length > 0
+        ? this.adminSupabase
+            .from('tjs_event_artists')
+            .select('event_id, artist:tjs_artists(id, profile_id)')
+            .in('event_id', eventIds)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+
+    if (requestDomainsResult.error && !this.isMissingSchemaError(requestDomainsResult.error)) {
+      console.error('getArtistWorkspaceEvents request domains error:', requestDomainsResult.error.message);
+    }
+
+    if (hostNotesResult.error && !this.isMissingSchemaError(hostNotesResult.error)) {
+      console.error('getArtistWorkspaceEvents host notes error:', hostNotesResult.error.message);
+    }
+
+    if (eventArtistsResult.error && !this.isMissingSchemaError(eventArtistsResult.error)) {
+      console.error('getArtistWorkspaceEvents event artists error:', eventArtistsResult.error.message);
+    }
+
+    const requestById = new Map<string, { event_domain_id: number | null; event_domain_name: string | null }>();
+    for (const row of ((requestDomainsResult.data ?? []) as any[])) {
+      requestById.set(row.id as string, {
+        event_domain_id: (row.event_domain_id as number | null) ?? null,
+        event_domain_name: (row.event_domain?.name as string | null | undefined) ?? null,
+      });
+    }
+
+    const notesByEventId = new Map<string, string>();
+    for (const row of ((hostNotesResult.data ?? []) as any[])) {
+      const eventId = row.event_id as string | null;
+      if (eventId && !notesByEventId.has(eventId)) {
+        notesByEventId.set(eventId, (row.notes as string | null) ?? '');
+      }
+    }
+
+    const profileIdsByEventId = new Map<string, string[]>();
+    const allArtistProfileIds = new Set<string>();
+    for (const row of ((eventArtistsResult.data ?? []) as any[])) {
+      const eventId = row.event_id as string | null;
+      const artistProfileId = row.artist?.profile_id as string | null | undefined;
+      if (!eventId || !artistProfileId) {
+        continue;
+      }
+
+      const existing = profileIdsByEventId.get(eventId) ?? [];
+      if (!existing.includes(artistProfileId)) {
+        existing.push(artistProfileId);
+      }
+      profileIdsByEventId.set(eventId, existing);
+      allArtistProfileIds.add(artistProfileId);
+    }
+
+    const instrumentsResult = allArtistProfileIds.size > 0
+      ? await this.adminSupabase
+          .from('tjs_artist_instruments')
+          .select('profile_id, instrument:sys_instruments(name)')
+          .in('profile_id', Array.from(allArtistProfileIds))
+      : { data: [], error: null };
+
+    if (instrumentsResult.error && !this.isMissingSchemaError(instrumentsResult.error)) {
+      console.error('getArtistWorkspaceEvents instruments error:', instrumentsResult.error.message);
+    }
+
+    const instrumentsByProfileId = new Map<string, string[]>();
+    for (const row of ((instrumentsResult.data ?? []) as any[])) {
+      const artistProfileId = row.profile_id as string | null;
+      const instrumentName = row.instrument?.name as string | null | undefined;
+      if (!artistProfileId || !instrumentName) {
+        continue;
+      }
+
+      const existing = instrumentsByProfileId.get(artistProfileId) ?? [];
+      if (!existing.includes(instrumentName)) {
+        existing.push(instrumentName);
+      }
+      instrumentsByProfileId.set(artistProfileId, existing);
+    }
+
+    return events.map((event) => {
+      const requestMeta = event.parent_event_id ? requestById.get(event.parent_event_id) : null;
+      const notes = notesByEventId.get(event.id) ?? '';
+      const profileIds = profileIdsByEventId.get(event.id) ?? [];
+      const instruments = Array.from(
+        new Set(profileIds.flatMap((artistProfileId) => instrumentsByProfileId.get(artistProfileId) ?? []))
+      );
+
+      return {
+        ...event,
+        event_domain_id: requestMeta?.event_domain_id ?? null,
+        event_domain_name: requestMeta?.event_domain_name ?? event.event_domain_name,
+        edition: this.extractNoteValue(notes, 'Edition:'),
+        event_type_name: this.extractNoteValue(notes, 'Event Type:'),
+        instruments,
+        primary_upcoming_date: this.pickPrimaryUpcomingDate(event.selected_dates),
+        is_featured: !!event.is_featured,
+      };
+    });
+  }
+
   async getEventLocationSummaries(eventIds: string[], hostIds?: number[]): Promise<Map<string, EventLocationSummary>> {
     const summaries = new Map<string, EventLocationSummary>();
     if (eventIds.length === 0) {
@@ -4762,6 +4910,52 @@ export class SupabaseService {
     }
 
     return null;
+  }
+
+  async getArtistWorkspaceEventDetail(profileId: string, eventId: string): Promise<HostWorkspaceEventDetail | null> {
+    const events = await this.getArtistWorkspaceEvents(profileId);
+    const event = events.find((item) => item.id === eventId);
+    if (!event) {
+      return null;
+    }
+
+    const hostNotesResult = await this.adminSupabase
+      .from('tjs_event_hosts')
+      .select('host_id, notes, selected_dates, location_id, location:tjs_locations(name, city, address)')
+      .eq('event_id', eventId);
+
+    if (hostNotesResult.error && !this.isMissingSchemaError(hostNotesResult.error)) {
+      console.error('getArtistWorkspaceEventDetail host notes error:', hostNotesResult.error.message);
+    }
+
+    const hostRow = ((hostNotesResult.data ?? []) as any[])[0];
+
+    const requestDetail = event.parent_event_id
+      ? await this.getArtistWorkspaceRequestDetail(event.parent_event_id)
+      : null;
+
+    const scheduleEntries = this.extractScheduleEntries(
+      (hostRow?.notes as string | null | undefined) ?? '',
+      Array.isArray(hostRow?.selected_dates)
+        ? (hostRow.selected_dates as string[])
+        : (event.selected_dates ?? []),
+    );
+
+    return {
+      ...event,
+      host_notes: (hostRow?.notes as string | null | undefined) ?? null,
+      all_dates: scheduleEntries.flatMap((entry) =>
+        entry.mode === 'period' ? [entry.start_date, entry.end_date].filter(Boolean) : [entry.start_date].filter(Boolean)
+      ),
+      show_time: this.extractNoteValue((hostRow?.notes as string | null | undefined) ?? '', 'Show Time:'),
+      location_id: (hostRow?.location_id as string | null | undefined) ?? null,
+      location_name: (hostRow?.location?.name as string | null | undefined)
+        || (hostRow?.location?.city as string | null | undefined)
+        || (hostRow?.location?.address as string | null | undefined)
+        || null,
+      schedule_entries: scheduleEntries,
+      request_detail: requestDetail,
+    };
   }
 
   async updateArtistRequestStatusById(

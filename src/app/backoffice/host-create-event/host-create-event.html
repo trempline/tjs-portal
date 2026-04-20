@@ -222,10 +222,14 @@
           <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
             <div class="flex items-center justify-between gap-3">
               <div>
-                <h2 class="text-lg font-semibold text-zinc-900">Editable Event Dates</h2>
-                <p class="mt-1 text-sm text-zinc-500">Manage one or more dates in table format using day show or period entries.</p>
+                <h2 class="text-lg font-semibold text-zinc-900">{{ isRequestPublished ? 'Published Event Dates' : 'Editable Event Dates' }}</h2>
+                <p class="mt-1 text-sm text-zinc-500">
+                  {{ isRequestPublished
+                    ? 'The request is published, so the event schedule is now read-only here.'
+                    : 'Manage one or more dates in table format using day show or period entries.' }}
+                </p>
               </div>
-              <button type="button" (click)="addScheduleEntry()" class="rounded-2xl border border-zinc-200 px-4 py-3 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50">
+              <button *ngIf="!isRequestPublished" type="button" (click)="addScheduleEntry()" class="rounded-2xl border border-zinc-200 px-4 py-3 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50">
                 Add Date
               </button>
             </div>
@@ -237,51 +241,47 @@
                     <th class="px-4 py-3 text-left font-semibold text-zinc-600">Type</th>
                     <th class="px-4 py-3 text-left font-semibold text-zinc-600">Start Date</th>
                     <th class="px-4 py-3 text-left font-semibold text-zinc-600">End Date</th>
+                    <th class="px-4 py-3 text-left font-semibold text-zinc-600">Time</th>
+                    <th class="px-4 py-3 text-left font-semibold text-zinc-600">Venue</th>
                     <th class="px-4 py-3 text-left font-semibold text-zinc-600">Action</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-zinc-100 bg-white">
                   <tr *ngFor="let entry of scheduleEntries; let i = index; trackBy: trackByProposalIndex">
                     <td class="px-4 py-3">
-                      <select [(ngModel)]="scheduleEntries[i].mode" class="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100">
+                      <select [(ngModel)]="scheduleEntries[i].mode" [disabled]="isRequestPublished" class="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none disabled:bg-zinc-100 disabled:text-zinc-400 focus:border-red-500 focus:ring-2 focus:ring-red-100">
                         <option value="day_show">Day Show</option>
                         <option value="period">Period</option>
                       </select>
                     </td>
                     <td class="px-4 py-3">
-                      <input [(ngModel)]="scheduleEntries[i].startDate" type="date" class="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+                      <input [(ngModel)]="scheduleEntries[i].startDate" [disabled]="isRequestPublished" type="date" class="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none disabled:bg-zinc-100 disabled:text-zinc-400 focus:border-red-500 focus:ring-2 focus:ring-red-100" />
                     </td>
                     <td class="px-4 py-3">
-                      <input [(ngModel)]="scheduleEntries[i].endDate" type="date" [disabled]="scheduleEntries[i].mode !== 'period'" class="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none disabled:bg-zinc-100 disabled:text-zinc-400 focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+                      <input [(ngModel)]="scheduleEntries[i].endDate" type="date" [disabled]="isRequestPublished || scheduleEntries[i].mode !== 'period'" class="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none disabled:bg-zinc-100 disabled:text-zinc-400 focus:border-red-500 focus:ring-2 focus:ring-red-100" />
                     </td>
                     <td class="px-4 py-3">
-                      <button type="button" (click)="removeScheduleEntry(i)" class="rounded-xl border border-red-200 px-4 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50">
+                      <input [(ngModel)]="scheduleEntries[i].showTime" [disabled]="isRequestPublished" type="time" class="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none disabled:bg-zinc-100 disabled:text-zinc-400 focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+                    </td>
+                    <td class="px-4 py-3">
+                      <select [(ngModel)]="scheduleEntries[i].locationId" [disabled]="isRequestPublished" class="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none disabled:bg-zinc-100 disabled:text-zinc-400 focus:border-red-500 focus:ring-2 focus:ring-red-100">
+                        <option [ngValue]="null">Select location</option>
+                        <optgroup *ngIf="privateLocations.length > 0" label="Private Locations">
+                          <option *ngFor="let location of privateLocations; trackBy: trackByLocationId" [ngValue]="location.id">{{ locationLabel(location) }}</option>
+                        </optgroup>
+                        <optgroup *ngIf="publicLocations.length > 0" label="Public Locations">
+                          <option *ngFor="let location of publicLocations; trackBy: trackByLocationId" [ngValue]="location.id">{{ locationLabel(location) }}</option>
+                        </optgroup>
+                      </select>
+                    </td>
+                    <td class="px-4 py-3">
+                      <button *ngIf="!isRequestPublished" type="button" (click)="removeScheduleEntry(i)" class="rounded-xl border border-red-200 px-4 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50">
                         Remove
                       </button>
                     </td>
                   </tr>
                 </tbody>
               </table>
-            </div>
-
-            <div class="mt-5 grid gap-5 md:grid-cols-2">
-              <div>
-                <label class="text-sm font-medium text-zinc-700">Show Time</label>
-                <input [(ngModel)]="form.showTime" type="time" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
-              </div>
-
-              <div>
-                <label class="text-sm font-medium text-zinc-700">Venue</label>
-                <select [(ngModel)]="form.locationId" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100">
-                  <option [ngValue]="null">Select location</option>
-                  <optgroup *ngIf="privateLocations.length > 0" label="Private Locations">
-                    <option *ngFor="let location of privateLocations; trackBy: trackByLocationId" [ngValue]="location.id">{{ locationLabel(location) }}</option>
-                  </optgroup>
-                  <optgroup *ngIf="publicLocations.length > 0" label="Public Locations">
-                    <option *ngFor="let location of publicLocations; trackBy: trackByLocationId" [ngValue]="location.id">{{ locationLabel(location) }}</option>
-                  </optgroup>
-                </select>
-              </div>
             </div>
           </section>
 
