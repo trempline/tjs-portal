@@ -1,8 +1,11 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { DatePipe, NgClass, NgFor, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { lastValueFrom } from 'rxjs';
+import { Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
-import { AdminEventOverviewItem, SupabaseService } from '../../services/supabase.service';
+import { AdminEventOverviewItem, EventLocationSummary, SupabaseService, TjsArtist, TjsHost } from '../../services/supabase.service';
+import { HostManagerService } from '../../services/host-manager.service';
 
 @Component({
   selector: 'app-events',
@@ -13,6 +16,8 @@ import { AdminEventOverviewItem, SupabaseService } from '../../services/supabase
 export class Events implements OnInit {
   private authService = inject(AuthService);
   private supabase = inject(SupabaseService);
+  private hostManagerService = inject(HostManagerService);
+  private router = inject(Router);
 
   activeTab: 'upcoming' | 'past' = 'upcoming';
   isLoading = true;
@@ -22,8 +27,12 @@ export class Events implements OnInit {
 
   items: AdminEventOverviewItem[] = [];
   myArtistIds = new Set<string>();
+  managedHostIds = new Set<number>();
+  eventLocationSummaries = new Map<string, EventLocationSummary>();
 
   async ngOnInit() {
+    await this.authService.waitForAuthReady();
+
     if (!this.supportsOverview) {
       this.isLoading = false;
       return;
@@ -37,18 +46,39 @@ export class Events implements OnInit {
     this.error = '';
 
     try {
-      const currentUserId = this.authService.currentUser?.id ?? '';
+      const currentUserId = this.authService.currentProfile?.id ?? this.authService.currentUser?.id ?? '';
       const artistScope = this.isCommitteeMember && currentUserId
         ? { committeeMemberId: currentUserId, createdById: currentUserId }
         : undefined;
 
-      const [artists, overview] = await Promise.all([
+      const [artists, overview, managedHosts] = await Promise.all([
         artistScope ? this.supabase.getArtists(artistScope) : Promise.resolve([]),
         this.supabase.getAdminEventOverview(),
+        this.isHostManager && currentUserId
+          ? lastValueFrom(this.hostManagerService.getAssignedHosts(currentUserId))
+          : Promise.resolve([]),
       ]);
 
-      this.myArtistIds = new Set(artists.map((artist) => artist.id));
-      this.items = overview.filter((item) => item.event_type === 'EVENT_INSTANCE');
+      this.myArtistIds = new Set((artists as TjsArtist[]).map((artist: TjsArtist) => artist.id));
+      this.managedHostIds = new Set((managedHosts as TjsHost[]).map((host: TjsHost) => host.id));
+      this.items = overview.filter((item: AdminEventOverviewItem) => {
+        if (item.event_type !== 'EVENT_INSTANCE') {
+          return false;
+        }
+
+        if (this.isHostManager) {
+          return item.host_ids.some((hostId: number) => this.managedHostIds.has(hostId));
+        }
+
+        return true;
+      });
+
+      this.eventLocationSummaries = this.isHostManager
+        ? await this.supabase.getEventLocationSummaries(
+            this.items.map((item) => item.id),
+            Array.from(this.managedHostIds),
+          )
+        : new Map<string, EventLocationSummary>();
     } catch (error) {
       this.error = error instanceof Error ? error.message : 'Failed to load events.';
     } finally {
@@ -79,10 +109,18 @@ export class Events implements OnInit {
   }
 
   get supportsOverview(): boolean {
-    return this.authService.isAdmin || this.isCommitteeMember;
+    return this.authService.isAdmin || this.isCommitteeMember || this.isHostManager;
+  }
+
+  get isHostManager(): boolean {
+    return this.authService.isHostManager;
   }
 
   get scopeLabel(): string {
+    if (this.isHostManager) {
+      return 'My host events';
+    }
+
     if (!this.isCommitteeMember) {
       return 'All platform events';
     }
@@ -95,6 +133,7 @@ export class Events implements OnInit {
 
     return this.items.filter((item) => {
       const matchesScope =
+        (this.isHostManager && item.host_ids.some((hostId) => this.managedHostIds.has(hostId))) ||
         !this.isCommitteeMember ||
         this.showAllPlatform ||
         item.artist_ids.some((artistId) => this.myArtistIds.has(artistId));
@@ -121,7 +160,7 @@ export class Events implements OnInit {
         item.description ?? '',
         item.artist_names.join(' '),
         item.host_names.join(' '),
-        item.city ?? '',
+        this.locationLabel(item),
         this.displayStatus(item),
         this.displayHostStatuses(item).join(' '),
       ];
@@ -145,6 +184,10 @@ export class Events implements OnInit {
   }
 
   displayStatus(item: AdminEventOverviewItem): string {
+    if (this.isHostManager) {
+      return item.status;
+    }
+
     switch (item.status) {
       case 'APPROVED':
         return 'Upcoming';
@@ -158,6 +201,10 @@ export class Events implements OnInit {
   }
 
   displayHostStatuses(item: AdminEventOverviewItem): string[] {
+    if (this.isHostManager) {
+      return item.host_statuses;
+    }
+
     return item.host_statuses.map((status) => {
       switch (status) {
         case 'CONFIRMED':
@@ -176,5 +223,21 @@ export class Events implements OnInit {
 
   primaryArtist(item: AdminEventOverviewItem): string {
     return item.artist_names[0] ?? 'Unassigned';
+  }
+
+  locationLabel(item: AdminEventOverviewItem): string {
+    if (this.isHostManager) {
+      return this.eventLocationSummaries.get(item.id)?.display_label ?? 'Unknown';
+    }
+
+    return item.city || item.department || 'Unknown';
+  }
+
+  async openEvent(item: AdminEventOverviewItem) {
+    if (!this.isHostManager) {
+      return;
+    }
+
+    await this.router.navigate(['/backoffice/host-manager/events', item.id]);
   }
 }

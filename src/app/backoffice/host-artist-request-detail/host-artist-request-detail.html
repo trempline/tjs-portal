@@ -22,11 +22,20 @@
       </button>
       <button
         type="button"
+        (click)="openProposalModal()"
+        [disabled]="isSaving || hasSubmittedHostProposal"
+        class="inline-flex items-center justify-center rounded-2xl border border-zinc-300 bg-white px-5 py-3 text-sm font-semibold text-zinc-900 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        Propose New Dates
+      </button>
+      <button
+        *ngIf="!hasSubmittedHostProposal"
+        type="button"
         (click)="acceptRequest()"
-        [disabled]="isSaving || acceptedByHost"
+        [disabled]="isSaving"
         class="inline-flex items-center justify-center rounded-2xl bg-red-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {{ acceptedByHost ? 'Accepted' : (isSaving ? 'Saving...' : 'Accept') }}
+        {{ isSaving ? 'Saving...' : 'Accept' }}
       </button>
     </div>
   </div>
@@ -76,7 +85,6 @@
         <div class="flex flex-wrap gap-2">
           <button type="button" (click)="setTab('request')" [ngClass]="activeTab === 'request' ? 'bg-zinc-900 text-white shadow-sm' : 'bg-white text-zinc-600 hover:bg-zinc-100'" class="rounded-full px-4 py-2 text-sm font-medium transition-colors">Request</button>
           <button type="button" (click)="setTab('instruments')" [ngClass]="activeTab === 'instruments' ? 'bg-zinc-900 text-white shadow-sm' : 'bg-white text-zinc-600 hover:bg-zinc-100'" class="rounded-full px-4 py-2 text-sm font-medium transition-colors">Instruments</button>
-          <button type="button" (click)="setTab('dates')" [ngClass]="activeTab === 'dates' ? 'bg-zinc-900 text-white shadow-sm' : 'bg-white text-zinc-600 hover:bg-zinc-100'" class="rounded-full px-4 py-2 text-sm font-medium transition-colors">Proposed Dates</button>
           <button type="button" (click)="setTab('comments')" [ngClass]="activeTab === 'comments' ? 'bg-zinc-900 text-white shadow-sm' : 'bg-white text-zinc-600 hover:bg-zinc-100'" class="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors">
             <span>Comments</span>
             <span *ngIf="request.comments.length > 0" class="inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1.5 text-xs font-semibold" [ngClass]="activeTab === 'comments' ? 'bg-white/20 text-white' : 'bg-zinc-200 text-zinc-700'">
@@ -235,95 +243,6 @@
           </div>
         </div>
 
-        <div *ngIf="activeTab === 'dates'" class="space-y-6">
-          <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
-            <h3 class="text-lg font-semibold text-zinc-900">Host Proposal</h3>
-            <p class="mt-1 text-sm text-zinc-500">Choose the edition and event type, then enter the dates you can host for this request.</p>
-            <div class="mt-5 grid gap-5 md:grid-cols-2">
-              <div>
-                <label class="text-sm font-medium text-zinc-700">Event Edition</label>
-                <select [(ngModel)]="selectedEditionId" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100">
-                  <option [ngValue]="null">Select edition</option>
-                  <option *ngFor="let edition of editionOptions" [ngValue]="edition.id">{{ edition.name }}</option>
-                </select>
-              </div>
-              <div>
-                <label class="text-sm font-medium text-zinc-700">Event Type</label>
-                <select [(ngModel)]="selectedEventTypeId" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100">
-                  <option [ngValue]="null">Select event type</option>
-                  <option *ngFor="let eventType of eventTypeOptions" [ngValue]="eventType.id">{{ eventType.name }}</option>
-                </select>
-              </div>
-            </div>
-          </section>
-
-          <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
-            <div class="flex items-center justify-between gap-3">
-              <div>
-                <h3 class="text-lg font-semibold text-zinc-900">Proposed Dates</h3>
-                <p class="mt-1 text-sm text-zinc-500">For each proposal, choose whether it is a one-day show or a period, then add show time and location.</p>
-              </div>
-              <button type="button" (click)="addProposedDate()" class="rounded-2xl border border-zinc-200 px-4 py-3 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50">
-                Add Date
-              </button>
-            </div>
-
-            <div class="mt-5 space-y-4">
-              <div *ngFor="let proposedDate of proposedDates; let i = index" class="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
-                <div class="grid gap-4 md:grid-cols-2">
-                  <div class="space-y-2 md:col-span-2">
-                    <label class="text-sm font-medium text-zinc-700">Proposal Type</label>
-                    <div class="flex flex-wrap gap-3">
-                      <label class="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm">
-                        <input [(ngModel)]="proposedDate.mode" type="radio" value="one_day" />
-                        One Day
-                      </label>
-                      <label class="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm">
-                        <input [(ngModel)]="proposedDate.mode" type="radio" value="period" />
-                        Period
-                      </label>
-                    </div>
-                  </div>
-
-                  <div class="space-y-2">
-                    <label class="text-sm font-medium text-zinc-700">Start Date</label>
-                    <input [(ngModel)]="proposedDate.start_date" type="date" class="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
-                  </div>
-
-                  <div *ngIf="proposedDate.mode === 'period'" class="space-y-2">
-                    <label class="text-sm font-medium text-zinc-700">End Date</label>
-                    <input [(ngModel)]="proposedDate.end_date" type="date" class="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
-                  </div>
-
-                  <div class="space-y-2">
-                    <label class="text-sm font-medium text-zinc-700">Show Time</label>
-                    <input [(ngModel)]="proposedDate.show_time" type="time" class="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
-                  </div>
-
-                  <div class="space-y-2 md:col-span-2">
-                    <label class="text-sm font-medium text-zinc-700">Location</label>
-                    <select [(ngModel)]="proposedDate.location_id" class="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100">
-                      <option [ngValue]="null">Select location</option>
-                      <optgroup *ngIf="privateLocations.length > 0" label="Private Locations">
-                        <option *ngFor="let location of privateLocations; trackBy: trackByLocationId" [ngValue]="location.id">{{ locationLabel(location) }}</option>
-                      </optgroup>
-                      <optgroup *ngIf="publicLocations.length > 0" label="Public Locations">
-                        <option *ngFor="let location of publicLocations; trackBy: trackByLocationId" [ngValue]="location.id">{{ locationLabel(location) }}</option>
-                      </optgroup>
-                    </select>
-                  </div>
-                </div>
-
-                <div class="mt-4 flex justify-end">
-                  <button type="button" (click)="removeProposedDate(i)" class="rounded-xl border border-red-200 px-4 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50">
-                    Remove
-                  </button>
-                </div>
-              </div>
-            </div>
-          </section>
-        </div>
-
         <div *ngIf="activeTab === 'comments'" class="space-y-6">
           <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
             <h3 class="text-lg font-semibold text-zinc-900">Add Comment</h3>
@@ -346,7 +265,7 @@
               No comments yet.
             </div>
             <div *ngIf="request.comments.length > 0" class="mt-4 space-y-3">
-              <div *ngFor="let comment of request.comments; trackBy: trackByOptionalId" class="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+              <div *ngFor="let comment of sortedComments; trackBy: trackByOptionalId" class="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
                 <div class="flex items-start justify-between gap-3">
                   <div>
                     <div class="text-sm font-semibold text-zinc-900">{{ comment.author_name }}</div>
@@ -362,4 +281,120 @@
       </div>
     </div>
   </ng-container>
+
+  <div *ngIf="isProposalModalOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/55 px-4 py-8">
+    <div class="max-h-[calc(100vh-4rem)] w-full max-w-5xl overflow-y-auto rounded-[2rem] border border-zinc-200 bg-white shadow-2xl">
+      <div class="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-zinc-200 bg-white px-6 py-5">
+        <div>
+          <h2 class="text-xl font-semibold text-zinc-900">Propose New Dates</h2>
+          <p class="mt-1 text-sm text-zinc-500">Update the host proposal here, then save it back to the request before accepting.</p>
+        </div>
+        <button
+          type="button"
+          (click)="closeProposalModal()"
+          class="inline-flex h-10 w-10 items-center justify-center rounded-full border border-zinc-200 text-zinc-500 transition-colors hover:bg-zinc-50 hover:text-zinc-700"
+          aria-label="Close proposed dates modal"
+        >
+          ×
+        </button>
+      </div>
+
+      <div class="space-y-6 px-6 py-6">
+        <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <p class="text-sm text-zinc-500">Choose the edition and event type, then enter the dates you can host for this request.</p>
+          <div class="mt-5 grid gap-5 md:grid-cols-2">
+            <div>
+              <label class="text-sm font-medium text-zinc-700">Event Edition</label>
+              <select [(ngModel)]="draftSelectedEditionId" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100">
+                <option [ngValue]="null">Select edition</option>
+                <option *ngFor="let edition of editionOptions" [ngValue]="edition.id">{{ edition.name }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-sm font-medium text-zinc-700">Event Type</label>
+              <select [(ngModel)]="draftSelectedEventTypeId" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100">
+                <option [ngValue]="null">Select event type</option>
+                <option *ngFor="let eventType of eventTypeOptions" [ngValue]="eventType.id">{{ eventType.name }}</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <h3 class="text-lg font-semibold text-zinc-900">Proposed Dates</h3>
+              <p class="mt-1 text-sm text-zinc-500">For each proposal, choose whether it is a one-day show or a period, then add show time and location.</p>
+            </div>
+            <button type="button" (click)="addDraftProposedDate()" class="rounded-2xl border border-zinc-200 px-4 py-3 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50">
+              Add Date
+            </button>
+          </div>
+
+          <div class="mt-5 space-y-4">
+            <div *ngFor="let proposedDate of proposalDraftDates; let i = index" class="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+              <div class="grid gap-4 md:grid-cols-2">
+                <div class="space-y-2 md:col-span-2">
+                  <label class="text-sm font-medium text-zinc-700">Proposal Type</label>
+                  <div class="flex flex-wrap gap-3">
+                    <label class="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm">
+                      <input [(ngModel)]="proposedDate.mode" type="radio" value="one_day" [name]="'modal-proposal-type-' + i" />
+                      One Day
+                    </label>
+                    <label class="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm">
+                      <input [(ngModel)]="proposedDate.mode" type="radio" value="period" [name]="'modal-proposal-type-' + i" />
+                      Period
+                    </label>
+                  </div>
+                </div>
+
+                <div class="space-y-2">
+                  <label class="text-sm font-medium text-zinc-700">Start Date</label>
+                  <input [(ngModel)]="proposedDate.start_date" type="date" class="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+                </div>
+
+                <div *ngIf="proposedDate.mode === 'period'" class="space-y-2">
+                  <label class="text-sm font-medium text-zinc-700">End Date</label>
+                  <input [(ngModel)]="proposedDate.end_date" type="date" class="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+                </div>
+
+                <div class="space-y-2">
+                  <label class="text-sm font-medium text-zinc-700">Show Time</label>
+                  <input [(ngModel)]="proposedDate.show_time" type="time" class="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+                </div>
+
+                <div class="space-y-2 md:col-span-2">
+                  <label class="text-sm font-medium text-zinc-700">Location</label>
+                  <select [(ngModel)]="proposedDate.location_id" class="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100">
+                    <option [ngValue]="null">Select location</option>
+                    <optgroup *ngIf="privateLocations.length > 0" label="Private Locations">
+                      <option *ngFor="let location of privateLocations; trackBy: trackByLocationId" [ngValue]="location.id">{{ locationLabel(location) }}</option>
+                    </optgroup>
+                    <optgroup *ngIf="publicLocations.length > 0" label="Public Locations">
+                      <option *ngFor="let location of publicLocations; trackBy: trackByLocationId" [ngValue]="location.id">{{ locationLabel(location) }}</option>
+                    </optgroup>
+                  </select>
+                </div>
+              </div>
+
+              <div class="mt-4 flex justify-end">
+                <button type="button" (click)="removeDraftProposedDate(i)" class="rounded-xl border border-red-200 px-4 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50">
+                  Remove
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="sticky bottom-0 flex justify-end gap-3 border-t border-zinc-200 bg-white px-6 py-5">
+        <button type="button" (click)="closeProposalModal()" class="rounded-2xl border border-zinc-200 px-5 py-3 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50">
+          Cancel
+        </button>
+        <button type="button" (click)="saveProposalDraft()" class="rounded-2xl bg-zinc-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-zinc-800">
+          Save Proposed Dates
+        </button>
+      </div>
+    </div>
+  </div>
 </div>

@@ -1,0 +1,52 @@
+<div class="space-y-6">
+  <div>
+    <h1 class="text-2xl font-bold text-zinc-900">TJS Artists</h1>
+    <p class="mt-1 text-sm text-zinc-500">Browse all TJS artists and open their full profile details.</p>
+  </div>
+
+  <div *ngIf="error" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+    {{ error }}
+  </div>
+
+  <div *ngIf="isLoading" class="flex items-center justify-center py-20">
+    <div class="h-8 w-8 animate-spin rounded-full border-4 border-zinc-200 border-t-red-600"></div>
+  </div>
+
+  <div *ngIf="!isLoading" class="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm">
+    <div class="overflow-x-auto">
+      <table class="min-w-full divide-y divide-zinc-200 text-sm">
+        <thead class="bg-zinc-50">
+          <tr>
+            <th class="px-4 py-3 text-left font-semibold text-zinc-600">Artist</th>
+            <th class="px-4 py-3 text-left font-semibold text-zinc-600">Email</th>
+            <th class="px-4 py-3 text-left font-semibold text-zinc-600">Phone</th>
+            <th class="px-4 py-3 text-left font-semibold text-zinc-600">Status</th>
+            <th class="px-4 py-3 text-left font-semibold text-zinc-600">Featured</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-zinc-100">
+          <tr
+            *ngFor="let artist of artists; trackBy: trackByArtist"
+            (click)="openArtist(artist)"
+            class="cursor-pointer transition-colors hover:bg-zinc-50">
+            <td class="px-4 py-3 text-zinc-800">
+              <div class="font-medium">{{ displayName(artist) }}</div>
+              <div class="mt-1 text-xs font-medium text-red-600">Open details</div>
+            </td>
+            <td class="px-4 py-3 text-zinc-600">{{ artist.profile?.email || '-' }}</td>
+            <td class="px-4 py-3 text-zinc-600">{{ artist.profile?.phone || '-' }}</td>
+            <td class="px-4 py-3">
+              <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold" [ngClass]="activationStatusClass(artist)">
+                {{ activationStatusLabel(artist) }}
+              </span>
+            </td>
+            <td class="px-4 py-3 text-zinc-600">{{ artist.is_featured ? 'Yes' : 'No' }}</td>
+          </tr>
+          <tr *ngIf="artists.length === 0">
+            <td colspan="5" class="px-4 py-10 text-center text-sm text-zinc-500">No TJS artists found.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

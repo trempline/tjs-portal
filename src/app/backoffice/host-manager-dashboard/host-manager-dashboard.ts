@@ -29,7 +29,7 @@ export class HostManagerDashboard implements OnInit {
   pendingSuggestions: RequestSuggestion[] = [];
 
   get currentUserId(): string {
-    return this.authService.currentUser?.id ?? '';
+    return this.authService.currentProfile?.id ?? this.authService.currentUser?.id ?? '';
   }
 
   get displayName(): string {
@@ -44,22 +44,35 @@ export class HostManagerDashboard implements OnInit {
     this.isLoading = true;
     this.error = '';
 
+    await this.authService.waitForAuthReady();
+
     const userId = this.currentUserId;
     if (!userId) {
       this.isLoading = false;
+      this.error = 'User not authenticated.';
       return;
     }
 
     try {
-      const [stats, hosts, messages, suggestions] = await Promise.all([
+      const [stats, hosts] = await Promise.all([
         lastValueFrom(this.hostManagerService.getDashboardStats(userId)),
         lastValueFrom(this.hostManagerService.getAssignedHosts(userId)),
-        lastValueFrom(this.messagingService.getConversations()),
-        this.requestSuggestionService.getPendingSuggestionsForManagedHosts(userId)
       ]);
 
       this.stats = stats;
       this.assignedHosts = hosts;
+
+      const [messages, suggestions] = await Promise.all([
+        lastValueFrom(this.messagingService.getConversations()).catch((error) => {
+          console.error('Error loading host manager messages:', error);
+          return [] as MessageConversation[];
+        }),
+        this.requestSuggestionService.getPendingSuggestionsForManagedHosts(userId).catch((error) => {
+          console.error('Error loading host manager suggestions:', error);
+          return [] as RequestSuggestion[];
+        })
+      ]);
+
       this.recentMessages = messages;
       this.pendingSuggestions = suggestions;
     } catch (err) {

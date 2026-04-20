@@ -230,7 +230,7 @@ export class EventRequests implements OnInit {
       return;
     }
 
-    const target = ['artist_accepted', 'approved', 'published'].includes(item.status)
+    const target = ['accepted_by_host', 'artist_accepted', 'approved', 'published'].includes(item.status)
       ? ['/backoffice/host/requests', item.id, 'create-event']
       : ['/backoffice/host/requests', item.id];
 

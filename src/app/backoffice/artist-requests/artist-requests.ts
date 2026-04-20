@@ -5,6 +5,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import {
   ArtistRequestArtistEntry,
+  ArtistAvailabilityEntry,
   ArtistRequestCommentEntry,
   ArtistRequestDateEntry,
   ArtistRequestDetail,
@@ -29,6 +30,7 @@ interface HostProposalSummary {
   templateUrl: './artist-requests.html',
 })
 export class ArtistRequests implements OnInit {
+  private static readonly DUPLICATE_DRAFT_STATE_KEY = 'artistRequestDuplicateDraft';
   private authService = inject(AuthService);
   private supabase = inject(SupabaseService);
   private route = inject(ActivatedRoute);
@@ -39,6 +41,8 @@ export class ArtistRequests implements OnInit {
   private seenCommentMap: Record<string, string> = {};
   private isSubmittingArtistProposal = false;
   private originalDatesSignature = '';
+  private pendingNewRequestDraft: ArtistRequestDetail | null = null;
+  private hasPreparedNewRequestRoute = false;
 
   isLoading = true;
   isDetailLoading = false;
@@ -54,6 +58,7 @@ export class ArtistRequests implements OnInit {
   requests: ArtistRequestListItem[] = [];
   eventDomains: Array<{ id: number; name: string }> = [];
   tjsArtists: Array<{ id: string; artist_name: string; profile_id: string; instruments: string[] }> = [];
+  availabilityEntries: ArtistAvailabilityEntry[] = [];
 
   isEditorOpen = false;
   activeTab: RequestTab = 'details';
@@ -95,13 +100,21 @@ export class ArtistRequests implements OnInit {
   }
 
   private prepareNewRequest() {
+    if (this.hasPreparedNewRequestRoute && !this.pendingNewRequestDraft && this.isEditorOpen && !this.selectedRequestId) {
+      return;
+    }
+
+    const routeDraft = this.readDuplicateDraftFromRouteState();
+    const nextRequest = this.pendingNewRequestDraft ?? routeDraft ?? this.blankRequest();
+
     this.error = '';
     this.successMessage = '';
     this.isEditorOpen = true;
     this.isDetailLoading = false;
     this.activeTab = 'details';
     this.selectedRequestId = null;
-    this.request = this.blankRequest();
+    this.request = this.applyPrimaryArtist(nextRequest);
+    this.pendingNewRequestDraft = null;
     this.commentDraft = '';
     this.initialCommentPreview = '';
     this.inviteArtist = { email: '', fullName: '' };
@@ -109,6 +122,7 @@ export class ArtistRequests implements OnInit {
     this.isSubmittingArtistProposal = false;
     this.originalDatesSignature = this.buildDatesSignature(this.request.dates);
     this.isEditing = true;
+    this.hasPreparedNewRequestRoute = true;
   }
 
   async openExistingRequest(requestId: string) {
@@ -116,6 +130,7 @@ export class ArtistRequests implements OnInit {
   }
 
   private async loadExistingRequest(requestId: string) {
+    this.hasPreparedNewRequestRoute = false;
     this.error = '';
     this.successMessage = '';
     this.isEditorOpen = true;
@@ -158,6 +173,7 @@ export class ArtistRequests implements OnInit {
     this.showInviteArtistForm = false;
     this.isSubmittingArtistProposal = false;
     this.originalDatesSignature = this.buildDatesSignature(this.request.dates);
+    this.hasPreparedNewRequestRoute = false;
   }
 
   startEditing() {
@@ -188,11 +204,16 @@ export class ArtistRequests implements OnInit {
     this.commentDraft = '';
     this.initialCommentPreview = '';
     this.isEditing = true;
+    this.isEditorOpen = true;
+    this.isDetailLoading = false;
     this.showInviteArtistForm = false;
-    this.request = this.applyPrimaryArtist({
+    this.isDeleteConfirmOpen = false;
+    this.isSubmittingArtistProposal = false;
+    this.hasPreparedNewRequestRoute = false;
+    const duplicatedRequest = this.applyPrimaryArtist({
       ...detail,
       id: undefined,
-      event_title: `${detail.event_title}_COPY`,
+      event_title: `${detail.event_title} Copy`,
       status: 'new_request',
       comments: [],
       artists: detail.artists.map((artist) => ({
@@ -208,8 +229,15 @@ export class ArtistRequests implements OnInit {
         id: undefined,
       })),
     });
+    this.pendingNewRequestDraft = duplicatedRequest;
+    this.request = duplicatedRequest;
+    this.originalDatesSignature = this.buildDatesSignature(this.request.dates);
 
-    await this.router.navigate(['/backoffice/artist-requests/new']);
+    await this.router.navigate(['/backoffice/artist-requests/new'], {
+      state: {
+        [ArtistRequests.DUPLICATE_DRAFT_STATE_KEY]: duplicatedRequest,
+      },
+    });
   }
 
   openDeleteConfirm() {
@@ -423,6 +451,13 @@ export class ArtistRequests implements OnInit {
       }
     }
 
+    const availabilityValidationError = this.validateDatesAgainstAvailability(this.request.dates);
+    if (availabilityValidationError) {
+      this.error = availabilityValidationError;
+      this.activeTab = 'dates';
+      return;
+    }
+
     const isNewRequestSubmission = !this.request.id;
     const datesChanged = !isNewRequestSubmission
       && this.buildDatesSignature(this.request.dates) !== this.originalDatesSignature;
@@ -528,6 +563,7 @@ export class ArtistRequests implements OnInit {
       : 'Request submitted successfully.';
     this.isSaving = false;
     this.isSubmittingArtistProposal = false;
+    this.isEditing = false;
     await this.loadRequests(profileId);
     await this.router.navigate(['/backoffice/artist-requests', result.requestId]);
   }
@@ -683,7 +719,7 @@ export class ArtistRequests implements OnInit {
   get latestHostProposal(): HostProposalSummary | null {
     const hostAcceptedComment = [...this.request.comments]
       .reverse()
-      .find((comment) => comment.body.startsWith('[HOST_ACCEPTED]'));
+      .find((comment) => comment.body.startsWith('[HOST_PROPOSED]') || comment.body.startsWith('[HOST_ACCEPTED]'));
 
     if (!hostAcceptedComment) {
       return null;
@@ -784,15 +820,17 @@ export class ArtistRequests implements OnInit {
 
   private async loadData(profileId: string) {
     try {
-      const [requests, eventDomains, tjsArtists] = await Promise.all([
+      const [requests, eventDomains, tjsArtists, availabilityEntries] = await Promise.all([
         this.supabase.getArtistWorkspaceRequests(profileId),
         this.supabase.listEventDomains(),
         this.supabase.listTjsArtistsForRequestSelection(),
+        this.supabase.getArtistWorkspaceAvailability(profileId),
       ]);
 
       this.requests = requests;
       this.eventDomains = eventDomains;
       this.tjsArtists = tjsArtists;
+      this.availabilityEntries = availabilityEntries;
       const currentArtist = this.tjsArtists.find((artist) => artist.profile_id === profileId) ?? null;
       this.currentArtistId = currentArtist?.id ?? null;
       this.currentArtistName = currentArtist?.artist_name ?? this.authService.currentUser?.email ?? '';
@@ -828,10 +866,11 @@ export class ArtistRequests implements OnInit {
       return;
     }
 
-    const routePath = this.route.snapshot.routeConfig?.path;
+    const urlPath = this.router.url.split('?')[0];
+    const isNewRoute = urlPath.endsWith('/artist-requests/new');
     const requestId = this.route.snapshot.paramMap.get('requestId');
 
-    if (routePath === 'artist-requests/new') {
+    if (isNewRoute) {
       this.prepareNewRequest();
       return;
     }
@@ -910,5 +949,46 @@ export class ArtistRequests implements OnInit {
         event_time: date.event_time || '',
       }))
     );
+  }
+
+  private readDuplicateDraftFromRouteState(): ArtistRequestDetail | null {
+    const navigationState = (this.router.getCurrentNavigation()?.extras.state
+      ?? window.history.state) as Record<string, unknown> | null;
+    const rawDraft = navigationState?.[ArtistRequests.DUPLICATE_DRAFT_STATE_KEY];
+
+    if (!rawDraft || typeof rawDraft !== 'object') {
+      return null;
+    }
+
+    return rawDraft as ArtistRequestDetail;
+  }
+
+  private validateDatesAgainstAvailability(dates: ArtistRequestDateEntry[]): string | null {
+    const availability = this.availabilityEntries
+      .filter((entry) => !!entry.start_date && !!entry.end_date)
+      .map((entry) => ({
+        start: entry.start_date,
+        end: entry.end_date,
+      }));
+
+    if (availability.length === 0) {
+      return 'The selected dates are outside your availability. Adjust your availability first, then create the request.';
+    }
+
+    for (let index = 0; index < dates.length; index += 1) {
+      const date = dates[index];
+      const start = date.start_date;
+      const end = date.request_type === 'period' ? (date.end_date || '') : date.start_date;
+
+      const fitsAvailability = availability.some((entry) => start >= entry.start && end <= entry.end);
+      if (!fitsAvailability) {
+        const label = date.request_type === 'period'
+          ? `${start} to ${end || 'TBD'}`
+          : start;
+        return `Date entry ${index + 1} (${label}) is outside your availability. Adjust your availability first, then create the request.`;
+      }
+    }
+
+    return null;
   }
 }

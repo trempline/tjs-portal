@@ -1,0 +1,499 @@
+<div *ngIf="!isArtistDashboard && !isHostDashboard" class="space-y-6">
+  <div>
+    <h1 class="text-2xl font-bold text-zinc-900">{{ title }}</h1>
+    <p class="mt-0.5 text-sm text-zinc-500">{{ description }}</p>
+  </div>
+
+  <div class="rounded-xl border border-zinc-200 bg-white p-12 shadow-sm">
+    <div class="flex flex-col items-center justify-center text-center text-zinc-400">
+      <div class="flex h-16 w-16 items-center justify-center rounded-full bg-zinc-100 text-zinc-500">
+        <svg class="h-8 w-8" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M12 3v18"></path>
+          <path d="M3 12h18"></path>
+        </svg>
+      </div>
+      <p class="mt-4 text-sm font-medium text-zinc-700">{{ title }}</p>
+      <p class="mt-1 text-xs">This artist workspace section is ready for the next feature pass.</p>
+    </div>
+  </div>
+</div>
+
+<div *ngIf="isArtistDashboard" class="space-y-6">
+  <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-zinc-900">Dashboard</h1>
+      <p class="mt-1 text-sm text-zinc-500">Track your upcoming events, unread communication, request pipeline, and availability in one place.</p>
+    </div>
+    <a
+      routerLink="/backoffice/artist-requests/new"
+      class="inline-flex items-center justify-center rounded-2xl bg-red-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-red-700"
+    >
+      New Request
+    </a>
+  </div>
+
+  <div *ngIf="error" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+    {{ error }}
+  </div>
+
+  <div *ngIf="isLoading" class="flex items-center justify-center py-24">
+    <div class="h-8 w-8 animate-spin rounded-full border-4 border-zinc-200 border-t-red-600"></div>
+  </div>
+
+  <ng-container *ngIf="!isLoading">
+    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <a routerLink="/backoffice/artist-events" class="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm transition-transform hover:-translate-y-0.5">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">Upcoming Events</p>
+            <p class="mt-3 text-3xl font-bold text-zinc-900">{{ upcomingEvents.length }}</p>
+            <p class="mt-1 text-sm text-zinc-500">Assigned to you</p>
+          </div>
+          <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-red-600">
+            <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+              <line x1="16" y1="2" x2="16" y2="6"/>
+              <line x1="8" y1="2" x2="8" y2="6"/>
+              <line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+          </div>
+        </div>
+      </a>
+
+      <a routerLink="/backoffice/artist-messages" class="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm transition-transform hover:-translate-y-0.5">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">Message Center ({{ unreadMessagesCountPadded }})</p>
+            <p class="mt-3 text-3xl font-bold text-zinc-900">{{ unreadMessagesCount }}</p>
+            <p class="mt-1 text-sm text-zinc-500">Unread replies</p>
+          </div>
+          <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
+            <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+          </div>
+        </div>
+      </a>
+
+      <a routerLink="/backoffice/artist-notifications" class="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm transition-transform hover:-translate-y-0.5">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">New Notifications</p>
+            <p class="mt-3 text-3xl font-bold text-zinc-900">{{ unreadNotificationsCount }}</p>
+            <p class="mt-1 text-sm text-zinc-500">Unread notices</p>
+          </div>
+          <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
+            <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"></path>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+            </svg>
+          </div>
+        </div>
+      </a>
+
+      <a routerLink="/backoffice/artist-availability" class="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm transition-transform hover:-translate-y-0.5">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">Availability Days</p>
+            <p class="mt-3 text-3xl font-bold text-zinc-900">{{ availabilityDaysCount }}</p>
+            <p class="mt-1 text-sm text-zinc-500">Marked on calendar</p>
+          </div>
+          <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+            <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M8 2v4"/>
+              <path d="M16 2v4"/>
+              <rect width="18" height="18" x="3" y="4" rx="2"/>
+              <path d="M3 10h18"/>
+            </svg>
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <div class="grid gap-6 xl:grid-cols-[1.25fr_1fr]">
+      <section class="rounded-3xl border border-zinc-200 bg-white shadow-sm">
+        <div class="border-b border-zinc-200 px-6 py-5">
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <h2 class="text-lg font-semibold text-zinc-900">My Upcoming Event</h2>
+              <p class="mt-1 text-sm text-zinc-500">Your next confirmed or scheduled event participation.</p>
+            </div>
+            <a routerLink="/backoffice/artist-events" class="text-sm font-semibold text-red-600 transition-colors hover:text-red-700">
+              View all
+            </a>
+          </div>
+        </div>
+
+        <div class="p-6">
+          <div *ngIf="nextUpcomingEvent; else noUpcomingEvent" class="space-y-5">
+            <div class="rounded-3xl bg-[linear-gradient(135deg,#18181b_0%,#27272a_45%,#b91c1c_100%)] p-6 text-white">
+              <div class="text-xs font-semibold uppercase tracking-[0.2em] text-white/70">Next Event</div>
+              <h3 class="mt-3 text-2xl font-semibold">{{ nextUpcomingEvent!.title }}</h3>
+              <p class="mt-2 max-w-2xl text-sm text-white/75">{{ nextUpcomingEvent!.description || nextUpcomingEvent!.teaser || 'No event description available yet.' }}</p>
+            </div>
+
+            <div class="grid gap-4 md:grid-cols-2">
+              <div class="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                <div class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Date</div>
+                <div class="mt-1 text-sm font-semibold text-zinc-900">{{ getPrimaryDate(nextUpcomingEvent!) | date:'mediumDate' }}</div>
+              </div>
+              <div class="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                <div class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Location</div>
+                <div class="mt-1 text-sm font-semibold text-zinc-900">{{ nextUpcomingEvent!.city || 'To be confirmed' }}</div>
+              </div>
+              <div class="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                <div class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Hosts</div>
+                <div class="mt-1 text-sm font-semibold text-zinc-900">{{ nextUpcomingEvent!.host_names.length ? nextUpcomingEvent!.host_names.join(', ') : 'Host pending' }}</div>
+              </div>
+              <div class="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                <div class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Domain</div>
+                <div class="mt-1 text-sm font-semibold text-zinc-900">{{ nextUpcomingEvent!.event_domain_name || 'Not set' }}</div>
+              </div>
+            </div>
+          </div>
+
+          <ng-template #noUpcomingEvent>
+            <div class="rounded-3xl border border-dashed border-zinc-300 bg-zinc-50 px-6 py-12 text-center text-sm text-zinc-500">
+              No upcoming event assigned yet.
+            </div>
+          </ng-template>
+        </div>
+      </section>
+
+      <section class="rounded-3xl border border-zinc-200 bg-white shadow-sm">
+        <div class="border-b border-zinc-200 px-6 py-5">
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <h2 class="text-lg font-semibold text-zinc-900">New Messages And Notifications</h2>
+              <p class="mt-1 text-sm text-zinc-500">Latest unread communication from hosts, committee, and admins.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="space-y-6 p-6">
+          <div>
+            <div class="mb-3 flex items-center justify-between gap-3">
+              <h3 class="text-sm font-semibold text-zinc-900">Messages</h3>
+              <a routerLink="/backoffice/artist-messages" class="text-xs font-semibold text-red-600 hover:text-red-700">Open message center</a>
+            </div>
+            <div *ngIf="conversations.length === 0" class="rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-6 text-sm text-zinc-500">
+              No messages yet.
+            </div>
+            <div *ngIf="conversations.length > 0" class="space-y-3">
+              <div *ngFor="let conversation of conversations | slice:0:3; trackBy: trackByConversation" class="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <div class="text-sm font-semibold text-zinc-900">{{ conversation.other_user_name }}</div>
+                    <div class="mt-1 text-xs text-zinc-500">{{ conversation.subject || 'General' }}</div>
+                    <div class="mt-2 line-clamp-2 text-sm text-zinc-600">{{ conversation.last_message_preview }}</div>
+                  </div>
+                  <span *ngIf="conversation.unread_count > 0" class="inline-flex rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700">
+                    {{ conversation.unread_count }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div class="mb-3 flex items-center justify-between gap-3">
+              <h3 class="text-sm font-semibold text-zinc-900">Notifications</h3>
+              <a routerLink="/backoffice/artist-notifications" class="text-xs font-semibold text-red-600 hover:text-red-700">Open notifications</a>
+            </div>
+            <div *ngIf="notifications.length === 0" class="rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-6 text-sm text-zinc-500">
+              No notifications yet.
+            </div>
+            <div *ngIf="notifications.length > 0" class="space-y-3">
+              <div *ngFor="let notification of notifications | slice:0:3; trackBy: trackByNotification" class="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <div class="text-sm font-semibold text-zinc-900">{{ notification.subject }}</div>
+                    <div class="mt-1 text-xs text-zinc-500">{{ notification.sender_name }} • {{ notification.created_at | date:'mediumDate' }}</div>
+                    <div class="mt-2 line-clamp-2 text-sm text-zinc-600">{{ notification.body }}</div>
+                  </div>
+                  <span *ngIf="!notification.is_read" class="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                    New
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="grid gap-6 xl:grid-cols-[1.1fr_1.3fr]">
+      <section class="rounded-3xl border border-zinc-200 bg-white shadow-sm">
+        <div class="border-b border-zinc-200 px-6 py-5">
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <h2 class="text-lg font-semibold text-zinc-900">My Requests</h2>
+              <p class="mt-1 text-sm text-zinc-500">Requests that are still active and not yet published.</p>
+            </div>
+            <a routerLink="/backoffice/artist-requests" class="text-sm font-semibold text-red-600 transition-colors hover:text-red-700">
+              View all
+            </a>
+          </div>
+        </div>
+
+        <div class="p-6">
+          <div *ngIf="requests.length === 0" class="rounded-3xl border border-dashed border-zinc-300 bg-zinc-50 px-6 py-12 text-center text-sm text-zinc-500">
+            No unpublished requests.
+          </div>
+
+          <div *ngIf="requests.length > 0" class="space-y-3">
+            <a
+              *ngFor="let request of requests | slice:0:6; trackBy: trackByRequest"
+              [routerLink]="['/backoffice/artist-requests', request.id]"
+              class="block rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-4 transition-colors hover:border-zinc-300 hover:bg-white"
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="text-sm font-semibold text-zinc-900">{{ request.event_title }}</div>
+                  <div class="mt-1 text-xs text-zinc-500">{{ request.date_summary }}</div>
+                </div>
+                <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
+                  [ngClass]="{
+                    'bg-amber-100 text-amber-700': request.status === 'new_request',
+                    'bg-cyan-100 text-cyan-700': request.status === 'accepted_by_host',
+                    'bg-sky-100 text-sky-700': request.status === 'host_proposed',
+                    'bg-violet-100 text-violet-700': request.status === 'artist_proposed',
+                    'bg-emerald-100 text-emerald-700': request.status === 'artist_accepted',
+                    'bg-green-100 text-green-700': request.status === 'approved',
+                    'bg-red-100 text-red-700': request.status === 'rejected'
+                  }"
+                >
+                  {{ request.status === 'new_request' ? 'New Request' : request.status === 'accepted_by_host' ? 'Accepted by Host' : request.status === 'host_proposed' ? 'Host Proposed' : request.status === 'artist_proposed' ? 'Artist Proposed' : request.status === 'artist_accepted' ? 'Artist Accepted' : request.status === 'approved' ? 'Approved' : 'Rejected' }}
+                </span>
+              </div>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <section class="rounded-3xl border border-zinc-200 bg-white shadow-sm">
+        <div class="border-b border-zinc-200 px-6 py-5">
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <h2 class="text-lg font-semibold text-zinc-900">Availability Calendar</h2>
+              <p class="mt-1 text-sm text-zinc-500">Your saved availability ranges highlighted by day.</p>
+            </div>
+            <a routerLink="/backoffice/artist-availability" class="text-sm font-semibold text-red-600 transition-colors hover:text-red-700">
+              Manage
+            </a>
+          </div>
+        </div>
+
+        <div class="space-y-5 p-6">
+          <div class="flex items-center justify-between gap-3">
+            <button type="button" (click)="previousMonth()" class="rounded-xl border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50">
+              Prev
+            </button>
+            <div class="text-sm font-semibold text-zinc-900">{{ monthLabel }}</div>
+            <button type="button" (click)="nextMonth()" class="rounded-xl border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50">
+              Next
+            </button>
+          </div>
+
+          <div class="grid grid-cols-7 gap-2 text-center text-xs font-semibold uppercase tracking-wide text-zinc-400">
+            <div>Mon</div>
+            <div>Tue</div>
+            <div>Wed</div>
+            <div>Thu</div>
+            <div>Fri</div>
+            <div>Sat</div>
+            <div>Sun</div>
+          </div>
+
+          <div class="grid grid-cols-7 gap-2">
+            <div
+              *ngFor="let day of calendarDays"
+              class="flex h-12 items-center justify-center rounded-2xl border text-sm"
+              [ngClass]="{
+                'border-zinc-200 bg-white text-zinc-900': day.isCurrentMonth && !day.isAvailable && !day.isToday,
+                'border-emerald-200 bg-emerald-50 text-emerald-800': day.isCurrentMonth && day.isAvailable && !day.isToday,
+                'border-red-200 bg-red-50 text-red-700': day.isToday && !day.isAvailable,
+                'border-emerald-300 bg-emerald-100 text-emerald-900 ring-1 ring-emerald-200': day.isToday && day.isAvailable,
+                'border-transparent bg-zinc-50 text-zinc-300': !day.isCurrentMonth
+              }"
+            >
+              {{ day.dayNumber }}
+            </div>
+          </div>
+
+          <div class="flex flex-wrap gap-3 text-xs text-zinc-500">
+            <div class="inline-flex items-center gap-2">
+              <span class="h-3 w-3 rounded-full bg-emerald-200"></span>
+              Available day
+            </div>
+            <div class="inline-flex items-center gap-2">
+              <span class="h-3 w-3 rounded-full bg-red-200"></span>
+              Today
+            </div>
+          </div>
+
+          <div *ngIf="availabilityEntries.length === 0" class="rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-6 text-sm text-zinc-500">
+            No availability dates added yet.
+          </div>
+
+          <div *ngIf="availabilityEntries.length > 0" class="space-y-3">
+            <div *ngFor="let entry of availabilityEntries | slice:0:4; trackBy: trackByAvailability" class="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <div class="text-sm font-semibold text-zinc-900">
+                    {{ entry.start_date | date:'mediumDate' }} - {{ entry.end_date | date:'mediumDate' }}
+                  </div>
+                  <div class="mt-1 text-xs text-zinc-500">{{ entry.note || 'No note added' }}</div>
+                </div>
+                <span class="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                  {{ getAvailabilitySummary(entry) }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </ng-container>
+</div>
+
+<div *ngIf="isHostDashboard" class="space-y-6">
+  <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-zinc-900">Dashboard</h1>
+      <p class="mt-1 text-sm text-zinc-500">Monitor your live host workload across events, requests, and private locations.</p>
+    </div>
+    <a
+      routerLink="/backoffice/host/events"
+      class="inline-flex items-center justify-center rounded-2xl bg-zinc-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-zinc-800"
+    >
+      Open Events
+    </a>
+  </div>
+
+  <div *ngIf="error" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+    {{ error }}
+  </div>
+
+  <div *ngIf="isLoading" class="flex items-center justify-center py-24">
+    <div class="h-8 w-8 animate-spin rounded-full border-4 border-zinc-200 border-t-red-600"></div>
+  </div>
+
+  <ng-container *ngIf="!isLoading">
+    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <a routerLink="/backoffice/host/events" class="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm transition-transform hover:-translate-y-0.5">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">My Upcoming Event</p>
+            <p class="mt-3 text-3xl font-bold text-zinc-900">{{ hostEvents.length }}</p>
+            <p class="mt-1 text-sm text-zinc-500">Upcoming events</p>
+          </div>
+          <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-red-600">
+            <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+              <line x1="16" y1="2" x2="16" y2="6"/>
+              <line x1="8" y1="2" x2="8" y2="6"/>
+              <line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+          </div>
+        </div>
+      </a>
+
+      <a routerLink="/backoffice/host/requests" class="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm transition-transform hover:-translate-y-0.5">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">New Artist Request</p>
+            <p class="mt-3 text-3xl font-bold text-zinc-900">{{ newArtistRequestCount }}</p>
+            <p class="mt-1 text-sm text-zinc-500">All new and re-proposed</p>
+          </div>
+          <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
+            <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+            </svg>
+          </div>
+        </div>
+      </a>
+
+      <a routerLink="/backoffice/host/requests" class="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm transition-transform hover:-translate-y-0.5">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">Accepted Or Proposed</p>
+            <p class="mt-3 text-3xl font-bold text-zinc-900">{{ engagedArtistRequestCount }}</p>
+            <p class="mt-1 text-sm text-zinc-500">Requests in your workflow</p>
+          </div>
+          <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-50 text-sky-700">
+            <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 11l3 3L22 4"/>
+              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+            </svg>
+          </div>
+        </div>
+      </a>
+
+      <a routerLink="/backoffice/host/locations/my" class="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm transition-transform hover:-translate-y-0.5">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">My Private Locations</p>
+            <p class="mt-3 text-3xl font-bold text-zinc-900">{{ privateLocations.length }}</p>
+            <p class="mt-1 text-sm text-zinc-500">Private location records</p>
+          </div>
+          <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+            <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+              <circle cx="12" cy="10" r="3"/>
+            </svg>
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <section class="rounded-3xl border border-zinc-200 bg-white shadow-sm">
+      <div class="border-b border-zinc-200 px-6 py-5">
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <h2 class="text-lg font-semibold text-zinc-900">My All Upcoming Events</h2>
+            <p class="mt-1 text-sm text-zinc-500">Open any event directly from the list below.</p>
+          </div>
+          <a routerLink="/backoffice/host/events" class="text-sm font-semibold text-red-600 transition-colors hover:text-red-700">
+            View all
+          </a>
+        </div>
+      </div>
+
+      <div *ngIf="hostEvents.length === 0" class="px-6 py-16 text-center text-sm text-zinc-500">
+        No upcoming events assigned yet.
+      </div>
+
+      <div *ngIf="hostEvents.length > 0" class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-zinc-200 text-sm">
+          <thead class="bg-zinc-50">
+            <tr>
+              <th class="px-5 py-3 text-left font-semibold text-zinc-600">Event</th>
+              <th class="px-5 py-3 text-left font-semibold text-zinc-600">Date</th>
+              <th class="px-5 py-3 text-left font-semibold text-zinc-600">Artists</th>
+              <th class="px-5 py-3 text-left font-semibold text-zinc-600">Instruments</th>
+              <th class="px-5 py-3 text-left font-semibold text-zinc-600">Status</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-zinc-100">
+            <tr *ngFor="let event of hostEvents; trackBy: trackByEvent" [routerLink]="['/backoffice/host/events', event.id]" class="cursor-pointer transition-colors hover:bg-zinc-50">
+              <td class="px-5 py-4">
+                <div class="font-semibold text-zinc-900">{{ event.title }}</div>
+                <div class="mt-1 text-xs text-zinc-500">{{ event.event_domain_name || 'No domain' }}</div>
+              </td>
+              <td class="px-5 py-4 text-zinc-700">{{ event.primary_upcoming_date | date:'mediumDate' }}</td>
+              <td class="px-5 py-4 text-zinc-700">{{ event.artist_names.length ? event.artist_names.join(', ') : 'Unassigned' }}</td>
+              <td class="px-5 py-4 text-zinc-700">{{ event.instruments.length ? event.instruments.join(', ') : 'No instruments' }}</td>
+              <td class="px-5 py-4">
+                <span class="inline-flex rounded-full border border-zinc-200 bg-zinc-100 px-2.5 py-1 text-xs font-semibold text-zinc-700">
+                  {{ event.status === 'APPROVED' ? 'Active' : event.status === 'SELECTED' ? 'Inactive' : event.status }}
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </ng-container>
+</div>

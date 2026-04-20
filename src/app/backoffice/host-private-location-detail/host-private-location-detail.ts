@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
-import { SaveTjsLocationInput, SupabaseService, TjsLocation } from '../../services/supabase.service';
+import { SaveTjsPrivateLocationInput, SupabaseService, TjsPrivateLocation } from '../../services/supabase.service';
 
 @Component({
   selector: 'app-host-private-location-detail',
@@ -19,7 +19,7 @@ export class HostPrivateLocationDetail implements OnInit {
   isUpdatingStatus = false;
   error = '';
   successMessage = '';
-  location: TjsLocation | null = null;
+  location: TjsPrivateLocation | null = null;
   zoomedImageUrl: string | null = null;
 
   async ngOnInit() {
@@ -44,7 +44,7 @@ export class HostPrivateLocationDetail implements OnInit {
   }
 
   get currentUserId(): string {
-    return this.authService.currentUser?.id ?? '';
+    return this.authService.currentProfile?.id ?? this.authService.currentUser?.id ?? '';
   }
 
   get backRoute(): string {
@@ -61,7 +61,7 @@ export class HostPrivateLocationDetail implements OnInit {
     this.isUpdatingStatus = true;
 
     const nextStatus = !this.location.is_active;
-    const error = await this.supabase.updateLocation(this.location.id, this.buildSavePayload(this.location, nextStatus));
+    const error = await this.supabase.updatePrivateLocation(this.location.id, this.buildSavePayload(this.location, nextStatus));
 
     if (error) {
       this.error = error;
@@ -93,15 +93,14 @@ export class HostPrivateLocationDetail implements OnInit {
     this.zoomedImageUrl = null;
   }
 
-  private buildSavePayload(location: TjsLocation, isActive: boolean): SaveTjsLocationInput {
+  private buildSavePayload(location: TjsPrivateLocation, isActive: boolean): SaveTjsPrivateLocationInput {
     return {
+      id_host: location.id_host,
       name: location.name,
       address: location.address,
       lat: location.lat,
       long: location.long,
       description: location.description,
-      is_public: false,
-      is_private: true,
       public_description: location.public_description,
       restricted_description: location.restricted_description,
       capacity: location.capacity,

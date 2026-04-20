@@ -121,6 +121,12 @@ export interface HostWorkspaceEventItem extends AdminEventOverviewItem {
   is_featured: boolean;
 }
 
+export interface EventLocationSummary {
+  event_id: string;
+  labels: string[];
+  display_label: string | null;
+}
+
 export interface HostWorkspaceEventDetail extends HostWorkspaceEventItem {
   host_notes: string | null;
   all_dates: string[];
@@ -251,6 +257,36 @@ export interface SaveTjsLocationInput {
   location_type_id?: number | null;
 }
 
+export interface TjsPrivateLocation extends TjsLocation {
+  id_host: number | null;
+}
+
+export interface SaveTjsPrivateLocationInput {
+  id_host: number | null;
+  name: string;
+  address?: string | null;
+  lat?: number | null;
+  long?: number | null;
+  description?: string | null;
+  public_description?: string | null;
+  restricted_description?: string | null;
+  capacity?: string | null;
+  city?: string | null;
+  country?: string | null;
+  zip?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  website?: string | null;
+  is_active: boolean;
+  access_info?: string | null;
+  created_by: string;
+  updated_by?: string | null;
+  image_urls: string[];
+  amenity_ids: number[];
+  spec_ids: number[];
+  location_type_id?: number | null;
+}
+
 export interface TjsHostMember {
   id: number;
   host_id: number;
@@ -329,8 +365,7 @@ export interface CreateHostEventFromRequestPayload {
   description: string;
   editionId: number | null;
   eventTypeId: number | null;
-  startDate: string;
-  endDate: string | null;
+  entries: Array<{ mode: 'day_show' | 'period'; startDate: string; endDate: string }>;
   showTime: string;
   locationId: string | null;
   isActive: boolean;
@@ -2096,8 +2131,10 @@ export class SupabaseService {
             continue;
           }
 
-          if (row.body.startsWith('[HOST_ACCEPTED]')) {
+          if (row.body.startsWith('[HOST_PROPOSED]')) {
             workflowStatusByRequestId.set(row.request_id, 'host_proposed');
+          } else if (row.body.startsWith('[HOST_ACCEPTED]')) {
+            workflowStatusByRequestId.set(row.request_id, 'accepted_by_host');
           } else if (row.body.startsWith('[ARTIST_PROPOSED]')) {
             workflowStatusByRequestId.set(row.request_id, 'artist_proposed');
           } else if (row.body.startsWith('[ARTIST_APPROVED]')) {
@@ -2122,35 +2159,41 @@ export class SupabaseService {
       }
     }
 
-    return requestRows.map((row) => ({
-      ...(commentSummaryByRequestId.get(row.id)
-        ? {
-            comment_count: commentSummaryByRequestId.get(row.id)!.count,
-            latest_comment_at: commentSummaryByRequestId.get(row.id)!.latestAt,
-            latest_comment_author_profile_id: commentSummaryByRequestId.get(row.id)!.latestAuthorProfileId,
-          }
-        : {
-            comment_count: 0,
-            latest_comment_at: null,
-            latest_comment_author_profile_id: null,
-          }),
-      id: row.id,
-      event_title: row.event_title ?? '',
-      status: workflowStatusByRequestId.get(row.id)
-        ?? this.mapBaseRequestStatus(row.status ?? 'pending'),
-      date_summary: this.summarizeArtistRequestDates(
-        (datesByRequestId.get(row.id) ?? []).length > 0
-          ? datesByRequestId.get(row.id) ?? []
-          : [{
-              request_type: row.request_type,
-              start_date: row.start_date,
-              end_date: row.end_date,
-              event_time: row.event_time,
-            }].filter((item) => item.start_date)
-      ),
-      created_at: row.created_at,
-      event_domain_name: row.event_domain?.name ?? null,
-    }));
+    return requestRows.map((row) => {
+      const baseStatus = this.mapBaseRequestStatus(row.status ?? 'pending');
+      const workflowStatus = workflowStatusByRequestId.get(row.id);
+
+      return {
+        ...(commentSummaryByRequestId.get(row.id)
+          ? {
+              comment_count: commentSummaryByRequestId.get(row.id)!.count,
+              latest_comment_at: commentSummaryByRequestId.get(row.id)!.latestAt,
+              latest_comment_author_profile_id: commentSummaryByRequestId.get(row.id)!.latestAuthorProfileId,
+            }
+          : {
+              comment_count: 0,
+              latest_comment_at: null,
+              latest_comment_author_profile_id: null,
+            }),
+        id: row.id,
+        event_title: row.event_title ?? '',
+        status: baseStatus === 'accepted_by_host' && workflowStatus === 'host_proposed'
+          ? 'accepted_by_host'
+          : (workflowStatus ?? baseStatus),
+        date_summary: this.summarizeArtistRequestDates(
+          (datesByRequestId.get(row.id) ?? []).length > 0
+            ? datesByRequestId.get(row.id) ?? []
+            : [{
+                request_type: row.request_type,
+                start_date: row.start_date,
+                end_date: row.end_date,
+                event_time: row.event_time,
+              }].filter((item) => item.start_date)
+        ),
+        created_at: row.created_at,
+        event_domain_name: row.event_domain?.name ?? null,
+      };
+    });
   }
 
   async getArtistWorkspaceRequestDetail(requestId: string): Promise<ArtistRequestDetail | null> {
@@ -2340,8 +2383,12 @@ export class SupabaseService {
         continue;
       }
 
-      if (row.body.startsWith('[HOST_ACCEPTED]')) {
-        derivedStatus = 'host_proposed';
+      if (row.body.startsWith('[HOST_PROPOSED]')) {
+        if (derivedStatus !== 'accepted_by_host') {
+          derivedStatus = 'host_proposed';
+        }
+      } else if (row.body.startsWith('[HOST_ACCEPTED]')) {
+        derivedStatus = 'accepted_by_host';
       } else if (row.body.startsWith('[ARTIST_PROPOSED]')) {
         derivedStatus = 'artist_proposed';
       } else if (row.body.startsWith('[ARTIST_APPROVED]')) {
@@ -3022,8 +3069,19 @@ export class SupabaseService {
         continue;
       }
 
-      if (body.startsWith('[HOST_ACCEPTED]')) {
-        workflowStatusByRequestId.set(requestId, 'host_proposed');
+      if (body.startsWith('[HOST_PROPOSED]')) {
+        if (this.mapBaseRequestStatus((artistRequestRows.find((request) => (request.id as string) === requestId)?.status as string | null) ?? 'pending') !== 'accepted_by_host') {
+          workflowStatusByRequestId.set(requestId, 'host_proposed');
+        }
+        if (authorProfileId) {
+          const existing = acceptedHostProfileIdsByRequestId.get(requestId) ?? [];
+          if (!existing.includes(authorProfileId)) {
+            existing.push(authorProfileId);
+          }
+          acceptedHostProfileIdsByRequestId.set(requestId, existing);
+        }
+      } else if (body.startsWith('[HOST_ACCEPTED]')) {
+        workflowStatusByRequestId.set(requestId, 'accepted_by_host');
         if (authorProfileId) {
           const existing = acceptedHostProfileIdsByRequestId.get(requestId) ?? [];
           if (!existing.includes(authorProfileId)) {
@@ -3155,7 +3213,7 @@ export class SupabaseService {
 
   async getHostWorkspaceEvents(profileId: string): Promise<HostWorkspaceEventItem[]> {
     const [hosts, overview] = await Promise.all([
-      this.getMyHosts(profileId),
+      this.getAccessibleHosts(profileId),
       this.getAdminEventOverview(),
     ]);
 
@@ -3291,6 +3349,172 @@ export class SupabaseService {
     });
   }
 
+  async getArtistWorkspaceUpcomingEvents(profileId: string): Promise<AdminEventOverviewItem[]> {
+    const { data: artistRow, error: artistError } = await this.adminSupabase
+      .from('tjs_artists')
+      .select('id')
+      .eq('profile_id', profileId)
+      .maybeSingle();
+
+    if (artistError && !this.isMissingSchemaError(artistError)) {
+      console.error('getArtistWorkspaceUpcomingEvents artist lookup error:', artistError.message);
+      return [];
+    }
+
+    const artistId = artistRow?.id as string | undefined;
+    if (!artistId) {
+      return [];
+    }
+
+    const { data: assignmentRows, error: assignmentsError } = await this.adminSupabase
+      .from('tjs_event_artists')
+      .select('event_id')
+      .eq('artist_id', artistId);
+
+    if (assignmentsError && !this.isMissingSchemaError(assignmentsError)) {
+      console.error('getArtistWorkspaceUpcomingEvents assignments error:', assignmentsError.message);
+      return [];
+    }
+
+    const eventIds = Array.from(
+      new Set(
+        ((assignmentRows ?? []) as any[])
+          .map((row) => row.event_id as string | null | undefined)
+          .filter((value): value is string => !!value)
+      )
+    );
+
+    if (eventIds.length === 0) {
+      return [];
+    }
+
+    const overview = await this.getAdminEventOverview();
+    const today = this.todayDateString();
+
+    return overview
+      .filter((item) =>
+        item.event_type === 'EVENT_INSTANCE'
+        && eventIds.includes(item.id)
+        && item.selected_dates.some((date) => date >= today)
+      )
+      .sort((a, b) => {
+        const aDate = this.pickPrimaryUpcomingDate(a.selected_dates) ?? '9999-12-31';
+        const bDate = this.pickPrimaryUpcomingDate(b.selected_dates) ?? '9999-12-31';
+        return aDate.localeCompare(bDate);
+      });
+  }
+
+  async getEventLocationSummaries(eventIds: string[], hostIds?: number[]): Promise<Map<string, EventLocationSummary>> {
+    const summaries = new Map<string, EventLocationSummary>();
+    if (eventIds.length === 0) {
+      return summaries;
+    }
+
+    let assignmentsQuery = this.adminSupabase
+      .from('tjs_event_hosts')
+      .select('event_id, host_id, location_id, selected_dates')
+      .in('event_id', eventIds);
+
+    if (hostIds && hostIds.length > 0) {
+      assignmentsQuery = assignmentsQuery.in('host_id', hostIds);
+    }
+
+    const { data: assignmentData, error: assignmentError } = await assignmentsQuery;
+    if (assignmentError) {
+      if (!this.isMissingSchemaError(assignmentError)) {
+        console.error('getEventLocationSummaries assignments error:', assignmentError.message);
+      }
+      return summaries;
+    }
+
+    const assignments = ((assignmentData ?? []) as Array<{
+      event_id?: string | null;
+      location_id?: string | null;
+      selected_dates?: string[] | null;
+    }>).filter((row) => !!row.event_id && !!row.location_id);
+
+    const locationIds = Array.from(new Set(
+      assignments
+        .map((row) => row.location_id)
+        .filter((value): value is string => !!value)
+    ));
+
+    const [publicLocationsResult, privateLocationsResult] = await Promise.all([
+      locationIds.length > 0
+        ? this.adminSupabase
+            .from('tjs_locations')
+            .select('id, name, city, address')
+            .in('id', locationIds)
+        : Promise.resolve({ data: [], error: null }),
+      locationIds.length > 0
+        ? this.adminSupabase
+            .from('tjs_private_locations')
+            .select('id, name, city, address')
+            .in('id', locationIds)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+
+    if (publicLocationsResult.error && !this.isMissingSchemaError(publicLocationsResult.error)) {
+      console.error('getEventLocationSummaries public locations error:', publicLocationsResult.error.message);
+    }
+
+    if (privateLocationsResult.error && !this.isMissingSchemaError(privateLocationsResult.error)) {
+      console.error('getEventLocationSummaries private locations error:', privateLocationsResult.error.message);
+    }
+
+    const locationLabelById = new Map<string, string>();
+    for (const row of (publicLocationsResult.data ?? []) as Array<{ id?: string | null; name?: string | null; city?: string | null; address?: string | null }>) {
+      if (row.id) {
+        locationLabelById.set(row.id, row.name || row.city || row.address || 'Unknown');
+      }
+    }
+
+    for (const row of (privateLocationsResult.data ?? []) as Array<{ id?: string | null; name?: string | null; city?: string | null; address?: string | null }>) {
+      if (row.id && !locationLabelById.has(row.id)) {
+        locationLabelById.set(row.id, row.name || row.city || row.address || 'Unknown');
+      }
+    }
+
+    const entriesByEventId = new Map<string, Array<{ label: string; latestDate: string }>>();
+    for (const assignment of assignments) {
+      const eventId = assignment.event_id as string;
+      const locationId = assignment.location_id as string;
+      const label = locationLabelById.get(locationId) ?? 'Unknown';
+      const latestDate = Array.isArray(assignment.selected_dates) && assignment.selected_dates.length > 0
+        ? [...assignment.selected_dates].sort().at(-1) ?? ''
+        : '';
+
+      const existing = entriesByEventId.get(eventId) ?? [];
+      const current = existing.find((entry) => entry.label === label);
+      if (current) {
+        if (latestDate > current.latestDate) {
+          current.latestDate = latestDate;
+        }
+      } else {
+        existing.push({ label, latestDate });
+      }
+      entriesByEventId.set(eventId, existing);
+    }
+
+    for (const [eventId, entries] of entriesByEventId.entries()) {
+      const sortedEntries = [...entries].sort((left, right) => {
+        if (left.latestDate !== right.latestDate) {
+          return right.latestDate.localeCompare(left.latestDate);
+        }
+        return left.label.localeCompare(right.label);
+      });
+
+      const labels = sortedEntries.map((entry) => entry.label);
+      summaries.set(eventId, {
+        event_id: eventId,
+        labels,
+        display_label: labels.length > 1 ? `${labels[0]} +${labels.length - 1}` : (labels[0] ?? null),
+      });
+    }
+
+    return summaries;
+  }
+
   async getHostWorkspaceEventDetail(profileId: string, eventId: string): Promise<HostWorkspaceEventDetail | null> {
     const events = await this.getHostWorkspaceEvents(profileId);
     const event = events.find((item) => item.id === eventId);
@@ -3298,7 +3522,7 @@ export class SupabaseService {
       return null;
     }
 
-    const hostIds = new Set((await this.getMyHosts(profileId)).map((host) => host.id));
+    const hostIds = new Set((await this.getAccessibleHosts(profileId)).map((host) => host.id));
     const hostNotesResult = await this.adminSupabase
       .from('tjs_event_hosts')
       .select('host_id, notes, selected_dates, location_id, location:tjs_locations(name, city, address)')
@@ -3340,7 +3564,7 @@ export class SupabaseService {
   }
 
   async updateHostWorkspaceEventStatus(profileId: string, eventId: string, isActive: boolean): Promise<string | null> {
-    const hosts = await this.getMyHosts(profileId);
+    const hosts = await this.getAccessibleHosts(profileId);
     const hostIds = new Set(hosts.map((host) => host.id));
     const hostAssignmentResult = await this.adminSupabase
       .from('tjs_event_hosts')
@@ -3380,7 +3604,7 @@ export class SupabaseService {
   }
 
   async updateHostWorkspaceEventFeatured(profileId: string, eventId: string, isFeatured: boolean): Promise<string | null> {
-    const hosts = await this.getMyHosts(profileId);
+    const hosts = await this.getAccessibleHosts(profileId);
     const hostIds = new Set(hosts.map((host) => host.id));
     const hostAssignmentResult = await this.adminSupabase
       .from('tjs_event_hosts')
@@ -3424,7 +3648,7 @@ export class SupabaseService {
     eventId: string,
     payload: UpdateHostWorkspaceEventDetailPayload,
   ): Promise<string | null> {
-    const hosts = await this.getMyHosts(profileId);
+    const hosts = await this.getAccessibleHosts(profileId);
     const hostIds = hosts.map((host) => host.id);
 
     if (hostIds.length === 0) {
@@ -3536,7 +3760,7 @@ export class SupabaseService {
   }
 
   async updateHostWorkspaceEventImage(profileId: string, eventId: string, imageUrl: string | null): Promise<string | null> {
-    const hosts = await this.getMyHosts(profileId);
+    const hosts = await this.getAccessibleHosts(profileId);
     const hostIds = hosts.map((host) => host.id);
 
     if (hostIds.length === 0) {
@@ -3601,7 +3825,7 @@ export class SupabaseService {
     eventId: string,
     payload: UpdateHostWorkspaceEventSchedulePayload,
   ): Promise<string | null> {
-    const hosts = await this.getMyHosts(profileId);
+    const hosts = await this.getAccessibleHosts(profileId);
     const hostIds = hosts.map((host) => host.id);
 
     if (hostIds.length === 0) {
@@ -4290,22 +4514,28 @@ export class SupabaseService {
     return data ? this.mapLocationRow(data) : null;
   }
 
-  async getPrivateLocations(createdBy?: string): Promise<TjsLocation[]> {
+  async getPrivateLocations(profileId?: string): Promise<TjsPrivateLocation[]> {
+    if (!profileId) {
+      return [];
+    }
+
+    const hostIds = await this.resolvePrivateLocationHostIds(profileId);
+    if (hostIds.length === 0) {
+      return [];
+    }
+
     let query = this.adminSupabase
-      .from('tjs_locations')
+      .from('tjs_private_locations')
       .select(`
         *,
-        images:tjs_location_images(id, image_url, sort_order),
-        amenity_links:tjs_location_amenities(amenity:sys_location_amenity(id, name)),
-        spec_links:tjs_location_specs(spec:sys_location_specs(id, name)),
-        type_links:tjs_location_types(location_type:sys_location_types(id, name))
+        images:tjs_private_location_images(id, image_url, sort_order),
+        amenity_links:tjs_private_location_amenities(amenity:sys_location_amenity(id, name)),
+        spec_links:tjs_private_location_specs(spec:sys_location_specs(id, name)),
+        type_links:tjs_private_location_types(location_type:sys_location_types(id, name))
       `)
-      .eq('is_private', true)
       .order('created_at', { ascending: false });
 
-    if (createdBy) {
-      query = query.eq('created_by', createdBy);
-    }
+    query = query.in('id_host', hostIds);
 
     const { data, error } = await query;
 
@@ -4316,24 +4546,50 @@ export class SupabaseService {
       return [];
     }
 
-    return ((data ?? []) as any[]).map((row) => this.mapLocationRow(row));
+    return this.enrichPrivateLocationsWithTypes(((data ?? []) as any[]).map((row) => this.mapPrivateLocationRow(row)));
   }
 
-  async getPrivateLocationById(locationId: string, createdBy?: string): Promise<TjsLocation | null> {
-    let query = this.adminSupabase
-      .from('tjs_locations')
+  async getPrivateLocationsForHost(hostId: number): Promise<TjsPrivateLocation[]> {
+    const { data, error } = await this.adminSupabase
+      .from('tjs_private_locations')
       .select(`
         *,
-        images:tjs_location_images(id, image_url, sort_order),
-        amenity_links:tjs_location_amenities(amenity:sys_location_amenity(id, name)),
-        spec_links:tjs_location_specs(spec:sys_location_specs(id, name)),
-        type_links:tjs_location_types(location_type:sys_location_types(id, name))
+        images:tjs_private_location_images(id, image_url, sort_order),
+        amenity_links:tjs_private_location_amenities(amenity:sys_location_amenity(id, name)),
+        spec_links:tjs_private_location_specs(spec:sys_location_specs(id, name)),
+        type_links:tjs_private_location_types(location_type:sys_location_types(id, name))
       `)
-      .eq('id', locationId)
-      .eq('is_private', true);
+      .eq('id_host', hostId)
+      .order('created_at', { ascending: false });
 
-    if (createdBy) {
-      query = query.eq('created_by', createdBy);
+    if (error) {
+      if (!this.isMissingSchemaError(error)) {
+        console.error('getPrivateLocationsForHost error:', error.message);
+      }
+      return [];
+    }
+
+    return this.enrichPrivateLocationsWithTypes(((data ?? []) as any[]).map((row) => this.mapPrivateLocationRow(row)));
+  }
+
+  async getPrivateLocationById(locationId: string, profileId?: string): Promise<TjsPrivateLocation | null> {
+    let query = this.adminSupabase
+      .from('tjs_private_locations')
+      .select(`
+        *,
+        images:tjs_private_location_images(id, image_url, sort_order),
+        amenity_links:tjs_private_location_amenities(amenity:sys_location_amenity(id, name)),
+        spec_links:tjs_private_location_specs(spec:sys_location_specs(id, name)),
+        type_links:tjs_private_location_types(location_type:sys_location_types(id, name))
+      `)
+      .eq('id', locationId);
+
+    const hostIds = await this.resolvePrivateLocationHostIds(profileId);
+    if (profileId) {
+      if (hostIds.length === 0) {
+        return null;
+      }
+      query = query.in('id_host', hostIds);
     }
 
     const { data, error } = await query.maybeSingle();
@@ -4345,7 +4601,12 @@ export class SupabaseService {
       return null;
     }
 
-    return data ? this.mapLocationRow(data) : null;
+    if (!data) {
+      return null;
+    }
+
+    const [location] = await this.enrichPrivateLocationsWithTypes([this.mapPrivateLocationRow(data)]);
+    return location ?? null;
   }
 
   async createLocation(location: SaveTjsLocationInput): Promise<{ id: string | null; error: string | null }> {
@@ -4370,6 +4631,76 @@ export class SupabaseService {
     }
 
     return { id: data.id, error: null };
+  }
+
+  async createPrivateLocation(location: SaveTjsPrivateLocationInput): Promise<{ id: string | null; error: string | null }> {
+    const { data, error } = await this.adminSupabase
+      .from('tjs_private_locations')
+      .insert(this.buildPrivateLocationPayload(location, false))
+      .select('id')
+      .single();
+
+    if (error) {
+      if (this.isMissingSchemaError(error)) {
+        return { id: null, error: 'Private location tables are missing in the database. Run db/025_tjs_private_locations.sql and try again.' };
+      }
+
+      console.error('createPrivateLocation error:', error.message);
+      return { id: null, error: error.message };
+    }
+
+    const relationError = await this.syncPrivateLocationRelations(data.id, location);
+    if (relationError) {
+      return { id: data.id, error: relationError };
+    }
+
+    return { id: data.id, error: null };
+  }
+
+  async createPrivateLocationForHost(
+    hostId: number,
+    location: Omit<SaveTjsPrivateLocationInput, 'id_host'>
+  ): Promise<{ id: string | null; error: string | null }> {
+    return this.createPrivateLocation({
+      ...location,
+      id_host: hostId,
+    });
+  }
+
+  async updatePrivateLocation(locationId: string, location: SaveTjsPrivateLocationInput): Promise<string | null> {
+    const { error } = await this.adminSupabase
+      .from('tjs_private_locations')
+      .update(this.buildPrivateLocationPayload(location, true))
+      .eq('id', locationId);
+
+    if (error) {
+      if (this.isMissingSchemaError(error)) {
+        return 'Private location tables are missing in the database. Run db/025_tjs_private_locations.sql and try again.';
+      }
+
+      console.error('updatePrivateLocation error:', error.message);
+      return error.message;
+    }
+
+    return this.syncPrivateLocationRelations(locationId, location);
+  }
+
+  async deletePrivateLocation(locationId: string): Promise<string | null> {
+    const { error } = await this.adminSupabase
+      .from('tjs_private_locations')
+      .delete()
+      .eq('id', locationId);
+
+    if (error) {
+      if (this.isMissingSchemaError(error)) {
+        return 'Private location tables are missing in the database. Run db/025_tjs_private_locations.sql and try again.';
+      }
+
+      console.error('deletePrivateLocation error:', error.message);
+      return error.message;
+    }
+
+    return null;
   }
 
   async updateLocation(locationId: string, location: SaveTjsLocationInput): Promise<string | null> {
@@ -4433,6 +4764,29 @@ export class SupabaseService {
     return null;
   }
 
+  async updateArtistRequestStatusById(
+    requestId: string,
+    status: 'pending' | 'accepted' | 'approved' | 'rejected'
+  ): Promise<string | null> {
+    const { error } = await this.adminSupabase
+      .from('tjs_artist_requests')
+      .update({
+        status,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', requestId);
+
+    if (error) {
+      if (this.isMissingSchemaError(error)) {
+        return 'Artist request tables are missing in the database. Run db/021_artist_workspace_requests.sql.';
+      }
+      console.error('updateArtistRequestStatusById error:', error.message);
+      return error.message;
+    }
+
+    return null;
+  }
+
   async uploadLocationImage(profileId: string, file: File): Promise<{ url: string | null; error: string | null }> {
     const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
     const path = `locations/${profileId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
@@ -4446,6 +4800,26 @@ export class SupabaseService {
 
     if (error) {
       console.error('uploadLocationImage error:', error.message);
+      return { url: null, error: error.message };
+    }
+
+    const { data } = this.adminSupabase.storage.from('tjs').getPublicUrl(path);
+    return { url: data.publicUrl, error: null };
+  }
+
+  async uploadPrivateLocationImage(profileId: string, file: File): Promise<{ url: string | null; error: string | null }> {
+    const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+    const path = `private-locations/${profileId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
+
+    const { error } = await this.adminSupabase.storage
+      .from('tjs')
+      .upload(path, file, {
+        cacheControl: '3600',
+        upsert: true,
+      });
+
+    if (error) {
+      console.error('uploadPrivateLocationImage error:', error.message);
       return { url: null, error: error.message };
     }
 
@@ -4515,6 +4889,13 @@ export class SupabaseService {
     };
   }
 
+  private mapPrivateLocationRow(row: any): TjsPrivateLocation {
+    return {
+      ...this.mapLocationRow(row),
+      id_host: typeof row.id_host === 'number' ? row.id_host : null,
+    };
+  }
+
   private buildLocationPayload(location: SaveTjsLocationInput, isUpdate: boolean) {
     return {
       name: location.name.trim(),
@@ -4524,6 +4905,31 @@ export class SupabaseService {
       description: location.description?.trim() || null,
       is_public: location.is_public,
       is_private: location.is_private,
+      public_description: location.public_description?.trim() || null,
+      restricted_description: location.restricted_description?.trim() || null,
+      capacity: location.capacity?.trim() || null,
+      city: location.city?.trim() || null,
+      country: location.country?.trim() || null,
+      zip: location.zip?.trim() || null,
+      phone: location.phone?.trim() || null,
+      email: location.email?.trim() || null,
+      website: location.website?.trim() || null,
+      is_active: location.is_active,
+      access_info: location.access_info?.trim() || null,
+      created_by: location.created_by,
+      updated_by: isUpdate ? location.updated_by ?? location.created_by : location.updated_by ?? null,
+      updated_at: new Date().toISOString(),
+    };
+  }
+
+  private buildPrivateLocationPayload(location: SaveTjsPrivateLocationInput, isUpdate: boolean) {
+    return {
+      id_host: location.id_host,
+      name: location.name.trim(),
+      address: location.address?.trim() || null,
+      lat: location.lat ?? null,
+      long: location.long ?? null,
+      description: location.description?.trim() || null,
       public_description: location.public_description?.trim() || null,
       restricted_description: location.restricted_description?.trim() || null,
       capacity: location.capacity?.trim() || null,
@@ -4636,6 +5042,157 @@ export class SupabaseService {
     return null;
   }
 
+  private async syncPrivateLocationRelations(locationId: string, location: SaveTjsPrivateLocationInput): Promise<string | null> {
+    const relationTables = [
+      'tjs_private_location_images',
+      'tjs_private_location_amenities',
+      'tjs_private_location_specs',
+      'tjs_private_location_types',
+    ] as const;
+
+    for (const table of relationTables) {
+      const { error } = await this.adminSupabase
+        .from(table)
+        .delete()
+        .eq('location_id', locationId);
+
+      if (error) {
+        if (this.isMissingSchemaError(error)) {
+          return 'Private location tables are missing in the database. Run db/025_tjs_private_locations.sql and try again.';
+        }
+
+        console.error(`syncPrivateLocationRelations delete ${table} error:`, error.message);
+        return error.message;
+      }
+    }
+
+    if (location.image_urls.length > 0) {
+      const { error } = await this.adminSupabase
+        .from('tjs_private_location_images')
+        .insert(location.image_urls.slice(0, 5).map((imageUrl, index) => ({
+          location_id: locationId,
+          image_url: imageUrl,
+          sort_order: index,
+        })));
+
+      if (error) {
+        if (this.isMissingSchemaError(error)) {
+          return 'Private location tables are missing in the database. Run db/025_tjs_private_locations.sql and try again.';
+        }
+
+        console.error('syncPrivateLocationRelations insert images error:', error.message);
+        return error.message;
+      }
+    }
+
+    if (location.amenity_ids.length > 0) {
+      const { error } = await this.adminSupabase
+        .from('tjs_private_location_amenities')
+        .insert(location.amenity_ids.map((amenityId) => ({
+          location_id: locationId,
+          amenity_id: amenityId,
+        })));
+
+      if (error) {
+        if (this.isMissingSchemaError(error)) {
+          return 'Private location tables are missing in the database. Run db/025_tjs_private_locations.sql and try again.';
+        }
+
+        console.error('syncPrivateLocationRelations insert amenities error:', error.message);
+        return error.message;
+      }
+    }
+
+    if (location.spec_ids.length > 0) {
+      const { error } = await this.adminSupabase
+        .from('tjs_private_location_specs')
+        .insert(location.spec_ids.map((specId) => ({
+          location_id: locationId,
+          spec_id: specId,
+        })));
+
+      if (error) {
+        if (this.isMissingSchemaError(error)) {
+          return 'Private location tables are missing in the database. Run db/025_tjs_private_locations.sql and try again.';
+        }
+
+        console.error('syncPrivateLocationRelations insert specs error:', error.message);
+        return error.message;
+      }
+    }
+
+    const locationTypeId = this.normalizeLookupId(location.location_type_id);
+    if (locationTypeId) {
+      const { error } = await this.adminSupabase
+        .from('tjs_private_location_types')
+        .insert({
+          location_id: locationId,
+          location_type_id: locationTypeId,
+        });
+
+      if (error) {
+        if (this.isMissingSchemaError(error)) {
+          return 'Private location tables are missing in the database. Run db/025_tjs_private_locations.sql and try again.';
+        }
+
+        console.error('syncPrivateLocationRelations insert type error:', error.message);
+        return error.message;
+      }
+    }
+
+    return null;
+  }
+
+  private async resolvePrivateLocationHostIds(profileId?: string): Promise<number[]> {
+    if (!profileId) {
+      return [];
+    }
+
+    const hosts = await this.getAccessibleHosts(profileId);
+    return Array.from(new Set(hosts.map((host) => host.id)));
+  }
+
+  private async enrichPrivateLocationsWithTypes(locations: TjsPrivateLocation[]): Promise<TjsPrivateLocation[]> {
+    if (locations.length === 0) {
+      return locations;
+    }
+
+    const locationIds = locations.map((location) => location.id);
+    const { data, error } = await this.adminSupabase
+      .from('tjs_private_location_types')
+      .select('location_id, location_type:sys_location_types(id, name)')
+      .in('location_id', locationIds);
+
+    if (error) {
+      if (!this.isMissingSchemaError(error)) {
+        console.error('enrichPrivateLocationsWithTypes error:', error.message);
+      }
+      return locations;
+    }
+
+    const typeMap = new Map<string, LocationLookupOption>();
+    for (const row of (data ?? []) as Array<{ location_id?: string | null; location_type?: Array<LocationLookupOption | null> | LocationLookupOption | null }>) {
+      const locationType = Array.isArray(row.location_type) ? row.location_type[0] : row.location_type;
+      if (row.location_id && locationType?.id && locationType?.name) {
+        typeMap.set(row.location_id, locationType);
+      }
+    }
+
+    return locations.map((location) => ({
+      ...location,
+      location_type: typeMap.get(location.id) ?? location.location_type ?? null,
+    }));
+  }
+
+  private normalizeLookupId(value: number | string | null | undefined): number | null {
+    if (value === null || value === undefined || value === '') {
+      return null;
+    }
+
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }
+
   /** Fetch host types for the dropdown. */
   async getHostTypes(): Promise<SysHostType[]> {
     const { data, error } = await this.adminSupabase
@@ -4722,6 +5279,39 @@ export class SupabaseService {
     return data as TjsHost[];
   }
 
+  async getAccessibleHosts(profileId: string): Promise<TjsHost[]> {
+    const directHosts = await this.getMyHosts(profileId);
+
+    const { data, error } = await this.adminSupabase
+      .from('tjs_host_managers')
+      .select('host:tjs_hosts(*)')
+      .eq('manager_id', profileId)
+      .eq('is_active', true);
+
+    let managedHosts: TjsHost[] = [];
+    if (error) {
+      if (!this.isMissingSchemaError(error)) {
+        console.error('getAccessibleHosts host manager lookup error:', error.message);
+      }
+      managedHosts = await this.getManagedHosts(profileId);
+    } else {
+      managedHosts = ((data ?? []) as any[])
+        .map((row) => row.host as TjsHost | null)
+        .filter((host): host is TjsHost => host !== null);
+
+      if (managedHosts.length === 0) {
+        managedHosts = await this.getManagedHosts(profileId);
+      }
+    }
+
+    const hostsById = new Map<number, TjsHost>();
+    for (const host of [...directHosts, ...managedHosts]) {
+      hostsById.set(host.id, host);
+    }
+
+    return Array.from(hostsById.values());
+  }
+
   // ── Host Members ──────────────────────────────────────────────────────
 
   /** Fetch members assigned to a host. */
@@ -4736,6 +5326,35 @@ export class SupabaseService {
       return [];
     }
     return data as TjsHostMember[];
+  }
+
+  /** Fetch all host members across all hosts. */
+  async getAllHostMembers(): Promise<TjsHostMember[]> {
+    const { data, error } = await this.adminSupabase
+      .from('tjs_host_members')
+      .select('*')
+      .order('created_on', { ascending: false });
+    if (error) {
+      console.error('getAllHostMembers error:', error.message);
+      return [];
+    }
+    return data as TjsHostMember[];
+  }
+
+  async getHostsForMember(profileId: string): Promise<Array<{ id: number; name: string | null; public_name: string | null }>> {
+    const { data, error } = await this.adminSupabase
+      .from('tjs_host_members')
+      .select('host:tjs_hosts(id, name, public_name)')
+      .eq('profile_id', profileId);
+
+    if (error) {
+      console.error('getHostsForMember error:', error.message);
+      return [];
+    }
+
+    return ((data ?? []) as Array<{ host?: { id?: number; name?: string | null; public_name?: string | null } | null }>)
+      .map((row) => row.host)
+      .filter((host): host is { id: number; name: string | null; public_name: string | null } => typeof host?.id === 'number');
   }
 
   /** Assign a profile as a member of a host. */
@@ -5060,16 +5679,19 @@ export class SupabaseService {
       return { eventId: null, error: insertEventError?.message ?? 'Event could not be created.' };
     }
 
-    const eventNotes = [
-      selectedEdition ? `Edition: ${selectedEdition.label ?? selectedEdition.name}` : null,
-      selectedEventType ? `Event Type: ${selectedEventType.name}` : null,
-      payload.showTime ? `Show Time: ${payload.showTime}` : null,
-      payload.notes.trim() ? payload.notes.trim() : null,
-    ].filter((item): item is string => !!item);
+    const eventNotes = this.mergeStructuredHostNotes('', {
+      edition: selectedEdition ? (selectedEdition.label ?? selectedEdition.name) : null,
+      eventType: selectedEventType?.name ?? null,
+      showTime: payload.showTime.trim() || null,
+      hostNotes: payload.notes.trim() || null,
+      scheduleEntries: payload.entries,
+    });
 
-    const selectedDates = payload.endDate && payload.endDate !== payload.startDate
-      ? [payload.startDate, payload.endDate]
-      : [payload.startDate];
+    const selectedDates = payload.entries.flatMap((entry) =>
+      entry.mode === 'period'
+        ? [entry.startDate, entry.endDate].filter(Boolean)
+        : [entry.startDate].filter(Boolean)
+    );
 
     const { error: hostAssignmentError } = await this.adminSupabase
       .from('tjs_event_hosts')
@@ -5080,7 +5702,7 @@ export class SupabaseService {
         location_id: payload.locationId,
         host_status: 'CONFIRMED',
         selected_at: timestamp,
-        notes: eventNotes.join('\n'),
+        notes: eventNotes || null,
       });
 
     if (hostAssignmentError) {

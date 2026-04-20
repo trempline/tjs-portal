@@ -5,9 +5,9 @@ import { RouterLink } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import {
   LocationLookupOption,
-  SaveTjsLocationInput,
+  SaveTjsPrivateLocationInput,
   SupabaseService,
-  TjsLocation,
+  TjsPrivateLocation,
 } from '../../services/supabase.service';
 
 interface LocationForm {
@@ -43,6 +43,7 @@ export class HostPrivateLocations implements OnInit {
   private authService = inject(AuthService);
   private supabase = inject(SupabaseService);
 
+  currentHostId: number | null = null;
   isLoading = true;
   isSaving = false;
   isUploadingImages = false;
@@ -53,22 +54,22 @@ export class HostPrivateLocations implements OnInit {
   selectedAmenityId = '';
   selectedSpecId = '';
 
-  locations: TjsLocation[] = [];
+  locations: TjsPrivateLocation[] = [];
   amenityOptions: LocationLookupOption[] = [];
   specOptions: LocationLookupOption[] = [];
   typeOptions: LocationLookupOption[] = [];
-  editingLocation: TjsLocation | null = null;
+  editingLocation: TjsPrivateLocation | null = null;
   form: LocationForm = this.blankForm();
 
   get currentUserId(): string {
-    return this.authService.currentUser?.id ?? '';
+    return this.authService.currentProfile?.id ?? this.authService.currentUser?.id ?? '';
   }
 
   get detailRoutePrefix(): string {
     return '/backoffice/host/locations/my';
   }
 
-  get filteredLocations(): TjsLocation[] {
+  get filteredLocations(): TjsPrivateLocation[] {
     const query = this.searchQuery.trim().toLowerCase();
     if (!query) {
       return this.locations;
@@ -91,13 +92,15 @@ export class HostPrivateLocations implements OnInit {
     this.error = '';
 
     try {
-      const [locations, amenityOptions, specOptions, typeOptions] = await Promise.all([
+      const [hosts, locations, amenityOptions, specOptions, typeOptions] = await Promise.all([
+        this.supabase.getMyHosts(this.currentUserId),
         this.supabase.getPrivateLocations(this.currentUserId),
         this.supabase.listLocationAmenities(),
         this.supabase.listLocationSpecs(),
         this.supabase.listLocationTypes(),
       ]);
 
+      this.currentHostId = hosts[0]?.id ?? null;
       this.locations = locations;
       this.amenityOptions = amenityOptions;
       this.specOptions = specOptions;
@@ -117,7 +120,7 @@ export class HostPrivateLocations implements OnInit {
     this.form = this.blankForm();
   }
 
-  openEditForm(location: TjsLocation) {
+  openEditForm(location: TjsPrivateLocation) {
     this.error = '';
     this.successMessage = '';
     this.isEditing = true;
@@ -165,14 +168,19 @@ export class HostPrivateLocations implements OnInit {
     this.error = '';
     this.successMessage = '';
 
-    const payload: SaveTjsLocationInput = {
+    if (!this.editingLocation && !this.currentHostId) {
+      this.error = 'No host is assigned to your account.';
+      this.isSaving = false;
+      return;
+    }
+
+    const payload: SaveTjsPrivateLocationInput = {
+      id_host: this.editingLocation?.id_host ?? this.currentHostId,
       name: this.form.name,
       address: this.form.address,
       lat: this.parseOptionalNumber(this.form.lat),
       long: this.parseOptionalNumber(this.form.long),
       description: this.form.description,
-      is_public: false,
-      is_private: true,
       public_description: this.form.public_description,
       restricted_description: this.form.restricted_description,
       capacity: this.form.capacity,
@@ -189,12 +197,12 @@ export class HostPrivateLocations implements OnInit {
       image_urls: this.form.image_urls.slice(0, 5),
       amenity_ids: this.form.amenities.map((item) => item.id),
       spec_ids: this.form.specs.map((item) => item.id),
-      location_type_id: this.form.location_type_id,
+      location_type_id: this.parseOptionalId(this.form.location_type_id),
     };
 
     const error = this.editingLocation
-      ? await this.supabase.updateLocation(this.editingLocation.id, payload)
-      : (await this.supabase.createLocation(payload)).error;
+      ? await this.supabase.updatePrivateLocation(this.editingLocation.id, payload)
+      : (await this.supabase.createPrivateLocation(payload)).error;
 
     if (error) {
       this.error = error;
@@ -208,7 +216,7 @@ export class HostPrivateLocations implements OnInit {
     await this.loadData();
   }
 
-  async deleteLocation(location: TjsLocation) {
+  async deleteLocation(location: TjsPrivateLocation) {
     if (!window.confirm(`Delete "${location.name}"?`)) {
       return;
     }
@@ -217,7 +225,7 @@ export class HostPrivateLocations implements OnInit {
     this.successMessage = '';
     this.isSaving = true;
 
-    const error = await this.supabase.deleteLocation(location.id);
+    const error = await this.supabase.deletePrivateLocation(location.id);
     if (error) {
       this.error = error;
     } else {
@@ -231,19 +239,18 @@ export class HostPrivateLocations implements OnInit {
     this.isSaving = false;
   }
 
-  async toggleLocationStatus(location: TjsLocation) {
+  async toggleLocationStatus(location: TjsPrivateLocation) {
     this.error = '';
     this.successMessage = '';
     this.isSaving = true;
 
-    const payload: SaveTjsLocationInput = {
+    const payload: SaveTjsPrivateLocationInput = {
+      id_host: location.id_host,
       name: location.name,
       address: location.address,
       lat: location.lat,
       long: location.long,
       description: location.description,
-      is_public: false,
-      is_private: true,
       public_description: location.public_description,
       restricted_description: location.restricted_description,
       capacity: location.capacity,
@@ -263,7 +270,7 @@ export class HostPrivateLocations implements OnInit {
       location_type_id: location.location_type?.id ?? null,
     };
 
-    const error = await this.supabase.updateLocation(location.id, payload);
+    const error = await this.supabase.updatePrivateLocation(location.id, payload);
 
     if (error) {
       this.error = error;
@@ -301,7 +308,7 @@ export class HostPrivateLocations implements OnInit {
     this.isUploadingImages = true;
 
     for (const file of uploadQueue) {
-      const { url, error } = await this.supabase.uploadLocationImage(this.currentUserId, file);
+      const { url, error } = await this.supabase.uploadPrivateLocationImage(this.currentUserId, file);
       if (error) {
         this.error = error;
         break;
@@ -354,7 +361,7 @@ export class HostPrivateLocations implements OnInit {
     this.form.specs = this.form.specs.filter((item) => item.id !== specId);
   }
 
-  trackByLocation(_: number, location: TjsLocation) {
+  trackByLocation(_: number, location: TjsPrivateLocation) {
     return location.id;
   }
 
@@ -398,5 +405,14 @@ export class HostPrivateLocations implements OnInit {
 
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  private parseOptionalId(value: number | string | null): number | null {
+    if (value === null || value === '') {
+      return null;
+    }
+
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
   }
 }

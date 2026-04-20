@@ -26,6 +26,12 @@ interface HostProposalEntry {
   locationLabel: string;
 }
 
+interface HostCreateEventScheduleEntryForm {
+  mode: 'day_show' | 'period';
+  startDate: string;
+  endDate: string;
+}
+
 @Component({
   selector: 'app-host-create-event',
   standalone: true,
@@ -59,6 +65,7 @@ export class HostCreateEvent implements OnInit {
   additionalInstruments: string[] = [];
   createdEventId: string | null = null;
   commentDraft = '';
+  scheduleEntries: HostCreateEventScheduleEntryForm[] = [{ mode: 'day_show', startDate: '', endDate: '' }];
 
   form: CreateHostEventFromRequestPayload = {
     hostId: 0,
@@ -66,8 +73,7 @@ export class HostCreateEvent implements OnInit {
     description: '',
     editionId: null,
     eventTypeId: null,
-    startDate: '',
-    endDate: null,
+    entries: [],
     showTime: '',
     locationId: null,
     isActive: true,
@@ -158,6 +164,20 @@ export class HostCreateEvent implements OnInit {
 
   trackByProposalIndex(index: number) {
     return index;
+  }
+
+  addScheduleEntry() {
+    this.scheduleEntries = [
+      ...this.scheduleEntries,
+      { mode: 'day_show', startDate: '', endDate: '' },
+    ];
+  }
+
+  removeScheduleEntry(index: number) {
+    this.scheduleEntries = this.scheduleEntries.filter((_, currentIndex) => currentIndex !== index);
+    if (this.scheduleEntries.length === 0) {
+      this.scheduleEntries = [{ mode: 'day_show', startDate: '', endDate: '' }];
+    }
   }
 
   trackByNumericId(_: number, item: { id: number }) {
@@ -307,8 +327,29 @@ export class HostCreateEvent implements OnInit {
       return;
     }
 
-    if (!this.form.startDate) {
-      this.error = 'Start date is required.';
+    const entries = this.scheduleEntries
+      .filter((entry) => !!entry.startDate)
+      .map((entry) => ({
+        mode: entry.mode,
+        startDate: entry.startDate,
+        endDate: entry.mode === 'period' ? entry.endDate : '',
+      }));
+
+    if (entries.length === 0) {
+      this.error = 'At least one event date is required.';
+      return;
+    }
+
+    for (const [index, entry] of entries.entries()) {
+      if (entry.mode === 'period' && !entry.endDate) {
+        this.error = `Schedule entry ${index + 1} requires an end date.`;
+        return;
+      }
+    }
+
+    const overlapError = this.findScheduleOverlap(entries);
+    if (overlapError) {
+      this.error = overlapError;
       return;
     }
 
@@ -321,8 +362,14 @@ export class HostCreateEvent implements OnInit {
     this.successMessage = '';
     this.isSaving = true;
 
+    const persistedLocationId = this.publicLocations.some((location) => location.id === this.form.locationId)
+      ? this.form.locationId
+      : null;
+
     const payload: CreateHostEventFromRequestPayload = {
       ...this.form,
+      entries,
+      locationId: persistedLocationId,
       notes: this.buildEventNotes(),
     };
 
@@ -354,14 +401,20 @@ export class HostCreateEvent implements OnInit {
       description: this.request.description || this.request.long_teaser || this.request.teaser || '',
       editionId: this.matchEditionIdFromComments(this.request.comments),
       eventTypeId: this.matchEventTypeIdFromComments(this.request.comments),
-      startDate: firstProposal?.startDate ?? '',
-      endDate: firstProposal?.mode === 'period' ? (firstProposal.endDate || null) : null,
+      entries: [],
       showTime: firstProposal?.showTime ?? '',
       locationId: firstProposal?.locationId ?? null,
       isActive: true,
       isOpenToMembers: false,
       notes: '',
     };
+    this.scheduleEntries = this.hostProposalEntries.length > 0
+      ? this.hostProposalEntries.map((entry) => ({
+          mode: entry.mode === 'period' ? 'period' : 'day_show',
+          startDate: entry.startDate,
+          endDate: entry.mode === 'period' ? entry.endDate : '',
+        }))
+      : [{ mode: 'day_show', startDate: '', endDate: '' }];
   }
 
   private async loadInstruments() {
@@ -377,7 +430,7 @@ export class HostCreateEvent implements OnInit {
   private parseHostProposal(comments: ArtistRequestCommentEntry[]): HostProposalEntry[] {
     const hostAcceptedComment = [...comments]
       .reverse()
-      .find((comment) => comment.body.startsWith('[HOST_ACCEPTED]'));
+      .find((comment) => comment.body.startsWith('[HOST_PROPOSED]') || comment.body.startsWith('[HOST_ACCEPTED]'));
 
     if (!hostAcceptedComment) {
       return [];
@@ -446,7 +499,7 @@ export class HostCreateEvent implements OnInit {
   private readTaggedCommentValue(comments: ArtistRequestCommentEntry[], prefix: string): string | null {
     const hostAcceptedComment = [...comments]
       .reverse()
-      .find((comment) => comment.body.startsWith('[HOST_ACCEPTED]'));
+      .find((comment) => comment.body.startsWith('[HOST_PROPOSED]') || comment.body.startsWith('[HOST_ACCEPTED]'));
 
     if (!hostAcceptedComment) {
       return null;
@@ -472,6 +525,11 @@ export class HostCreateEvent implements OnInit {
 
   private buildEventNotes(): string {
     const notes = [this.form.notes.trim()];
+
+    const selectedLocationLabel = this.resolveSelectedLocationLabel();
+    if (selectedLocationLabel && !this.publicLocations.some((location) => location.id === this.form.locationId)) {
+      notes.push(`Venue: ${selectedLocationLabel}`);
+    }
 
     if (this.request?.event_domain_id) {
       notes.push(`Event Domain: ${this.selectedDomainName}`);
@@ -503,6 +561,47 @@ export class HostCreateEvent implements OnInit {
     }
 
     return notes.filter(Boolean).join('\n');
+  }
+
+  private resolveSelectedLocationLabel(): string | null {
+    if (!this.form.locationId) {
+      return null;
+    }
+
+    const selectedLocation = [...this.privateLocations, ...this.publicLocations]
+      .find((location) => location.id === this.form.locationId);
+
+    return selectedLocation ? this.locationLabel(selectedLocation) : null;
+  }
+
+  private findScheduleOverlap(
+    entries: Array<{ mode: 'day_show' | 'period'; startDate: string; endDate: string }>,
+  ): string | null {
+    const normalizedEntries = entries.map((entry, index) => {
+      const start = entry.startDate;
+      const end = entry.mode === 'period' ? entry.endDate : entry.startDate;
+      return { index, start, end };
+    });
+
+    for (const entry of normalizedEntries) {
+      if (entry.start > entry.end) {
+        return `Schedule entry ${entry.index + 1} has an end date before its start date.`;
+      }
+    }
+
+    for (let i = 0; i < normalizedEntries.length; i += 1) {
+      for (let j = i + 1; j < normalizedEntries.length; j += 1) {
+        const left = normalizedEntries[i];
+        const right = normalizedEntries[j];
+        const overlaps = left.start <= right.end && right.start <= left.end;
+
+        if (overlaps) {
+          return `Schedule entries ${left.index + 1} and ${right.index + 1} overlap.`;
+        }
+      }
+    }
+
+    return null;
   }
 
   private async reloadRequest() {

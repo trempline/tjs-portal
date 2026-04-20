@@ -1,119 +1,920 @@
-<div class="host-manager-host-detail">
-  <div class="page-header">
-    <a routerLink="/backoffice/host-manager/hosts" class="back-link">Back to My Hosts</a>
-    <div>
-      <h1>Host Detail</h1>
-      <p class="subtitle">Review the full information for this assigned host.</p>
+<div class="space-y-6">
+  <div class="flex flex-col gap-3 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+    <a [routerLink]="['/backoffice/host-manager/hosts']" class="inline-flex w-fit items-center gap-2 text-sm font-semibold text-red-700 transition hover:text-red-800">
+      <span aria-hidden="true">←</span>
+      <span>Back to My Hosts</span>
+    </a>
+
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div class="space-y-2">
+        <p class="text-xs font-semibold uppercase tracking-[0.28em] text-red-600">Host Manager</p>
+        <h1 class="text-2xl font-bold text-zinc-900">Host Details</h1>
+        <p class="max-w-2xl text-sm text-zinc-600">Review host information, assigned private locations, and host users in one place.</p>
+      </div>
+
+      @if (!isLoading && host) {
+        <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div>
+            <div class="text-xs font-medium uppercase tracking-wide text-zinc-500">City</div>
+            <div class="mt-1 font-semibold text-zinc-900">{{ host.city || '-' }}</div>
+          </div>
+          <div>
+            <div class="text-xs uppercase tracking-wide text-zinc-500">Country</div>
+            <div class="mt-1 font-semibold text-zinc-900">{{ host.country || '-' }}</div>
+          </div>
+          <div>
+            <div class="text-xs uppercase tracking-wide text-zinc-500">Users</div>
+            <div class="mt-1 font-semibold text-zinc-900">{{ hostMembers.length }}</div>
+          </div>
+          <div>
+            <div class="text-xs uppercase tracking-wide text-zinc-500">Private Locations</div>
+            <div class="mt-1 font-semibold text-zinc-900">{{ privateLocations.length }}</div>
+          </div>
+        </div>
+      }
     </div>
   </div>
 
   @if (isLoading) {
-    <div class="loading-container">
-      <div class="spinner"></div>
-      <p>Loading host details...</p>
+    <div class="flex items-center justify-center rounded-xl border border-zinc-200 bg-white py-16 shadow-sm">
+      <div class="flex flex-col items-center gap-3 text-center">
+      <div class="h-10 w-10 animate-spin rounded-full border-4 border-zinc-200 border-t-red-600"></div>
+      <p class="text-sm font-medium text-zinc-700">Loading host details...</p>
+      </div>
     </div>
   }
 
   @if (error) {
-    <div class="error-container">
-      <p class="error-message">{{ error }}</p>
-      <a routerLink="/backoffice/host-manager/hosts" class="btn btn-primary">Back to Hosts</a>
+    <div class="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 shadow-sm">
+      <p>{{ error }}</p>
     </div>
   }
 
   @if (!isLoading && !error && host) {
-    <section class="hero-card">
-      <div>
-        <p class="kicker">Assigned Host</p>
-        <h2>{{ host.name || 'Unnamed Host' }}</h2>
-        <p class="hero-subtitle">{{ host.public_name || host.city || 'Host overview' }}</p>
+    <section class="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+      <div class="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+        <div class="space-y-2">
+          <p class="text-xs font-semibold uppercase tracking-[0.28em] text-red-600">Assigned Host</p>
+          <h2 class="text-xl font-bold text-zinc-900">{{ host.name || 'Unnamed Host' }}</h2>
+          <p class="text-sm text-zinc-600">{{ host.public_name || host.address || 'No public summary available yet.' }}</p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div class="rounded-xl border border-zinc-200 p-4 text-sm">
+            <div class="text-xs uppercase tracking-wide text-zinc-500">Capacity</div>
+            <div class="mt-1 font-semibold text-zinc-900">{{ host.capacity ?? '-' }}</div>
+          </div>
+          <div class="rounded-xl border border-zinc-200 p-4 text-sm">
+            <div class="text-xs uppercase tracking-wide text-zinc-500">Host+</div>
+            <div class="mt-1 font-semibold text-zinc-900">{{ host.is_host_plus ? 'Yes' : 'No' }}</div>
+          </div>
+          <div class="rounded-xl border border-zinc-200 p-4 text-sm">
+            <div class="text-xs uppercase tracking-wide text-zinc-500">Events</div>
+            <div class="mt-1 font-semibold text-zinc-900">{{ hostEvents.length }}</div>
+          </div>
+          <div class="rounded-xl border border-zinc-200 p-4 text-sm">
+            <div class="text-xs uppercase tracking-wide text-zinc-500">Artists</div>
+            <div class="mt-1 font-semibold text-zinc-900">{{ hostArtists.length }}</div>
+          </div>
+        </div>
       </div>
-      <div class="hero-meta">
-        <div><span>City</span><strong>{{ host.city || '-' }}</strong></div>
-        <div><span>Country</span><strong>{{ host.country || '-' }}</strong></div>
-        <div><span>Capacity</span><strong>{{ host.capacity ?? '-' }}</strong></div>
-        <div><span>Host+</span><strong>{{ host.is_host_plus ? 'Yes' : 'No' }}</strong></div>
+
+      <div class="mt-6 flex flex-wrap gap-2 border-b border-zinc-200 pb-4">
+        <button
+          type="button"
+          (click)="selectTab('details')"
+          class="inline-flex items-center rounded-lg px-4 py-2 text-sm font-semibold transition"
+          [class.bg-red-600]="activeTab === 'details'"
+          [class.text-white]="activeTab === 'details'"
+          [class.bg-zinc-100]="activeTab !== 'details'"
+          [class.text-zinc-700]="activeTab !== 'details'">
+          Details
+        </button>
+        <button
+          type="button"
+          (click)="selectTab('location')"
+          class="inline-flex items-center rounded-lg px-4 py-2 text-sm font-semibold transition"
+          [class.bg-red-600]="activeTab === 'location'"
+          [class.text-white]="activeTab === 'location'"
+          [class.bg-zinc-100]="activeTab !== 'location'"
+          [class.text-zinc-700]="activeTab !== 'location'">
+          Location
+        </button>
+        <button
+          type="button"
+          (click)="selectTab('user')"
+          class="inline-flex items-center rounded-lg px-4 py-2 text-sm font-semibold transition"
+          [class.bg-red-600]="activeTab === 'user'"
+          [class.text-white]="activeTab === 'user'"
+          [class.bg-zinc-100]="activeTab !== 'user'"
+          [class.text-zinc-700]="activeTab !== 'user'">
+          User
+        </button>
       </div>
+
+      @if (activeTab === 'details') {
+        <div class="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.2fr),minmax(0,0.8fr)]">
+          <div class="space-y-6">
+            <section class="rounded-xl border border-zinc-200 bg-zinc-50 p-5">
+              <h3 class="text-base font-semibold text-zinc-950">Overview</h3>
+              <div class="mt-4 grid gap-3 sm:grid-cols-2">
+                <div class="rounded-lg bg-white px-4 py-3">
+                  <div class="text-xs uppercase tracking-wide text-zinc-500">Name</div>
+                  <div class="mt-1 font-medium text-zinc-900">{{ host.name || '-' }}</div>
+                </div>
+                <div class="rounded-lg bg-white px-4 py-3">
+                  <div class="text-xs uppercase tracking-wide text-zinc-500">Public Name</div>
+                  <div class="mt-1 font-medium text-zinc-900">{{ host.public_name || '-' }}</div>
+                </div>
+                <div class="rounded-lg bg-white px-4 py-3">
+                  <div class="text-xs uppercase tracking-wide text-zinc-500">Address</div>
+                  <div class="mt-1 font-medium text-zinc-900">{{ host.address || '-' }}</div>
+                </div>
+                <div class="rounded-lg bg-white px-4 py-3">
+                  <div class="text-xs uppercase tracking-wide text-zinc-500">ZIP</div>
+                  <div class="mt-1 font-medium text-zinc-900">{{ host.zip || '-' }}</div>
+                </div>
+                <div class="rounded-lg bg-white px-4 py-3">
+                  <div class="text-xs uppercase tracking-wide text-zinc-500">Website</div>
+                  <div class="mt-1 font-medium text-zinc-900">{{ host.web_url || '-' }}</div>
+                </div>
+                <div class="rounded-lg bg-white px-4 py-3">
+                  <div class="text-xs uppercase tracking-wide text-zinc-500">Hosts Per Year</div>
+                  <div class="mt-1 font-medium text-zinc-900">{{ host.host_per_year || '-' }}</div>
+                </div>
+              </div>
+            </section>
+
+            <section class="rounded-xl border border-zinc-200 bg-zinc-50 p-5">
+              <h3 class="text-base font-semibold text-zinc-950">Upcoming Events</h3>
+              @if (hostEvents.length === 0) {
+                <p class="mt-4 text-sm text-zinc-600">No events found for this host.</p>
+              } @else {
+                <div class="mt-4 space-y-3">
+                  @for (event of hostEvents; track trackByEvent($index, event)) {
+                    <div class="flex flex-col gap-3 rounded-lg border border-zinc-200 bg-white px-4 py-4 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <div class="font-semibold text-zinc-900">{{ event.title }}</div>
+                        <div class="mt-1 text-sm text-zinc-600">{{ event.location_name || 'No location set' }}</div>
+                      </div>
+                      <div class="flex flex-col items-start gap-2 text-sm sm:items-end">
+                        <span class="inline-flex rounded-full bg-red-50 px-3 py-1 font-medium capitalize text-red-700">{{ event.status }}</span>
+                        <span class="text-zinc-600">{{ event.event_dates?.[0] || 'Date pending' }}</span>
+                      </div>
+                    </div>
+                  }
+                </div>
+              }
+            </section>
+          </div>
+
+          <div class="space-y-6">
+            <section class="rounded-xl border border-zinc-200 bg-zinc-50 p-5">
+              <h3 class="text-base font-semibold text-zinc-950">Contact</h3>
+              <div class="mt-4 space-y-3">
+                <div class="rounded-lg bg-white px-4 py-3">
+                  <div class="text-xs uppercase tracking-wide text-zinc-500">First Name</div>
+                  <div class="mt-1 font-medium text-zinc-900">{{ host.contact_fname || '-' }}</div>
+                </div>
+                <div class="rounded-lg bg-white px-4 py-3">
+                  <div class="text-xs uppercase tracking-wide text-zinc-500">Last Name</div>
+                  <div class="mt-1 font-medium text-zinc-900">{{ host.contact_lname || '-' }}</div>
+                </div>
+                <div class="rounded-lg bg-white px-4 py-3">
+                  <div class="text-xs uppercase tracking-wide text-zinc-500">Email</div>
+                  <div class="mt-1 font-medium text-zinc-900">{{ host.contact_email || '-' }}</div>
+                </div>
+                <div class="rounded-lg bg-white px-4 py-3">
+                  <div class="text-xs uppercase tracking-wide text-zinc-500">Phone 1</div>
+                  <div class="mt-1 font-medium text-zinc-900">{{ host.contact_phone1 || '-' }}</div>
+                </div>
+                <div class="rounded-lg bg-white px-4 py-3">
+                  <div class="text-xs uppercase tracking-wide text-zinc-500">Phone 2</div>
+                  <div class="mt-1 font-medium text-zinc-900">{{ host.contact_phone2 || '-' }}</div>
+                </div>
+              </div>
+            </section>
+
+            <section class="rounded-xl border border-zinc-200 bg-zinc-50 p-5">
+              <h3 class="text-base font-semibold text-zinc-950">Comment</h3>
+              <p class="mt-4 rounded-lg bg-white px-4 py-4 text-sm leading-6 text-zinc-700">{{ host.comment || 'No comment added for this host.' }}</p>
+            </section>
+
+            <section class="rounded-xl border border-zinc-200 bg-zinc-50 p-5">
+              <h3 class="text-base font-semibold text-zinc-950">Artists</h3>
+              @if (hostArtists.length === 0) {
+                <p class="mt-4 text-sm text-zinc-600">No artists linked to this host yet.</p>
+              } @else {
+                <div class="mt-4 space-y-3">
+                  @for (artist of hostArtists; track trackByArtist($index, artist)) {
+                    <div class="flex items-center justify-between gap-3 rounded-lg bg-white px-4 py-3">
+                      <div class="font-medium text-zinc-900">{{ artist.artist_name }}</div>
+                      <div class="text-sm text-zinc-600">{{ artist.event_count }} event{{ artist.event_count === 1 ? '' : 's' }}</div>
+                    </div>
+                  }
+                </div>
+              }
+            </section>
+          </div>
+        </div>
+      }
+
+      @if (activeTab === 'location') {
+        <div class="mt-6 space-y-6">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 class="text-lg font-semibold text-zinc-950">Private Locations</h3>
+              <p class="mt-1 text-sm text-zinc-600">Locations shown here are linked directly to this host.</p>
+            </div>
+            <button
+              type="button"
+              (click)="openCreateLocationForm()"
+              class="inline-flex items-center justify-center rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700">
+              Create Private Location
+            </button>
+          </div>
+
+          @if (locationSuccessMessage) {
+            <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+              {{ locationSuccessMessage }}
+            </div>
+          }
+
+          @if (locationError) {
+            <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {{ locationError }}
+            </div>
+          }
+
+          <section class="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
+            <div class="border-b border-zinc-200 px-5 py-4">
+              <h4 class="text-base font-semibold text-zinc-950">Assigned Private Locations</h4>
+            </div>
+
+            @if (privateLocations.length === 0) {
+              <div class="px-5 py-10 text-center text-sm text-zinc-600">No private locations have been added to this host yet.</div>
+            } @else {
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                  <thead class="bg-zinc-50 border-b border-zinc-200">
+                    <tr>
+                      <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Name</th>
+                      <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Type</th>
+                      <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">City</th>
+                      <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Contact</th>
+                      <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-zinc-100">
+                    @for (location of privateLocations; track trackByLocation($index, location)) {
+                      <tr
+                        class="cursor-pointer transition-colors hover:bg-zinc-50"
+                        [class.bg-red-50]="selectedPrivateLocation?.id === location.id"
+                        (click)="selectPrivateLocation(location)">
+                        <td class="px-5 py-4 font-medium text-zinc-900">
+                          <div>{{ location.name }}</div>
+                          <div class="mt-1 text-xs font-medium text-red-600">View details</div>
+                        </td>
+                        <td class="px-5 py-4 text-zinc-600">{{ location.location_type?.name || '-' }}</td>
+                        <td class="px-5 py-4 text-zinc-600">{{ location.city || '-' }}</td>
+                        <td class="px-5 py-4 text-zinc-600">{{ location.phone || location.email || '-' }}</td>
+                        <td class="px-5 py-4">
+                          <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium" [class.bg-emerald-100]="location.is_active" [class.text-emerald-700]="location.is_active" [class.bg-zinc-100]="!location.is_active" [class.text-zinc-700]="!location.is_active">
+                            {{ location.is_active ? 'Active' : 'Inactive' }}
+                          </span>
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          </section>
+
+          <section class="rounded-xl border border-zinc-200 bg-white shadow-sm">
+            <div class="flex flex-col gap-3 border-b border-zinc-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h4 class="text-base font-semibold text-zinc-950">
+                  @if (locationPanelMode === 'create') {
+                    Create Private Location
+                  } @else if (locationPanelMode === 'edit') {
+                    Edit Private Location
+                  } @else if (locationPanelMode === 'view') {
+                    Private Location Details
+                  } @else {
+                    Private Location
+                  }
+                </h4>
+                <p class="mt-1 text-sm text-zinc-600">
+                  @if (locationPanelMode === 'create') {
+                    Create a new private location for {{ host.name || 'this host' }}.
+                  } @else if (locationPanelMode === 'edit') {
+                    Update the selected private location.
+                  } @else if (locationPanelMode === 'view' && selectedPrivateLocation) {
+                    {{ selectedPrivateLocation.name }}
+                  } @else {
+                    Click a private location from the list to view its details, or create a new one.
+                  }
+                </p>
+              </div>
+
+              <div class="flex flex-wrap gap-2">
+                @if (locationPanelMode === 'view') {
+                  <button
+                    type="button"
+                    (click)="openEditSelectedLocationForm()"
+                    class="inline-flex items-center justify-center rounded-lg border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:border-zinc-400 hover:text-zinc-900">
+                    Edit
+                  </button>
+                }
+                @if (locationPanelMode === 'create' || locationPanelMode === 'edit') {
+                  <button type="button" (click)="cancelLocationForm()" class="inline-flex items-center justify-center rounded-lg border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:border-zinc-400 hover:text-zinc-900">
+                    Cancel
+                  </button>
+                }
+              </div>
+            </div>
+
+            @if (locationPanelMode === 'create' || locationPanelMode === 'edit') {
+              <div class="bg-zinc-50 p-5">
+                <div class="grid gap-4 md:grid-cols-2">
+                <label class="space-y-2 text-sm">
+                  <span class="font-medium text-zinc-800">Location Name</span>
+                  <input [(ngModel)]="form.name" type="text" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-100">
+                </label>
+
+                <label class="space-y-2 text-sm">
+                  <span class="font-medium text-zinc-800">Location Type</span>
+                  <select [(ngModel)]="form.location_type_id" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-100">
+                    <option [ngValue]="null">Select type</option>
+                    @for (option of typeOptions; track trackByOption($index, option)) {
+                      <option [ngValue]="option.id">{{ option.name }}</option>
+                    }
+                  </select>
+                </label>
+
+                <label class="space-y-2 text-sm md:col-span-2">
+                  <span class="font-medium text-zinc-800">Address</span>
+                  <input [(ngModel)]="form.address" type="text" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-100">
+                </label>
+
+                <label class="space-y-2 text-sm">
+                  <span class="font-medium text-zinc-800">City</span>
+                  <input [(ngModel)]="form.city" type="text" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-100">
+                </label>
+
+                <label class="space-y-2 text-sm">
+                  <span class="font-medium text-zinc-800">Country</span>
+                  <input [(ngModel)]="form.country" type="text" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-100">
+                </label>
+
+                <label class="space-y-2 text-sm">
+                  <span class="font-medium text-zinc-800">ZIP</span>
+                  <input [(ngModel)]="form.zip" type="text" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-100">
+                </label>
+
+                <label class="space-y-2 text-sm">
+                  <span class="font-medium text-zinc-800">Capacity</span>
+                  <input [(ngModel)]="form.capacity" type="text" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-100">
+                </label>
+
+                <label class="space-y-2 text-sm">
+                  <span class="font-medium text-zinc-800">Phone</span>
+                  <input [(ngModel)]="form.phone" type="text" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-100">
+                </label>
+
+                <label class="space-y-2 text-sm">
+                  <span class="font-medium text-zinc-800">Email</span>
+                  <input [(ngModel)]="form.email" type="email" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-100">
+                </label>
+
+                <label class="space-y-2 text-sm">
+                  <span class="font-medium text-zinc-800">Website</span>
+                  <input [(ngModel)]="form.website" type="text" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-100">
+                </label>
+
+                <label class="space-y-2 text-sm">
+                  <span class="font-medium text-zinc-800">Latitude</span>
+                  <input [(ngModel)]="form.lat" type="text" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-100">
+                </label>
+
+                <label class="space-y-2 text-sm">
+                  <span class="font-medium text-zinc-800">Longitude</span>
+                  <input [(ngModel)]="form.long" type="text" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-100">
+                </label>
+
+                <label class="space-y-2 text-sm md:col-span-2">
+                  <span class="font-medium text-zinc-800">Description</span>
+                  <textarea [(ngModel)]="form.description" rows="4" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-100"></textarea>
+                </label>
+
+                <label class="space-y-2 text-sm md:col-span-2">
+                  <span class="font-medium text-zinc-800">Public Description</span>
+                  <textarea [(ngModel)]="form.public_description" rows="3" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-100"></textarea>
+                </label>
+
+                <label class="space-y-2 text-sm md:col-span-2">
+                  <span class="font-medium text-zinc-800">Restricted Description</span>
+                  <textarea [(ngModel)]="form.restricted_description" rows="3" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-100"></textarea>
+                </label>
+
+                <label class="space-y-2 text-sm md:col-span-2">
+                  <span class="font-medium text-zinc-800">Access Info</span>
+                  <textarea [(ngModel)]="form.access_info" rows="3" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-100"></textarea>
+                </label>
+                </div>
+
+                <div class="mt-5 grid gap-5 lg:grid-cols-2">
+                  <div class="rounded-xl border border-zinc-200 bg-white p-4">
+                    <div class="flex items-center justify-between gap-3">
+                      <h5 class="text-sm font-semibold text-zinc-900">Amenities</h5>
+                      <div class="flex gap-2">
+                        <select [(ngModel)]="selectedAmenityId" class="rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-100">
+                          <option value="">Select amenity</option>
+                          @for (option of amenityOptions; track trackByOption($index, option)) {
+                            <option [value]="option.id">{{ option.name }}</option>
+                          }
+                        </select>
+                        <button type="button" (click)="addAmenity()" class="rounded-xl border border-zinc-300 px-3 py-2 text-sm font-semibold text-zinc-700 transition hover:border-zinc-400 hover:text-zinc-900">Add</button>
+                      </div>
+                    </div>
+
+                    <div class="mt-3 flex flex-wrap gap-2">
+                      @for (amenity of form.amenities; track trackByOption($index, amenity)) {
+                        <span class="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700">
+                          {{ amenity.name }}
+                          <button type="button" (click)="removeAmenity(amenity.id)" class="text-blue-500 hover:text-blue-700">x</button>
+                        </span>
+                      }
+                    </div>
+                  </div>
+
+                  <div class="rounded-xl border border-zinc-200 bg-white p-4">
+                    <div class="flex items-center justify-between gap-3">
+                      <h5 class="text-sm font-semibold text-zinc-900">Specifications</h5>
+                      <div class="flex gap-2">
+                        <select [(ngModel)]="selectedSpecId" class="rounded-xl border border-zinc-300 px-3 py-2 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-100">
+                          <option value="">Select specification</option>
+                          @for (option of specOptions; track trackByOption($index, option)) {
+                            <option [value]="option.id">{{ option.name }}</option>
+                          }
+                        </select>
+                        <button type="button" (click)="addSpec()" class="rounded-xl border border-zinc-300 px-3 py-2 text-sm font-semibold text-zinc-700 transition hover:border-zinc-400 hover:text-zinc-900">Add</button>
+                      </div>
+                    </div>
+
+                    <div class="mt-3 flex flex-wrap gap-2">
+                      @for (spec of form.specs; track trackByOption($index, spec)) {
+                        <span class="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-sm font-medium text-amber-700">
+                          {{ spec.name }}
+                          <button type="button" (click)="removeSpec(spec.id)" class="text-amber-500 hover:text-amber-700">x</button>
+                        </span>
+                      }
+                    </div>
+                  </div>
+                </div>
+
+                <div class="mt-5 rounded-xl border border-zinc-200 bg-white p-4">
+                  <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h5 class="text-sm font-semibold text-zinc-900">Images</h5>
+                      <p class="mt-1 text-sm text-zinc-600">Upload up to 5 images for this private location.</p>
+                    </div>
+                    <label class="inline-flex cursor-pointer items-center justify-center rounded-lg border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:border-zinc-400 hover:text-zinc-900">
+                      <input type="file" accept="image/*" multiple class="hidden" (change)="onImagesSelected($event)">
+                      {{ isUploadingImages ? 'Uploading...' : 'Upload Images' }}
+                    </label>
+                  </div>
+
+                  <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    @for (imageUrl of form.image_urls; track trackByImage($index, imageUrl)) {
+                      <div class="overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50">
+                        <img [src]="imageUrl" alt="Location image" class="h-40 w-full object-cover">
+                        <div class="p-3">
+                          <button type="button" (click)="removeImage($index)" class="text-sm font-semibold text-red-600 transition hover:text-red-700">Remove</button>
+                        </div>
+                      </div>
+                    }
+                  </div>
+                </div>
+
+                <div class="mt-5 flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    (click)="saveLocation()"
+                    [disabled]="isSavingLocation || isUploadingImages"
+                    class="inline-flex items-center justify-center rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60">
+                    {{ isSavingLocation ? (isEditingSelectedLocation ? 'Updating...' : 'Creating...') : (isEditingSelectedLocation ? 'Update Private Location' : 'Create Private Location') }}
+                  </button>
+                </div>
+              </div>
+            } @else if (locationPanelMode === 'view' && selectedPrivateLocation) {
+              <div class="grid gap-6 p-5 xl:grid-cols-[minmax(0,1.1fr),minmax(0,0.9fr)]">
+                <div class="space-y-6">
+                  <section class="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+                    <h5 class="text-sm font-semibold text-zinc-950">Overview</h5>
+                    <div class="mt-4 grid gap-3 sm:grid-cols-2">
+                      <div class="rounded-lg bg-white px-4 py-3">
+                        <div class="text-xs uppercase tracking-wide text-zinc-500">Name</div>
+                        <div class="mt-1 font-medium text-zinc-900">{{ selectedPrivateLocation.name }}</div>
+                      </div>
+                      <div class="rounded-lg bg-white px-4 py-3">
+                        <div class="text-xs uppercase tracking-wide text-zinc-500">Type</div>
+                        <div class="mt-1 font-medium text-zinc-900">{{ selectedPrivateLocation.location_type?.name || '-' }}</div>
+                      </div>
+                      <div class="rounded-lg bg-white px-4 py-3">
+                        <div class="text-xs uppercase tracking-wide text-zinc-500">Address</div>
+                        <div class="mt-1 font-medium text-zinc-900">{{ selectedPrivateLocation.address || '-' }}</div>
+                      </div>
+                      <div class="rounded-lg bg-white px-4 py-3">
+                        <div class="text-xs uppercase tracking-wide text-zinc-500">City</div>
+                        <div class="mt-1 font-medium text-zinc-900">{{ selectedPrivateLocation.city || '-' }}</div>
+                      </div>
+                      <div class="rounded-lg bg-white px-4 py-3">
+                        <div class="text-xs uppercase tracking-wide text-zinc-500">Country</div>
+                        <div class="mt-1 font-medium text-zinc-900">{{ selectedPrivateLocation.country || '-' }}</div>
+                      </div>
+                      <div class="rounded-lg bg-white px-4 py-3">
+                        <div class="text-xs uppercase tracking-wide text-zinc-500">ZIP</div>
+                        <div class="mt-1 font-medium text-zinc-900">{{ selectedPrivateLocation.zip || '-' }}</div>
+                      </div>
+                      <div class="rounded-lg bg-white px-4 py-3">
+                        <div class="text-xs uppercase tracking-wide text-zinc-500">Capacity</div>
+                        <div class="mt-1 font-medium text-zinc-900">{{ selectedPrivateLocation.capacity || '-' }}</div>
+                      </div>
+                      <div class="rounded-lg bg-white px-4 py-3">
+                        <div class="text-xs uppercase tracking-wide text-zinc-500">Status</div>
+                        <div class="mt-1 font-medium text-zinc-900">{{ selectedPrivateLocation.is_active ? 'Active' : 'Inactive' }}</div>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section class="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+                    <h5 class="text-sm font-semibold text-zinc-950">Descriptions</h5>
+                    <div class="mt-4 space-y-3">
+                      <div class="rounded-lg bg-white px-4 py-3">
+                        <div class="text-xs uppercase tracking-wide text-zinc-500">Description</div>
+                        <div class="mt-1 text-sm text-zinc-700">{{ selectedPrivateLocation.description || '-' }}</div>
+                      </div>
+                      <div class="rounded-lg bg-white px-4 py-3">
+                        <div class="text-xs uppercase tracking-wide text-zinc-500">Public Description</div>
+                        <div class="mt-1 text-sm text-zinc-700">{{ selectedPrivateLocation.public_description || '-' }}</div>
+                      </div>
+                      <div class="rounded-lg bg-white px-4 py-3">
+                        <div class="text-xs uppercase tracking-wide text-zinc-500">Restricted Description</div>
+                        <div class="mt-1 text-sm text-zinc-700">{{ selectedPrivateLocation.restricted_description || '-' }}</div>
+                      </div>
+                      <div class="rounded-lg bg-white px-4 py-3">
+                        <div class="text-xs uppercase tracking-wide text-zinc-500">Access Info</div>
+                        <div class="mt-1 text-sm text-zinc-700">{{ selectedPrivateLocation.access_info || '-' }}</div>
+                      </div>
+                    </div>
+                  </section>
+                </div>
+
+                <div class="space-y-6">
+                  <section class="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+                    <h5 class="text-sm font-semibold text-zinc-950">Contact</h5>
+                    <div class="mt-4 space-y-3">
+                      <div class="rounded-lg bg-white px-4 py-3">
+                        <div class="text-xs uppercase tracking-wide text-zinc-500">Phone</div>
+                        <div class="mt-1 font-medium text-zinc-900">{{ selectedPrivateLocation.phone || '-' }}</div>
+                      </div>
+                      <div class="rounded-lg bg-white px-4 py-3">
+                        <div class="text-xs uppercase tracking-wide text-zinc-500">Email</div>
+                        <div class="mt-1 font-medium text-zinc-900">{{ selectedPrivateLocation.email || '-' }}</div>
+                      </div>
+                      <div class="rounded-lg bg-white px-4 py-3">
+                        <div class="text-xs uppercase tracking-wide text-zinc-500">Website</div>
+                        <div class="mt-1 font-medium break-all text-zinc-900">{{ selectedPrivateLocation.website || '-' }}</div>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section class="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+                    <h5 class="text-sm font-semibold text-zinc-950">Amenities</h5>
+                    @if (selectedPrivateLocation.amenities.length === 0) {
+                      <p class="mt-3 text-sm text-zinc-600">No amenities added.</p>
+                    } @else {
+                      <div class="mt-3 flex flex-wrap gap-2">
+                        @for (amenity of selectedPrivateLocation.amenities; track trackByOption($index, amenity)) {
+                          <span class="inline-flex rounded-full bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700">{{ amenity.name }}</span>
+                        }
+                      </div>
+                    }
+                  </section>
+
+                  <section class="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+                    <h5 class="text-sm font-semibold text-zinc-950">Specifications</h5>
+                    @if (selectedPrivateLocation.specs.length === 0) {
+                      <p class="mt-3 text-sm text-zinc-600">No specifications added.</p>
+                    } @else {
+                      <div class="mt-3 flex flex-wrap gap-2">
+                        @for (spec of selectedPrivateLocation.specs; track trackByOption($index, spec)) {
+                          <span class="inline-flex rounded-full bg-amber-50 px-3 py-1 text-sm font-medium text-amber-700">{{ spec.name }}</span>
+                        }
+                      </div>
+                    }
+                  </section>
+
+                  <section class="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+                    <h5 class="text-sm font-semibold text-zinc-950">Images</h5>
+                    @if (selectedPrivateLocation.images.length === 0) {
+                      <p class="mt-3 text-sm text-zinc-600">No images uploaded.</p>
+                    } @else {
+                      <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                        @for (image of selectedPrivateLocation.images; track image.id) {
+                          <div class="overflow-hidden rounded-lg border border-zinc-200 bg-white">
+                            <img [src]="image.image_url" alt="Private location image" class="h-40 w-full object-cover">
+                          </div>
+                        }
+                      </div>
+                    }
+                  </section>
+                </div>
+              </div>
+            } @else {
+              <div class="px-5 py-12 text-center text-sm text-zinc-600">
+                Click a private location in the table to view details, or use <span class="font-semibold text-zinc-900">Create Private Location</span> to add a new one.
+              </div>
+            }
+          </section>
+        </div>
+      }
+
+      @if (activeTab === 'user') {
+        <div class="mt-6">
+          <section class="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
+            <div class="border-b border-zinc-200 px-5 py-4">
+              <h3 class="text-base font-semibold text-zinc-950">Host Users</h3>
+              <p class="mt-1 text-sm text-zinc-600">Users assigned to this host.</p>
+            </div>
+
+            <div class="border-b border-zinc-200 bg-zinc-50 px-5 py-4">
+              <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div class="grid gap-3 lg:min-w-[420px] lg:flex-1">
+                  <label class="space-y-2 text-sm">
+                    <span class="font-medium text-zinc-800">Add Existing Host User</span>
+                    <select
+                      [(ngModel)]="selectedHostUserId"
+                      class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-100">
+                      <option value="">Select host user</option>
+                      @for (user of availableHostUsers; track trackByUser($index, user)) {
+                        <option [value]="user.id">{{ getUserDisplayName(user) }}{{ getUserEmail(user) && getUserFullName(user) ? ' - ' + getUserEmail(user) : '' }}</option>
+                      }
+                    </select>
+                  </label>
+                </div>
+
+                <div class="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    (click)="assignSelectedHostUser()"
+                    [disabled]="isSavingUser || !selectedHostUserId"
+                    class="inline-flex items-center justify-center rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60">
+                    {{ isSavingUser ? 'Adding...' : 'Add Host User' }}
+                  </button>
+                  <button
+                    type="button"
+                    (click)="openInviteHostUserModal()"
+                    class="inline-flex items-center justify-center rounded-lg border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:border-zinc-400 hover:text-zinc-900">
+                    Invite New Host User
+                  </button>
+                </div>
+              </div>
+
+              @if (userSuccessMessage) {
+                <div class="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  {{ userSuccessMessage }}
+                </div>
+              }
+
+              @if (userError) {
+                <div class="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {{ userError }}
+                </div>
+              }
+            </div>
+
+            @if (hostMembers.length === 0) {
+              <div class="px-5 py-10 text-center text-sm text-zinc-600">No host users assigned.</div>
+            } @else {
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                  <thead class="bg-zinc-50 border-b border-zinc-200">
+                    <tr>
+                      <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Name</th>
+                      <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Email</th>
+                      <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Role</th>
+                      <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Status</th>
+                      <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-zinc-100">
+                    @for (member of hostMembers; track trackByMember($index, member)) {
+                      <tr class="hover:bg-zinc-50 transition-colors">
+                        <td class="px-5 py-4 font-medium text-zinc-900">{{ member.profile?.full_name || member.profile?.email || member.profile_id }}</td>
+                        <td class="px-5 py-4 text-zinc-600">{{ member.profile?.email || '-' }}</td>
+                        <td class="px-5 py-4 text-zinc-600">{{ member.role || 'member' }}</td>
+                        <td class="px-5 py-4">
+                          @if (getMemberAccountStatus(member) === 'active') {
+                            <span class="inline-flex items-center rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">Active</span>
+                          } @else if (getMemberAccountStatus(member) === 'pending') {
+                            <span class="inline-flex items-center rounded-full bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700">Pending</span>
+                          } @else {
+                            <span class="inline-flex items-center rounded-full bg-zinc-50 px-2 py-1 text-xs font-medium text-zinc-700">Inactive</span>
+                          }
+                        </td>
+                        <td class="px-5 py-4">
+                          <div class="flex items-center gap-3">
+                            @if (getMemberAccountStatus(member) === 'pending') {
+                              <button
+                                type="button"
+                                (click)="resendActivationEmail(member)"
+                                [disabled]="isResendingEmail"
+                                class="text-sm font-semibold text-blue-600 transition hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
+                                {{ isResendingEmail ? 'Sending...' : 'Resend Activation' }}
+                              </button>
+                            }
+                            <button
+                              type="button"
+                              (click)="openRemoveHostUserModal(member)"
+                              class="text-sm font-semibold text-red-600 transition hover:text-red-700">
+                              Remove
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          </section>
+        </div>
+      }
     </section>
-
-    <div class="detail-grid">
-      <section class="detail-card">
-        <h3>Overview</h3>
-        <div class="detail-list">
-          <div><span>Name</span><strong>{{ host.name || '-' }}</strong></div>
-          <div><span>Public Name</span><strong>{{ host.public_name || '-' }}</strong></div>
-          <div><span>Address</span><strong>{{ host.address || '-' }}</strong></div>
-          <div><span>City</span><strong>{{ host.city || '-' }}</strong></div>
-          <div><span>Country</span><strong>{{ host.country || '-' }}</strong></div>
-          <div><span>ZIP</span><strong>{{ host.zip || '-' }}</strong></div>
-          <div><span>Website</span><strong>{{ host.web_url || '-' }}</strong></div>
-        </div>
-      </section>
-
-      <section class="detail-card">
-        <h3>Contact</h3>
-        <div class="detail-list">
-          <div><span>First Name</span><strong>{{ host.contact_fname || '-' }}</strong></div>
-          <div><span>Last Name</span><strong>{{ host.contact_lname || '-' }}</strong></div>
-          <div><span>Email</span><strong>{{ host.contact_email || '-' }}</strong></div>
-          <div><span>Phone 1</span><strong>{{ host.contact_phone1 || '-' }}</strong></div>
-          <div><span>Phone 2</span><strong>{{ host.contact_phone2 || '-' }}</strong></div>
-        </div>
-      </section>
-
-      <section class="detail-card">
-        <h3>Members</h3>
-        @if (hostMembers.length === 0) {
-          <p class="empty-detail">No host members assigned.</p>
-        } @else {
-          <div class="pill-list">
-            @for (member of hostMembers; track trackByMember($index, member)) {
-              <div class="pill-item">
-                <strong>{{ member.profile?.full_name || member.profile?.email || member.profile_id }}</strong>
-                <span>{{ member.role || 'member' }}</span>
-              </div>
-            }
-          </div>
-        }
-      </section>
-
-      <section class="detail-card">
-        <h3>Artists</h3>
-        @if (hostArtists.length === 0) {
-          <p class="empty-detail">No artists linked to this host yet.</p>
-        } @else {
-          <div class="pill-list">
-            @for (artist of hostArtists; track trackByArtist($index, artist)) {
-              <div class="pill-item">
-                <strong>{{ artist.artist_name }}</strong>
-                <span>{{ artist.event_count }} event{{ artist.event_count === 1 ? '' : 's' }}</span>
-              </div>
-            }
-          </div>
-        }
-      </section>
-
-      <section class="detail-card detail-card-wide">
-        <h3>Events</h3>
-        @if (hostEvents.length === 0) {
-          <p class="empty-detail">No events found for this host.</p>
-        } @else {
-          <div class="event-list">
-            @for (event of hostEvents; track trackByEvent($index, event)) {
-              <div class="event-item">
-                <div>
-                  <strong>{{ event.title }}</strong>
-                  <p>{{ event.location_name || 'No location set' }}</p>
-                </div>
-                <div class="event-meta">
-                  <span class="status-pill">{{ event.status }}</span>
-                  <span>{{ event.event_dates?.[0] || 'Date pending' }}</span>
-                </div>
-              </div>
-            }
-          </div>
-        }
-      </section>
-    </div>
   }
 </div>
+
+@if (showExistingAssignmentConfirmModal && pendingUserAssignment) {
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" (click)="cancelExistingAssignmentConfirmation()"></div>
+
+    <div class="relative w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
+      <div class="border-b border-zinc-100 px-6 py-4">
+        <h2 class="text-lg font-bold text-zinc-900">Assign Host User</h2>
+        <p class="mt-0.5 text-sm text-zinc-500">
+          {{ getUserDisplayName(pendingUserAssignment) }} is already assigned to another host.
+        </p>
+      </div>
+
+      <div class="space-y-4 px-6 py-5">
+        <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          This user is already linked to the following host{{ pendingUserOtherHosts.length === 1 ? '' : 's' }}.
+          You can still continue and add them to {{ host?.name || 'this host' }}.
+        </div>
+
+        <div class="space-y-2">
+          @for (assignedHost of pendingUserOtherHosts; track assignedHost.id) {
+            <div class="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-700">
+              {{ assignedHost.name || assignedHost.public_name || ('Host #' + assignedHost.id) }}
+            </div>
+          }
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-3 border-t border-zinc-100 px-6 py-4">
+        <button
+          type="button"
+          (click)="cancelExistingAssignmentConfirmation()"
+          [disabled]="isSavingUser"
+          class="rounded-lg px-4 py-2 text-sm text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-60">
+          Cancel
+        </button>
+        <button
+          type="button"
+          (click)="confirmExistingAssignment()"
+          [disabled]="isSavingUser"
+          class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60">
+          @if (isSavingUser) {
+            <svg class="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+            </svg>
+          }
+          {{ isSavingUser ? 'Assigning...' : 'Continue and Assign' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (showInviteHostUserModal && host) {
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" (click)="closeInviteHostUserModal()"></div>
+
+    <div class="relative w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
+      <div class="flex items-center justify-between border-b border-zinc-100 px-6 py-4">
+        <div>
+          <h2 class="text-lg font-bold text-zinc-900">Invite Host User</h2>
+          <p class="mt-0.5 text-xs text-zinc-400">Create a new host user and assign them to {{ host.name }}</p>
+        </div>
+        <button type="button" (click)="closeInviteHostUserModal()" class="rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700">
+          <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="space-y-4 px-6 py-5">
+        @if (userError) {
+          <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ userError }}</div>
+        }
+
+        <div>
+          <label class="mb-1 block text-sm font-medium text-zinc-700">Full Name</label>
+          <input [(ngModel)]="inviteHostUserForm.fullName" type="text" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-red-500" />
+        </div>
+
+        <div>
+          <label class="mb-1 block text-sm font-medium text-zinc-700">Email</label>
+          <input [(ngModel)]="inviteHostUserForm.email" type="email" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-red-500" />
+        </div>
+
+        <div>
+          <label class="mb-1 block text-sm font-medium text-zinc-700">Phone</label>
+          <input [(ngModel)]="inviteHostUserForm.phone" type="text" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-red-500" />
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-3 border-t border-zinc-100 px-6 py-4">
+        <button type="button" (click)="closeInviteHostUserModal()" [disabled]="isSavingUser" class="rounded-lg px-4 py-2 text-sm text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-60">
+          Cancel
+        </button>
+        <button type="button" (click)="submitInviteHostUser()" [disabled]="isSavingUser" class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-60">
+          @if (isSavingUser) {
+            <svg class="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+            </svg>
+          }
+          {{ isSavingUser ? 'Inviting...' : 'Invite User' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (showRemoveHostUserModal && pendingRemoveMember) {
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" (click)="closeRemoveHostUserModal()"></div>
+
+    <div class="relative w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
+      <div class="border-b border-zinc-100 px-6 py-4">
+        <h2 class="text-lg font-bold text-zinc-900">Remove Host User</h2>
+        <p class="mt-0.5 text-sm text-zinc-500">
+          Are you sure you want to remove this user from {{ host?.name || 'this host' }}?
+        </p>
+      </div>
+
+      <div class="space-y-4 px-6 py-5">
+        @if (userError) {
+          <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ userError }}</div>
+        }
+
+        <div class="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3">
+          <div class="text-sm font-medium text-zinc-900">{{ pendingRemoveMember.profile?.full_name || pendingRemoveMember.profile?.email || 'Unknown User' }}</div>
+          <div class="mt-1 text-sm text-zinc-600">{{ pendingRemoveMember.profile?.email || '-' }}</div>
+        </div>
+
+        <p class="text-sm text-zinc-600">
+          This user will no longer have access to this host's resources and locations.
+        </p>
+      </div>
+
+      <div class="flex justify-end gap-3 border-t border-zinc-100 px-6 py-4">
+        <button
+          type="button"
+          (click)="closeRemoveHostUserModal()"
+          [disabled]="isSavingUser"
+          class="rounded-lg px-4 py-2 text-sm text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-60">
+          Cancel
+        </button>
+        <button
+          type="button"
+          (click)="confirmRemoveHostUser()"
+          [disabled]="isSavingUser"
+          class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60">
+          @if (isSavingUser) {
+            <svg class="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+            </svg>
+          }
+          {{ isSavingUser ? 'Removing...' : 'Remove User' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

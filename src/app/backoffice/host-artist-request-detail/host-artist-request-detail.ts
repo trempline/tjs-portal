@@ -39,7 +39,7 @@ export class HostArtistRequestDetail implements OnInit {
   error = '';
   successMessage = '';
   request: ArtistRequestDetail | null = null;
-  activeTab: 'request' | 'instruments' | 'dates' | 'comments' = 'request';
+  activeTab: 'request' | 'instruments' | 'comments' = 'request';
   instrumentOptions: ArtistInstrumentOption[] = [];
   editionOptions: EventEditionOption[] = [];
   eventTypeOptions: EventTypeOption[] = [];
@@ -49,7 +49,11 @@ export class HostArtistRequestDetail implements OnInit {
   selectedEditionId: number | null = null;
   selectedEventTypeId: number | null = null;
   proposedDates: HostProposedDateEntry[] = [this.createBlankProposedDate()];
+  proposalDraftDates: HostProposedDateEntry[] = [];
+  draftSelectedEditionId: number | null = null;
+  draftSelectedEventTypeId: number | null = null;
   acceptedByHost = false;
+  isProposalModalOpen = false;
 
   async ngOnInit() {
     const requestId = this.route.snapshot.paramMap.get('id');
@@ -77,6 +81,7 @@ export class HostArtistRequestDetail implements OnInit {
 
       this.acceptedByHost = this.isHostAcceptedWorkflow(this.request.status);
       await Promise.all([this.loadInstruments(), this.loadLocations()]);
+      this.hydrateArtistProposalFromComments();
       this.hydrateHostProposalFromComments();
     } catch (error) {
       this.error = error instanceof Error ? error.message : 'Request details could not be loaded.';
@@ -89,7 +94,7 @@ export class HostArtistRequestDetail implements OnInit {
     this.location.back();
   }
 
-  setTab(tab: 'request' | 'instruments' | 'dates' | 'comments') {
+  setTab(tab: 'request' | 'instruments' | 'comments') {
     this.activeTab = tab;
   }
 
@@ -103,11 +108,108 @@ export class HostArtistRequestDetail implements OnInit {
     this.proposedDates = [...this.proposedDates, this.createBlankProposedDate()];
   }
 
+  addDraftProposedDate() {
+    this.proposalDraftDates = [...this.proposalDraftDates, this.createBlankProposedDate()];
+  }
+
   removeProposedDate(index: number) {
     this.proposedDates = this.proposedDates.filter((_, currentIndex) => currentIndex !== index);
     if (this.proposedDates.length === 0) {
       this.proposedDates = [this.createBlankProposedDate()];
     }
+  }
+
+  removeDraftProposedDate(index: number) {
+    this.proposalDraftDates = this.proposalDraftDates.filter((_, currentIndex) => currentIndex !== index);
+    if (this.proposalDraftDates.length === 0) {
+      this.proposalDraftDates = [this.createBlankProposedDate()];
+    }
+  }
+
+  openProposalModal() {
+    if (this.hasSubmittedHostProposal) {
+      return;
+    }
+
+    this.error = '';
+    this.successMessage = '';
+    this.draftSelectedEditionId = this.selectedEditionId;
+    this.draftSelectedEventTypeId = this.selectedEventTypeId;
+    this.proposalDraftDates = this.cloneProposalDates(this.proposedDates);
+    this.isProposalModalOpen = true;
+  }
+
+  closeProposalModal() {
+    this.isProposalModalOpen = false;
+    this.proposalDraftDates = [];
+    this.draftSelectedEditionId = null;
+    this.draftSelectedEventTypeId = null;
+  }
+
+  async saveProposalDraft() {
+    if (!this.request?.id || !this.authService.currentUser?.id) {
+      return;
+    }
+
+    const validProposals = this.proposalDraftDates.filter((item) => {
+      if (!item.start_date || !item.show_time || !item.location_id) {
+        return false;
+      }
+
+      return item.mode === 'one_day' || !!item.end_date;
+    });
+
+    if (validProposals.length === 0) {
+      this.error = 'Add at least one proposed date before saving.';
+      return;
+    }
+
+    if (!this.draftSelectedEditionId || !this.draftSelectedEventTypeId) {
+      this.error = 'Select both event edition and event type before saving.';
+      return;
+    }
+
+    this.error = '';
+    this.successMessage = '';
+    this.isSaving = true;
+
+    const selectedEdition = this.editionOptions.find((item) => item.id === this.draftSelectedEditionId)?.name ?? `Edition #${this.draftSelectedEditionId}`;
+    const selectedEventType = this.eventTypeOptions.find((item) => item.id === this.draftSelectedEventTypeId)?.name ?? `Type #${this.draftSelectedEventTypeId}`;
+    const proposalSummary = validProposals.map((item) => {
+      const selectedLocation = this.findLocationById(item.location_id);
+      const locationName = selectedLocation?.name || 'Unknown location';
+      const datePart = item.mode === 'period'
+        ? `${item.start_date} to ${item.end_date}`
+        : item.start_date;
+
+      return `${item.mode === 'period' ? 'Period' : 'One Day'} | ${datePart} | ${item.show_time} | ${locationName}`;
+    });
+
+    const commentError = await this.supabase.addArtistWorkspaceRequestComment(
+      this.request.id,
+      this.authService.currentUser.id,
+      [
+        '[HOST_PROPOSED]',
+        `Edition: ${selectedEdition}`,
+        `Event Type: ${selectedEventType}`,
+        'Proposed Dates:',
+        ...proposalSummary.map((line) => `- ${line}`),
+      ].join('\n'),
+    );
+
+    if (commentError) {
+      this.error = commentError;
+      this.isSaving = false;
+      return;
+    }
+
+    this.selectedEditionId = this.draftSelectedEditionId;
+    this.selectedEventTypeId = this.draftSelectedEventTypeId;
+    this.proposedDates = this.cloneProposalDates(validProposals);
+    this.closeProposalModal();
+    this.successMessage = 'New proposed dates sent to the artist.';
+    await this.reloadRequest();
+    this.isSaving = false;
   }
 
   async submitComment() {
@@ -150,45 +252,46 @@ export class HostArtistRequestDetail implements OnInit {
       return item.mode === 'one_day' || !!item.end_date;
     });
 
-    if (validProposals.length === 0) {
-      this.error = 'Add at least one proposed date before accepting.';
-      this.activeTab = 'dates';
-      return;
-    }
-
-    if (!this.selectedEditionId || !this.selectedEventTypeId) {
-      this.error = 'Select both event edition and event type before accepting.';
-      this.activeTab = 'dates';
-      return;
-    }
-
     this.error = '';
     this.successMessage = '';
     this.isSaving = true;
 
-    const selectedEdition = this.editionOptions.find((item) => item.id === this.selectedEditionId)?.name ?? `Edition #${this.selectedEditionId}`;
-    const selectedEventType = this.eventTypeOptions.find((item) => item.id === this.selectedEventTypeId)?.name ?? `Type #${this.selectedEventTypeId}`;
-    const proposalSummary = validProposals.map((item) => {
-      const selectedLocation = this.findLocationById(item.location_id);
-      const locationName = selectedLocation?.name || 'Unknown location';
-      const datePart = item.mode === 'period'
-        ? `${item.start_date} to ${item.end_date}`
-        : item.start_date;
+    let commentBody: string | null = null;
 
-      return `${item.mode === 'period' ? 'Period' : 'One Day'} | ${datePart} | ${item.show_time} | ${locationName}`;
-    });
-    const acceptanceLines = [
-      '[HOST_ACCEPTED]',
-      `Edition: ${selectedEdition}`,
-      `Event Type: ${selectedEventType}`,
-      'Proposed Dates:',
-      ...proposalSummary.map((line) => `- ${line}`),
-    ];
+    if (validProposals.length > 0) {
+      if (!this.selectedEditionId || !this.selectedEventTypeId) {
+        this.error = 'Select both event edition and event type before accepting.';
+        this.isSaving = false;
+        return;
+      }
+
+      const selectedEdition = this.editionOptions.find((item) => item.id === this.selectedEditionId)?.name ?? `Edition #${this.selectedEditionId}`;
+      const selectedEventType = this.eventTypeOptions.find((item) => item.id === this.selectedEventTypeId)?.name ?? `Type #${this.selectedEventTypeId}`;
+      const proposalSummary = validProposals.map((item) => {
+        const selectedLocation = this.findLocationById(item.location_id);
+        const locationName = selectedLocation?.name || 'Unknown location';
+        const datePart = item.mode === 'period'
+          ? `${item.start_date} to ${item.end_date}`
+          : item.start_date;
+
+        return `${item.mode === 'period' ? 'Period' : 'One Day'} | ${datePart} | ${item.show_time} | ${locationName}`;
+      });
+      const acceptanceLines = [
+        '[HOST_PROPOSED]',
+        `Edition: ${selectedEdition}`,
+        `Event Type: ${selectedEventType}`,
+        'Proposed Dates:',
+        ...proposalSummary.map((line) => `- ${line}`),
+      ];
+      commentBody = acceptanceLines.join('\n');
+    } else {
+      commentBody = '[HOST_ACCEPTED]\nHost accepted the artist request without proposing new dates.';
+    }
 
     const commentError = await this.supabase.addArtistWorkspaceRequestComment(
       this.request.id,
       this.authService.currentUser.id,
-      acceptanceLines.join('\n'),
+      commentBody,
     );
 
     if (commentError) {
@@ -198,7 +301,7 @@ export class HostArtistRequestDetail implements OnInit {
     }
 
     this.acceptedByHost = true;
-    this.successMessage = 'Request accepted and host proposal recorded.';
+    this.successMessage = 'Request accepted by host.';
     await this.reloadRequest();
     this.isSaving = false;
   }
@@ -249,11 +352,23 @@ export class HostArtistRequestDetail implements OnInit {
   }
 
   get canCreateEvent(): boolean {
-    return ['artist_accepted', 'approved'].includes(this.request?.status ?? '');
+    return ['accepted_by_host', 'artist_accepted', 'approved'].includes(this.request?.status ?? '');
+  }
+
+  get hasSubmittedHostProposal(): boolean {
+    return this.request?.status === 'accepted_by_host'
+      || this.request?.status === 'host_proposed'
+      || this.request?.status === 'artist_accepted'
+      || this.request?.status === 'approved'
+      || this.request?.status === 'published';
   }
 
   get recentComments() {
     return (this.request?.comments ?? []).slice(-3).reverse();
+  }
+
+  get sortedComments() {
+    return [...(this.request?.comments ?? [])].reverse();
   }
 
   async openCreateEvent() {
@@ -275,7 +390,7 @@ export class HostArtistRequestDetail implements OnInit {
   }
 
   private async loadLocations() {
-    const currentUserId = this.authService.currentUser?.id;
+    const currentUserId = this.authService.currentProfile?.id ?? this.authService.currentUser?.id;
     const [privateLocations, publicLocations] = await Promise.all([
       this.supabase.getPrivateLocations(currentUserId),
       this.supabase.getPublicLocations(),
@@ -317,7 +432,22 @@ export class HostArtistRequestDetail implements OnInit {
 
     this.request = refreshed;
     this.acceptedByHost = this.isHostAcceptedWorkflow(this.request.status);
+    this.hydrateArtistProposalFromComments();
     this.hydrateHostProposalFromComments();
+  }
+
+  private cloneProposalDates(source: HostProposedDateEntry[]): HostProposedDateEntry[] {
+    if (source.length === 0) {
+      return [this.createBlankProposedDate()];
+    }
+
+    return source.map((item) => ({
+      mode: item.mode,
+      start_date: item.start_date,
+      end_date: item.end_date,
+      show_time: item.show_time,
+      location_id: item.location_id,
+    }));
   }
 
   private isHostAcceptedWorkflow(status: string): boolean {
@@ -326,7 +456,7 @@ export class HostArtistRequestDetail implements OnInit {
 
   private hydrateHostProposalFromComments() {
     const hostAcceptedComment = this.request?.comments
-      ? [...this.request.comments].reverse().find((comment) => comment.body.startsWith('[HOST_ACCEPTED]'))
+      ? [...this.request.comments].reverse().find((comment) => comment.body.startsWith('[HOST_PROPOSED]') || comment.body.startsWith('[HOST_ACCEPTED]'))
       : null;
 
     if (!hostAcceptedComment) {
@@ -355,6 +485,71 @@ export class HostArtistRequestDetail implements OnInit {
     if (parsedDates.length > 0) {
       this.proposedDates = parsedDates;
     }
+  }
+
+  private hydrateArtistProposalFromComments() {
+    if (!this.request || this.request.status !== 'artist_proposed') {
+      return;
+    }
+
+    const artistProposedComment = [...this.request.comments]
+      .reverse()
+      .find((comment) => comment.body.startsWith('[ARTIST_PROPOSED]'));
+
+    if (!artistProposedComment) {
+      return;
+    }
+
+    const lines = artistProposedComment.body.split('\n').map((line) => line.trim()).filter(Boolean);
+    const parsedDates = lines
+      .slice(1)
+      .map((line) => line.replace(/^- /, '').trim())
+      .filter((line) => line && line !== 'Artist proposed new dates:')
+      .map((line) => this.parseArtistProposalLine(line))
+      .filter((item): item is ArtistRequestDateEntry => !!item);
+
+    if (parsedDates.length > 0) {
+      this.request = {
+        ...this.request,
+        dates: parsedDates,
+      };
+    }
+  }
+
+  private parseArtistProposalLine(line: string): ArtistRequestDateEntry | null {
+    const segments = line.split('|').map((item) => item.trim());
+    if (segments.length < 2) {
+      return null;
+    }
+
+    const modeLabel = segments[0].toLowerCase();
+    const dateLabel = segments[1];
+    const eventTime = segments[2] ?? '';
+
+    if (modeLabel === 'period') {
+      const [startDate, endDate] = dateLabel.split(' to ').map((item) => item.trim());
+      if (!startDate) {
+        return null;
+      }
+
+      return {
+        request_type: 'period',
+        start_date: startDate,
+        end_date: endDate && endDate !== 'TBD' ? endDate : '',
+        event_time: eventTime,
+      };
+    }
+
+    if (modeLabel !== 'one day') {
+      return null;
+    }
+
+    return {
+      request_type: 'day_show',
+      start_date: dateLabel,
+      end_date: '',
+      event_time: eventTime,
+    };
   }
 
   private parseHostProposalLine(line: string): HostProposedDateEntry | null {

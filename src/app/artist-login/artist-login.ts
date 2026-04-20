@@ -4,6 +4,7 @@ import { RouterModule, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { NgIf } from '@angular/common';
 import { AuthService } from '../services/auth.service';
+import { SupabaseService } from '../services/supabase.service';
 
 @Component({
   selector: 'app-artist-login',
@@ -12,6 +13,7 @@ import { AuthService } from '../services/auth.service';
 })
 export class ArtistLogin {
   private authService = inject(AuthService);
+  private supabaseService = inject(SupabaseService);
   private router = inject(Router);
 
   credentials = {
@@ -22,6 +24,12 @@ export class ArtistLogin {
   isLoading = false;
   errorMessage = '';
   showPassword = false;
+
+  showForgotPassword = false;
+  forgotEmail = '';
+  forgotLoading = false;
+  forgotMessage = '';
+  forgotError = '';
 
   togglePasswordVisibility() {
     this.showPassword = !this.showPassword;
@@ -55,6 +63,31 @@ export class ArtistLogin {
     }
 
     this.isLoading = false;
+  }
+
+  toggleForgotPassword() {
+    this.showForgotPassword = !this.showForgotPassword;
+    this.forgotEmail = this.credentials.email;
+    this.forgotMessage = '';
+    this.forgotError = '';
+  }
+
+  async onForgotPassword() {
+    if (!this.forgotEmail) {
+      this.forgotError = 'Please enter your email address.';
+      return;
+    }
+    this.forgotLoading = true;
+    this.forgotError = '';
+    this.forgotMessage = '';
+    const redirectTo = `${window.location.origin}/auth/callback`;
+    const error = await this.supabaseService.sendPasswordResetEmail(this.forgotEmail, redirectTo);
+    if (error) {
+      this.forgotError = error;
+    } else {
+      this.forgotMessage = 'A password reset email has been sent. Please check your inbox.';
+    }
+    this.forgotLoading = false;
   }
 
   private mapError(error: string | null): string {

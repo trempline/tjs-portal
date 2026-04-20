@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { Observable, from, throwError, forkJoin } from 'rxjs';
+import { Observable, from, throwError, forkJoin, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 import { SupabaseService, TjsProfile, TjsHostMember } from './supabase.service';
 import { TjsHost } from './supabase.service';
@@ -35,7 +35,10 @@ export interface HostEvent {
 }
 
 export interface HostManagerDashboardStats {
+  my_hosts: number;
   total_hosts: number;
+  hosts_with_upcoming_events: number;
+  total_upcoming_events: number;
   active_events: number;
   pending_requests: number;
   recent_messages: number;
@@ -222,18 +225,73 @@ export class HostManagerService {
    * Get dashboard statistics for a Host Manager
    */
   getDashboardStats(managerId: string): Observable<HostManagerDashboardStats> {
-    return this.getAssignedHosts(managerId).pipe(
-      map(hosts => ({
-        total_hosts: hosts.length,
-        active_events: 0, // Simplified - would need separate query
-        pending_requests: 0, // Simplified
-        recent_messages: 0 // Simplified
-      })),
+    return from(this.getDashboardStatsInternal(managerId)).pipe(
       catchError(error => {
         console.error('getDashboardStats error:', error);
-        return throwError(() => error);
+        return of({
+          my_hosts: 0,
+          total_hosts: 0,
+          hosts_with_upcoming_events: 0,
+          total_upcoming_events: 0,
+          active_events: 0,
+          pending_requests: 0,
+          recent_messages: 0
+        });
       })
     );
+  }
+
+  private async getDashboardStatsInternal(managerId: string): Promise<HostManagerDashboardStats> {
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Get assigned hosts
+    const assignedHosts = await this.getAssignedHostsInternal(managerId);
+    const assignedHostIds = assignedHosts.map(h => h.id);
+
+    // Get total hosts count
+    const { count: totalHostsCount } = await this.adminSupabase
+      .from('tjs_hosts')
+      .select('id', { count: 'exact', head: true });
+
+    // Get upcoming events for assigned hosts only if there are assigned hosts
+    let upcomingEvents: any[] = [];
+    if (assignedHostIds.length > 0) {
+      const { data, error: eventsError } = await this.adminSupabase
+        .from('tjs_event_hosts')
+        .select(`
+          event_id,
+          host_id,
+          selected_dates
+        `)
+        .in('host_id', assignedHostIds);
+
+      if (eventsError) {
+        console.error('getDashboardStatsInternal events error:', eventsError);
+      } else {
+        upcomingEvents = data || [];
+      }
+    }
+
+    // Filter events with upcoming dates
+    const eventsWithUpcomingDates = upcomingEvents.filter((event: any) => {
+      const dates = Array.isArray(event.selected_dates) ? event.selected_dates : [];
+      return dates.some((date: string) => date >= today);
+    });
+
+    // Count unique hosts with upcoming events
+    const hostsWithUpcomingEvents = new Set(
+      eventsWithUpcomingDates.map((event: any) => event.host_id)
+    ).size;
+
+    return {
+      my_hosts: assignedHosts.length,
+      total_hosts: totalHostsCount || 0,
+      hosts_with_upcoming_events: hostsWithUpcomingEvents,
+      total_upcoming_events: eventsWithUpcomingDates.length,
+      active_events: eventsWithUpcomingDates.length,
+      pending_requests: 0,
+      recent_messages: 0
+    };
   }
 
   private getPendingRequestsCount(managerId: string): Observable<number> {
@@ -273,10 +331,30 @@ export class HostManagerService {
     artists: HostArtist[];
   }> {
     return forkJoin({
-      host: this.getHostById(hostId),
-      members: this.supabaseService.getHostMembers(hostId as any),
-      events: this.getHostEvents(hostId),
-      artists: this.getHostArtists(hostId)
+      host: this.getHostById(hostId).pipe(
+        catchError((error) => {
+          console.error('getHostDetails host error:', error);
+          return of(null);
+        })
+      ),
+      members: from(this.supabaseService.getHostMembers(Number(hostId))).pipe(
+        catchError((error) => {
+          console.error('getHostDetails members error:', error);
+          return of([] as TjsHostMember[]);
+        })
+      ),
+      events: this.getHostEvents(hostId).pipe(
+        catchError((error) => {
+          console.error('getHostDetails events error:', error);
+          return of([] as HostEvent[]);
+        })
+      ),
+      artists: this.getHostArtists(hostId).pipe(
+        catchError((error) => {
+          console.error('getHostDetails artists error:', error);
+          return of([] as HostArtist[]);
+        })
+      )
     }).pipe(
       catchError(error => {
         console.error('getHostDetails error:', error);

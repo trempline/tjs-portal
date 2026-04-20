@@ -46,21 +46,21 @@
             </td>
             <td class="px-4 py-3 text-zinc-600">{{ request.event_domain_name || '-' }}</td>
             <td class="px-4 py-3 text-zinc-600">{{ request.date_summary }}</td>
-            <td class="px-4 py-3">
-              <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
-                [ngClass]="{
-                  'bg-amber-100 text-amber-700': request.status === 'new_request',
-                  'bg-cyan-100 text-cyan-700': request.status === 'accepted_by_host',
-                  'bg-sky-100 text-sky-700': request.status === 'host_proposed',
-                  'bg-violet-100 text-violet-700': request.status === 'artist_proposed',
-                  'bg-emerald-100 text-emerald-700': request.status === 'artist_accepted',
-                  'bg-green-100 text-green-700': request.status === 'approved',
-                  'bg-red-100 text-red-700': request.status === 'rejected'
-                }"
-              >
-                {{ request.status === 'new_request' ? 'New Request' : request.status === 'accepted_by_host' ? 'Accepted by Host' : request.status === 'host_proposed' ? 'Host Proposed' : request.status === 'artist_proposed' ? 'Artist Proposed' : request.status === 'artist_accepted' ? 'Artist Accepted' : request.status }}
-              </span>
-            </td>
+<td class="px-4 py-3">
+               <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold uppercase"
+                 [ngClass]="{
+                   'bg-amber-100 text-amber-700': request.status === 'new_request',
+                   'bg-cyan-100 text-cyan-700': request.status === 'accepted_by_host',
+                   'bg-sky-100 text-sky-700': request.status === 'host_proposed',
+                   'bg-violet-100 text-violet-700': request.status === 'artist_proposed',
+                   'bg-emerald-100 text-emerald-700': request.status === 'artist_accepted',
+                   'bg-green-100 text-green-700': request.status === 'approved',
+                   'bg-red-100 text-red-700': request.status === 'rejected'
+                 }"
+               >
+                 {{ request.status === 'new_request' ? 'New Request' : request.status === 'accepted_by_host' ? 'Accepted by Host' : request.status === 'host_proposed' ? 'Host Proposed' : request.status === 'artist_proposed' ? 'Artist Proposed' : request.status === 'artist_accepted' ? 'Artist Accepted' : request.status }}
+               </span>
+             </td>
             <td class="px-4 py-3 text-zinc-500">{{ request.created_at | date:'mediumDate' }}</td>
           </tr>
           <tr *ngIf="requests.length === 0">

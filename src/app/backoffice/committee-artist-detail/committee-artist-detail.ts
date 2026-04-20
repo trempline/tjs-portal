@@ -115,6 +115,40 @@ export class CommitteeArtistDetail implements OnInit {
     return !!this.artist?.is_invited_artist && !this.artist?.is_tjs_artist;
   }
 
+  get isHostWorkspace(): boolean {
+    return this.route.snapshot.routeConfig?.path === 'host/artists/:id';
+  }
+
+  get backLink(): string {
+    if (this.isHostWorkspace) {
+      return '/backoffice/host/artists';
+    }
+
+    return this.isPagOnlyProfile
+      ? '/backoffice/artists/non-tjs'
+      : (this.isInvitedArtistProfile ? '/backoffice/artists/invited' : '/backoffice/artists');
+  }
+
+  get backLabel(): string {
+    if (this.isHostWorkspace) {
+      return 'Back to TJS Artists';
+    }
+
+    return this.isPagOnlyProfile
+      ? 'Back to PAG Artists'
+      : (this.isInvitedArtistProfile ? 'Back to Invited Artists' : 'Back to TJS Artists');
+  }
+
+  get pageDescription(): string {
+    if (this.isHostWorkspace) {
+      return 'Host workspace view of the full artist profile.';
+    }
+
+    return this.isPagOnlyProfile
+      ? 'Committee workspace view of the legacy PAG artist profile.'
+      : (this.isInvitedArtistProfile ? 'Committee workspace view of the invited artist profile.' : 'Committee workspace view of the full artist profile.');
+  }
+
   looksLikeUuid(value: string): boolean {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
   }
