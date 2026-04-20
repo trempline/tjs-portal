@@ -127,6 +127,15 @@ export interface EventLocationSummary {
   display_label: string | null;
 }
 
+export interface HostVenueScheduleConflict {
+  event_id: string;
+  event_title: string;
+  event_status: string;
+  location_id: string;
+  location_label: string;
+  conflicting_schedule_lines: string[];
+}
+
 export interface HostWorkspaceEventDetail extends HostWorkspaceEventItem {
   host_notes: string | null;
   all_dates: string[];
@@ -135,6 +144,20 @@ export interface HostWorkspaceEventDetail extends HostWorkspaceEventItem {
   location_name: string | null;
   schedule_entries?: Array<{ mode: 'day_show' | 'period'; start_date: string; end_date: string }>;
   request_detail: ArtistRequestDetail | null;
+}
+
+export interface HostPrivateLocationBookingItem {
+  event_id: string;
+  title: string;
+  status: string;
+  artist_names: string[];
+  instruments: string[];
+  primary_upcoming_date: string | null;
+  show_time: string | null;
+  location_id: string;
+  location_name: string | null;
+  schedule_entries: Array<{ mode: 'day_show' | 'period'; start_date: string; end_date: string }>;
+  booked_dates: string[];
 }
 
 export interface PublicWebsiteEventItem {
@@ -148,6 +171,35 @@ export interface PublicWebsiteEventItem {
   artist_names: string[];
   primary_date: string | null;
   schedule_lines: string[];
+}
+
+export interface PublicEventDetail {
+  id: string;
+  title: string;
+  teaser: string;
+  description: string;
+  image_url: string | null;
+  event_domain_name: string | null;
+  edition: string | null;
+  event_type_name: string | null;
+  instruments: string[];
+  artist_names: string[];
+  schedule_lines: string[];
+  media: Array<{
+    id?: string;
+    media_type: string;
+    image_url: string | null;
+    name: string;
+    description: string;
+    url: string;
+  }>;
+  artists: Array<{
+    id?: string;
+    display_name: string;
+    tagline: string | null;
+    image_url: string | null;
+    instruments: string[];
+  }>;
 }
 
 export interface UpdateHostWorkspaceEventDetailPayload {
@@ -375,6 +427,9 @@ export interface EventTypeOption {
 export interface CreateHostEventFromRequestPayload {
   hostId: number;
   title: string;
+  eventDomainId: number | null;
+  teaser: string;
+  longTeaser: string;
   description: string;
   editionId: number | null;
   eventTypeId: number | null;
@@ -2148,6 +2203,8 @@ export class SupabaseService {
             workflowStatusByRequestId.set(row.request_id, 'host_proposed');
           } else if (row.body.startsWith('[HOST_ACCEPTED]')) {
             workflowStatusByRequestId.set(row.request_id, 'accepted_by_host');
+          } else if (row.body.startsWith('[HOST_RELEASED]')) {
+            workflowStatusByRequestId.set(row.request_id, 'new_request');
           } else if (row.body.startsWith('[ARTIST_PROPOSED]')) {
             workflowStatusByRequestId.set(row.request_id, 'artist_proposed');
           } else if (row.body.startsWith('[ARTIST_APPROVED]')) {
@@ -2402,6 +2459,8 @@ export class SupabaseService {
         }
       } else if (row.body.startsWith('[HOST_ACCEPTED]')) {
         derivedStatus = 'accepted_by_host';
+      } else if (row.body.startsWith('[HOST_RELEASED]')) {
+        derivedStatus = 'new_request';
       } else if (row.body.startsWith('[ARTIST_PROPOSED]')) {
         derivedStatus = 'artist_proposed';
       } else if (row.body.startsWith('[ARTIST_APPROVED]')) {
@@ -2500,8 +2559,7 @@ export class SupabaseService {
   async saveArtistWorkspaceRequest(profileId: string, request: ArtistRequestDetail): Promise<{ requestId: string | null; error: string | null }> {
     const normalizedTeaser = request.teaser.trim().slice(0, 200);
     const primaryDate = request.dates.find((item) => item.start_date) ?? null;
-    const payload = {
-      created_by: profileId,
+    const basePayload = {
       event_domain_id: request.event_domain_id,
       event_title: request.event_title.trim(),
       teaser: normalizedTeaser || null,
@@ -2519,13 +2577,16 @@ export class SupabaseService {
     const requestResult = request.id
       ? await this.adminSupabase
           .from('tjs_artist_requests')
-          .update(payload)
+          .update(basePayload)
           .eq('id', request.id)
           .select('id')
           .single()
       : await this.adminSupabase
           .from('tjs_artist_requests')
-          .insert(payload)
+          .insert({
+            created_by: profileId,
+            ...basePayload,
+          })
           .select('id')
           .single();
 
@@ -3103,6 +3164,9 @@ export class SupabaseService {
           }
           acceptedHostProfileIdsByRequestId.set(requestId, existing);
         }
+      } else if (body.startsWith('[HOST_RELEASED]')) {
+        workflowStatusByRequestId.set(requestId, 'new_request');
+        acceptedHostProfileIdsByRequestId.set(requestId, []);
       } else if (body.startsWith('[ARTIST_PROPOSED]')) {
         workflowStatusByRequestId.set(requestId, 'artist_proposed');
       } else if (body.startsWith('[ARTIST_APPROVED]')) {
@@ -3791,6 +3855,164 @@ export class SupabaseService {
       });
   }
 
+  async getPublicEventDetail(eventId: string): Promise<PublicEventDetail | null> {
+    const eventsResult = await this.adminSupabase
+      .from('tjs_events')
+      .select('id, title, status, event_type, parent_event_id')
+      .eq('id', eventId)
+      .eq('event_type', 'EVENT_INSTANCE')
+      .eq('status', 'APPROVED')
+      .maybeSingle();
+
+    if (eventsResult.error || !eventsResult.data) {
+      return null;
+    }
+
+    const event = eventsResult.data as any;
+    const requestId = event.parent_event_id as string | null;
+
+    const [hostAssignmentsResult, eventArtistsResult, requestDetailsResult, requestArtistsResult, requestMediaResult] = await Promise.all([
+      this.adminSupabase
+        .from('tjs_event_hosts')
+        .select('selected_dates, notes')
+        .eq('event_id', eventId),
+      this.adminSupabase
+        .from('tjs_event_artists')
+        .select('artist:tjs_artists(id, artist_name, profile_id)')
+        .eq('event_id', eventId),
+      requestId
+        ? this.adminSupabase
+            .from('tjs_artist_requests')
+            .select('teaser, description, image_url, event_domain:sys_event_domain(name)')
+            .eq('id', requestId)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+      requestId
+        ? this.adminSupabase
+            .from('tjs_artist_request_artists')
+            .select('artist:tjs_artists!tjs_artist_request_artists_artist_id_fkey(artist_name), invited_artist:tjs_artists!tjs_artist_request_artists_invited_artist_id_fkey(artist_name)')
+            .eq('request_id', requestId)
+        : Promise.resolve({ data: [], error: null }),
+      requestId
+        ? this.adminSupabase
+            .from('tjs_artist_request_media')
+            .select('id, media_type, image_url, name, description, url')
+            .eq('request_id', requestId)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+
+    const primaryAssignment = (hostAssignmentsResult.data ?? [])[0] as any;
+    const notes = primaryAssignment?.notes ?? '';
+    const scheduleEntries = this.extractScheduleEntries(
+      notes,
+      Array.isArray(primaryAssignment?.selected_dates) ? primaryAssignment.selected_dates : []
+    );
+    const scheduleLines = this.extractEventScheduleLines(notes, scheduleEntries);
+
+    const eventArtists = (eventArtistsResult.data ?? []) as any[];
+    const requestArtists = (requestArtistsResult.data ?? []) as any[];
+    const artistNames = Array.from(
+      new Set([
+        ...eventArtists.map((a) => a.artist?.artist_name).filter(Boolean),
+        ...requestArtists.map((a) => a.artist?.artist_name || a.invited_artist?.artist_name).filter(Boolean),
+      ])
+    );
+
+    const artistProfileIds = eventArtists
+      .map((a) => a.artist?.profile_id)
+      .filter((id): id is string => !!id);
+
+    const [instrumentsResult, artistProfilesResult] = await Promise.all([
+      artistProfileIds.length > 0
+        ? this.adminSupabase
+            .from('tjs_artist_instruments')
+            .select('profile_id, instrument:sys_instruments(name)')
+            .in('profile_id', artistProfileIds)
+        : Promise.resolve({ data: [], error: null }),
+      artistProfileIds.length > 0
+        ? this.adminSupabase
+            .from('tjs_artist_profiles')
+            .select('profile_id, tagline')
+            .in('profile_id', artistProfileIds)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+
+    const instrumentsByProfileId = new Map<string, string[]>();
+    for (const row of ((instrumentsResult.data ?? []) as any[])) {
+      const profileId = row.profile_id as string;
+      const instrumentName = row.instrument?.name as string | null;
+      if (instrumentName) {
+        const existing = instrumentsByProfileId.get(profileId) ?? [];
+        if (!existing.includes(instrumentName)) {
+          existing.push(instrumentName);
+        }
+        instrumentsByProfileId.set(profileId, existing);
+      }
+    }
+
+    const taglineByProfileId = new Map<string, string>();
+    for (const row of ((artistProfilesResult.data ?? []) as any[])) {
+      if (row.profile_id && row.tagline) {
+        taglineByProfileId.set(row.profile_id, row.tagline);
+      }
+    }
+
+    const profilesResult = artistProfileIds.length > 0
+      ? await this.adminSupabase
+          .from('tjs_profiles')
+          .select('id, full_name, avatar_url')
+          .in('id', artistProfileIds)
+      : { data: [], error: null };
+
+    const profilesById = new Map<string, any>();
+    for (const profile of ((profilesResult.data ?? []) as any[])) {
+      profilesById.set(profile.id, profile);
+    }
+
+    const instruments = Array.from(
+      new Set([
+        ...artistProfileIds.flatMap((id) => instrumentsByProfileId.get(id) ?? []),
+        ...this.extractAdditionalInstruments(notes),
+      ])
+    );
+
+    const requestDetail = requestDetailsResult.data as any;
+    const edition = this.extractNoteValue(notes, 'Edition:');
+
+    return {
+      id: eventId,
+      title: event.title?.trim() || 'Untitled event',
+      teaser: requestDetail?.teaser || '',
+      description: requestDetail?.description || '',
+      image_url: requestDetail?.image_url ?? null,
+      event_domain_name: requestDetail?.event_domain?.name ?? null,
+      edition,
+      event_type_name: this.extractNoteValue(notes, 'Event Type:'),
+      instruments,
+      artist_names: artistNames,
+      schedule_lines: scheduleLines,
+      media: ((requestMediaResult.data ?? []) as any[]).map((m) => ({
+        id: m.id,
+        media_type: m.media_type,
+        image_url: m.image_url,
+        name: m.name,
+        description: m.description,
+        url: m.url,
+      })),
+      artists: eventArtists.map((a) => {
+        const profileId = a.artist?.profile_id;
+        const profile = profileId ? profilesById.get(profileId) : null;
+        return {
+          id: a.artist?.id,
+          display_name: a.artist?.artist_name || 'Unknown',
+          tagline: profileId ? taglineByProfileId.get(profileId) ?? null : null,
+          image_url: profile?.avatar_url ?? null,
+          instruments: profileId ? instrumentsByProfileId.get(profileId) ?? [] : [],
+        };
+      }),
+    };
+  }
+
   async getEventLocationSummaries(eventIds: string[], hostIds?: number[]): Promise<Map<string, EventLocationSummary>> {
     const summaries = new Map<string, EventLocationSummary>();
     if (eventIds.length === 0) {
@@ -3900,6 +4122,127 @@ export class SupabaseService {
     }
 
     return summaries;
+  }
+
+  async getHostVenueScheduleConflicts(
+    entries: Array<{ mode: 'day_show' | 'period'; startDate: string; endDate: string; locationId: string | null }>,
+  ): Promise<HostVenueScheduleConflict[]> {
+    const normalizedEntries = entries
+      .filter((entry) => !!entry.locationId && !!entry.startDate)
+      .map((entry) => ({
+        mode: entry.mode,
+        startDate: entry.startDate,
+        endDate: entry.mode === 'period' ? (entry.endDate || entry.startDate) : entry.startDate,
+        locationId: entry.locationId as string,
+      }));
+
+    if (normalizedEntries.length === 0) {
+      return [];
+    }
+
+    const locationIds = Array.from(new Set(normalizedEntries.map((entry) => entry.locationId)));
+    const assignmentsResult = await this.adminSupabase
+      .from('tjs_event_hosts')
+      .select(`
+        event_id,
+        location_id,
+        selected_dates,
+        notes,
+        event:tjs_events (
+          title,
+          status,
+          event_type
+        )
+      `)
+      .in('location_id', locationIds);
+
+    if (assignmentsResult.error) {
+      if (this.isMissingSchemaError(assignmentsResult.error)) {
+        return [];
+      }
+      console.error('getHostVenueScheduleConflicts assignments error:', assignmentsResult.error.message);
+      return [];
+    }
+
+    const [publicLocationsResult, privateLocationsResult] = await Promise.all([
+      this.adminSupabase
+        .from('tjs_locations')
+        .select('id, name, city, address')
+        .in('id', locationIds),
+      this.adminSupabase
+        .from('tjs_private_locations')
+        .select('id, name, city, address')
+        .in('id', locationIds),
+    ]);
+
+    if (publicLocationsResult.error && !this.isMissingSchemaError(publicLocationsResult.error)) {
+      console.error('getHostVenueScheduleConflicts public locations error:', publicLocationsResult.error.message);
+    }
+
+    if (privateLocationsResult.error && !this.isMissingSchemaError(privateLocationsResult.error)) {
+      console.error('getHostVenueScheduleConflicts private locations error:', privateLocationsResult.error.message);
+    }
+
+    const locationLabelById = new Map<string, string>();
+    for (const row of (publicLocationsResult.data ?? []) as Array<{ id?: string | null; name?: string | null; city?: string | null; address?: string | null }>) {
+      if (row.id) {
+        locationLabelById.set(row.id, row.name || row.city || row.address || 'Unknown venue');
+      }
+    }
+
+    for (const row of (privateLocationsResult.data ?? []) as Array<{ id?: string | null; name?: string | null; city?: string | null; address?: string | null }>) {
+      if (row.id && !locationLabelById.has(row.id)) {
+        locationLabelById.set(row.id, row.name || row.city || row.address || 'Unknown venue');
+      }
+    }
+
+    const conflicts = new Map<string, HostVenueScheduleConflict>();
+    for (const row of ((assignmentsResult.data ?? []) as any[])) {
+      const eventType = row.event?.event_type as string | null | undefined;
+      const locationId = row.location_id as string | null | undefined;
+      if (eventType !== 'EVENT_INSTANCE' || !locationId) {
+        continue;
+      }
+
+      const existingEntries = this.extractScheduleEntries(
+        (row.notes as string | null | undefined) ?? '',
+        Array.isArray(row.selected_dates) ? (row.selected_dates as string[]) : [],
+      );
+
+      if (existingEntries.length === 0) {
+        continue;
+      }
+
+      const conflictingLines = this.extractEventScheduleLines(
+        (row.notes as string | null | undefined) ?? '',
+        existingEntries,
+      ).filter((_, index) => {
+        const existing = existingEntries[index];
+        const existingEnd = existing.mode === 'period' ? (existing.end_date || existing.start_date) : existing.start_date;
+
+        return normalizedEntries.some((entry) =>
+          entry.locationId === locationId
+          && entry.startDate <= existingEnd
+          && existing.start_date <= entry.endDate
+        );
+      });
+
+      if (conflictingLines.length === 0) {
+        continue;
+      }
+
+      const conflictKey = `${row.event_id}:${locationId}`;
+      conflicts.set(conflictKey, {
+        event_id: row.event_id as string,
+        event_title: (row.event?.title as string | null | undefined)?.trim() || 'Untitled event',
+        event_status: (row.event?.status as string | null | undefined)?.trim() || 'Unknown',
+        location_id: locationId,
+        location_label: locationLabelById.get(locationId) ?? 'Unknown venue',
+        conflicting_schedule_lines: Array.from(new Set(conflictingLines)),
+      });
+    }
+
+    return Array.from(conflicts.values());
   }
 
   async getHostWorkspaceEventDetail(profileId: string, eventId: string): Promise<HostWorkspaceEventDetail | null> {
@@ -5156,6 +5499,26 @@ export class SupabaseService {
     return null;
   }
 
+  async releaseHostArtistRequest(requestId: string): Promise<string | null> {
+    const { error } = await this.adminSupabase
+      .from('tjs_artist_requests')
+      .update({
+        status: 'pending',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', requestId);
+
+    if (error) {
+      if (this.isMissingSchemaError(error)) {
+        return 'Artist request tables are missing in the database. Run db/021_artist_workspace_requests.sql.';
+      }
+      console.error('releaseHostArtistRequest error:', error.message);
+      return error.message;
+    }
+
+    return null;
+  }
+
   async getArtistWorkspaceEventDetail(profileId: string, eventId: string): Promise<HostWorkspaceEventDetail | null> {
     const events = await this.getArtistWorkspaceEvents(profileId);
     const event = events.find((item) => item.id === eventId);
@@ -5205,6 +5568,130 @@ export class SupabaseService {
       schedule_entries: scheduleEntries,
       request_detail: requestDetail,
     };
+  }
+
+  async getHostPrivateLocationBookings(profileId: string, locationId: string): Promise<HostPrivateLocationBookingItem[]> {
+    const [events, hosts] = await Promise.all([
+      this.getHostWorkspaceEvents(profileId),
+      this.getAccessibleHosts(profileId),
+    ]);
+
+    if (events.length === 0 || hosts.length === 0) {
+      return [];
+    }
+
+    const eventIds = events.map((event) => event.id);
+    const hostIds = hosts.map((host) => host.id);
+    const assignmentResult = await this.adminSupabase
+      .from('tjs_event_hosts')
+      .select('event_id, host_id, notes, selected_dates, location_id')
+      .in('event_id', eventIds)
+      .in('host_id', hostIds);
+
+    if (assignmentResult.error) {
+      if (this.isMissingSchemaError(assignmentResult.error)) {
+        return [];
+      }
+      console.error('getHostPrivateLocationBookings assignments error:', assignmentResult.error.message);
+      return [];
+    }
+
+    const [publicLocationResult, privateLocationResult] = await Promise.all([
+      this.adminSupabase
+        .from('tjs_locations')
+        .select('id, name, city, address')
+        .eq('id', locationId)
+        .maybeSingle(),
+      this.adminSupabase
+        .from('tjs_private_locations')
+        .select('id, name, city, address')
+        .eq('id', locationId)
+        .maybeSingle(),
+    ]);
+
+    const locationLabel =
+      (privateLocationResult.data?.name as string | undefined)
+      || (privateLocationResult.data?.city as string | undefined)
+      || (privateLocationResult.data?.address as string | undefined)
+      || (publicLocationResult.data?.name as string | undefined)
+      || (publicLocationResult.data?.city as string | undefined)
+      || (publicLocationResult.data?.address as string | undefined)
+      || null;
+    const locationAliases = new Set(
+      [
+        privateLocationResult.data?.name,
+        privateLocationResult.data?.city,
+        privateLocationResult.data?.address,
+        publicLocationResult.data?.name,
+        publicLocationResult.data?.city,
+        publicLocationResult.data?.address,
+      ]
+        .map((value) => this.normalizeLocationComparisonValue(value))
+        .filter((value): value is string => !!value),
+    );
+
+    const eventsById = new Map(events.map((event) => [event.id, event]));
+
+    return ((assignmentResult.data ?? []) as Array<{
+      event_id?: string | null;
+      notes?: string | null;
+      selected_dates?: string[] | null;
+      location_id?: string | null;
+    }>)
+      .filter((assignment) => {
+        if ((assignment.location_id ?? null) === locationId) {
+          return true;
+        }
+
+        if (assignment.location_id) {
+          return false;
+        }
+
+        const scheduleLocation = this.normalizeLocationComparisonValue(
+          this.extractPrimaryScheduleLocationLabel(assignment.notes ?? ''),
+        );
+        return !!scheduleLocation && locationAliases.has(scheduleLocation);
+      })
+      .map((assignment) => {
+        const eventId = assignment.event_id ?? null;
+        if (!eventId) {
+          return null;
+        }
+
+        const event = eventsById.get(eventId);
+        if (!event) {
+          return null;
+        }
+
+        const scheduleEntries = this.extractScheduleEntries(
+          assignment.notes ?? '',
+          Array.isArray(assignment.selected_dates) ? assignment.selected_dates : event.selected_dates,
+        );
+        const bookedDates = scheduleEntries.flatMap((entry) => this.expandScheduleEntryDates(entry));
+
+        return {
+          event_id: event.id,
+          title: event.title,
+          status: event.status,
+          artist_names: event.artist_names,
+          instruments: event.instruments,
+          primary_upcoming_date: event.primary_upcoming_date,
+          show_time: this.extractNoteValue(assignment.notes ?? '', 'Show Time:'),
+          location_id: locationId,
+          location_name: locationLabel,
+          schedule_entries: scheduleEntries,
+          booked_dates: Array.from(new Set(bookedDates)).sort((left, right) => left.localeCompare(right)),
+        } satisfies HostPrivateLocationBookingItem;
+      })
+      .filter((item): item is HostPrivateLocationBookingItem => !!item)
+      .sort((left, right) => {
+        const leftDate = left.primary_upcoming_date ?? left.booked_dates[0] ?? '9999-12-31';
+        const rightDate = right.primary_upcoming_date ?? right.booked_dates[0] ?? '9999-12-31';
+        if (leftDate !== rightDate) {
+          return leftDate.localeCompare(rightDate);
+        }
+        return left.title.localeCompare(right.title);
+      });
   }
 
   async updateArtistRequestStatusById(
@@ -6040,7 +6527,7 @@ export class SupabaseService {
     const [requestResult, artistsResult, editionOptions, eventTypeOptions] = await Promise.all([
       this.adminSupabase
         .from('tjs_artist_requests')
-        .select('id, event_title, description, teaser')
+        .select('id, event_title, event_domain_id, description, teaser, long_teaser')
         .eq('id', requestId)
         .maybeSingle(),
       this.adminSupabase
@@ -6093,11 +6580,39 @@ export class SupabaseService {
       return { eventId: existingEventId, error: null };
     }
 
+    const { error: requestUpdateError } = await this.adminSupabase
+      .from('tjs_artist_requests')
+      .update({
+        event_domain_id: payload.eventDomainId,
+        teaser: payload.teaser.trim() || null,
+        long_teaser: payload.longTeaser.trim() || null,
+        description: payload.description.trim() || null,
+        updated_at: timestamp,
+      })
+      .eq('id', requestId);
+
+    if (requestUpdateError) {
+      if (this.isMissingSchemaError(requestUpdateError)) {
+        return {
+          eventId: null,
+          error: 'Artist request tables are missing in the database. Run the request schema migrations and try again.',
+        };
+      }
+      console.error('createHostEventFromRequest request update error:', requestUpdateError.message);
+      return { eventId: null, error: requestUpdateError.message };
+    }
+
     const { data: insertedEvent, error: insertEventError } = await this.adminSupabase
       .from('tjs_events')
       .insert({
         title: payload.title.trim() || requestResult.data.event_title || 'Untitled Event',
-        description: payload.description.trim() || requestResult.data.description || requestResult.data.teaser || null,
+        description: payload.description.trim()
+          || payload.longTeaser.trim()
+          || payload.teaser.trim()
+          || requestResult.data.description
+          || requestResult.data.long_teaser
+          || requestResult.data.teaser
+          || null,
         event_type: 'EVENT_INSTANCE',
         status: payload.isActive ? 'APPROVED' : 'SELECTED',
         origin_website: 'TJS',
@@ -7357,6 +7872,11 @@ export class SupabaseService {
     return segments.length >= 4 ? segments.slice(3).join(' | ') : null;
   }
 
+  private normalizeLocationComparisonValue(value: string | null | undefined): string | null {
+    const normalized = value?.trim().toLowerCase() ?? '';
+    return normalized || null;
+  }
+
   private extractEventScheduleLines(
     notes: string | null | undefined,
     fallbackEntries: Array<{ mode: 'day_show' | 'period'; start_date: string; end_date: string }>,
@@ -7481,6 +8001,29 @@ export class SupabaseService {
       start_date: dates[0],
       end_date: '',
     }];
+  }
+
+  private expandScheduleEntryDates(entry: { mode: 'day_show' | 'period'; start_date: string; end_date: string }): string[] {
+    if (!entry.start_date) {
+      return [];
+    }
+
+    const start = new Date(`${entry.start_date}T00:00:00`);
+    const endLabel = entry.mode === 'period' ? (entry.end_date || entry.start_date) : entry.start_date;
+    const end = new Date(`${endLabel}T00:00:00`);
+
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) {
+      return [entry.start_date];
+    }
+
+    const dates: string[] = [];
+    const cursor = new Date(start);
+    while (cursor <= end) {
+      dates.push(cursor.toISOString().slice(0, 10));
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
+    return dates;
   }
 
   private pickPrimaryUpcomingDate(selectedDates: string[] | null | undefined): string | null {

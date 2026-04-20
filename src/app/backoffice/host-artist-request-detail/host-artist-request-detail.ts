@@ -310,6 +310,40 @@ export class HostArtistRequestDetail implements OnInit {
     this.isSaving = false;
   }
 
+  async releaseRequest() {
+    if (!this.request?.id || !this.authService.currentUser?.id) {
+      return;
+    }
+
+    this.error = '';
+    this.successMessage = '';
+    this.isSaving = true;
+
+    const releaseError = await this.supabase.releaseHostArtistRequest(this.request.id);
+    if (releaseError) {
+      this.error = releaseError;
+      this.isSaving = false;
+      return;
+    }
+
+    const commentError = await this.supabase.addArtistWorkspaceRequestComment(
+      this.request.id,
+      this.authService.currentUser.id,
+      '[HOST_RELEASED]\nHost released the request back to the new request pool.'
+    );
+
+    if (commentError) {
+      this.error = commentError;
+      this.isSaving = false;
+      return;
+    }
+
+    this.acceptedByHost = false;
+    this.successMessage = 'Request released back to New Request.';
+    await this.reloadRequest();
+    this.isSaving = false;
+  }
+
   trackByOptionalId(_: number, item: { id?: string }) {
     return item.id ?? _;
   }
@@ -371,6 +405,10 @@ export class HostArtistRequestDetail implements OnInit {
       || this.request?.status === 'published';
   }
 
+  get canReleaseRequest(): boolean {
+    return ['accepted_by_host', 'host_proposed', 'artist_proposed'].includes(this.request?.status ?? '');
+  }
+
   get recentComments() {
     return (this.request?.comments ?? []).slice(-3).reverse();
   }
@@ -409,13 +447,32 @@ export class HostArtistRequestDetail implements OnInit {
   }
 
   private async loadInstruments() {
-    const primaryProfileId = this.request?.artists.find((artist) => artist.profile_id)?.profile_id;
-    if (!primaryProfileId) {
+    const profileIds = Array.from(
+      new Set(
+        (this.request?.artists ?? [])
+          .map((artist) => artist.profile_id?.trim())
+          .filter((profileId): profileId is string => !!profileId)
+      )
+    );
+
+    if (profileIds.length === 0) {
       this.instrumentOptions = [];
       return;
     }
 
-    this.instrumentOptions = await this.supabase.getArtistWorkspaceInstruments(primaryProfileId);
+    const instrumentGroups = await Promise.all(
+      profileIds.map((profileId) => this.supabase.getArtistWorkspaceInstruments(profileId))
+    );
+
+    const uniqueInstruments = new Map<number, ArtistInstrumentOption>();
+    for (const group of instrumentGroups) {
+      for (const instrument of group) {
+        uniqueInstruments.set(instrument.id, instrument);
+      }
+    }
+
+    this.instrumentOptions = Array.from(uniqueInstruments.values())
+      .sort((left, right) => left.name.localeCompare(right.name));
   }
 
   private async loadLocations() {

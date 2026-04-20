@@ -76,27 +76,13 @@
       </div>
     </section>
 
-    <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
-      <div class="grid gap-4 md:grid-cols-3">
-        <div>
-          <div class="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Request Source</div>
-          <div class="mt-2 text-lg font-semibold text-zinc-900">{{ request.event_title || 'Untitled Request' }}</div>
-        </div>
-        <div>
-          <div class="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Artist</div>
-          <div class="mt-2 text-sm font-medium text-zinc-900">{{ primaryArtistName() }}</div>
-        </div>
-        <div>
-          <div class="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Domain</div>
-          <div class="mt-2 text-sm font-medium text-zinc-900">{{ request.event_domain_name || 'No domain' }}</div>
-        </div>
-      </div>
-    </section>
+   
 
     <section class="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm">
       <div class="border-b border-zinc-200 bg-zinc-50/80 px-6 py-4">
         <div class="flex flex-wrap gap-2">
           <button type="button" (click)="setTab('details')" [class.bg-zinc-900]="activeTab === 'details'" [class.text-white]="activeTab === 'details'" class="rounded-full bg-white px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100">Details</button>
+          <button type="button" (click)="setTab('artists')" [class.bg-zinc-900]="activeTab === 'artists'" [class.text-white]="activeTab === 'artists'" class="rounded-full bg-white px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100">Artists</button>
           <button type="button" (click)="setTab('instruments')" [class.bg-zinc-900]="activeTab === 'instruments'" [class.text-white]="activeTab === 'instruments'" class="rounded-full bg-white px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100">Instruments</button>
           <button type="button" (click)="setTab('proposed-dates')" [class.bg-zinc-900]="activeTab === 'proposed-dates'" [class.text-white]="activeTab === 'proposed-dates'" class="rounded-full bg-white px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100">Proposed Dates</button>
           <button type="button" (click)="setTab('image')" [class.bg-zinc-900]="activeTab === 'image'" [class.text-white]="activeTab === 'image'" class="rounded-full bg-white px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100">Image</button>
@@ -111,7 +97,7 @@
           <div class="mt-5 grid gap-5 md:grid-cols-2">
             <div>
               <label class="text-sm font-medium text-zinc-700">Event Domain</label>
-              <select [(ngModel)]="request.event_domain_id" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100">
+              <select [(ngModel)]="form.eventDomainId" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100">
                 <option [ngValue]="null">Select domain</option>
                 <option *ngFor="let domain of eventDomains; trackBy: trackByNumericId" [ngValue]="domain.id">{{ domain.name }}</option>
               </select>
@@ -120,6 +106,17 @@
             <div class="md:col-span-2">
               <label class="text-sm font-medium text-zinc-700">Event Title</label>
               <input [(ngModel)]="form.title" type="text" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+            </div>
+
+            <div class="md:col-span-2">
+              <label class="text-sm font-medium text-zinc-700">Teaser</label>
+              <textarea [(ngModel)]="form.teaser" rows="3" maxlength="200" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100"></textarea>
+              <div class="mt-1 text-xs text-zinc-400">{{ form.teaser.length }}/200</div>
+            </div>
+
+            <div class="md:col-span-2">
+              <label class="text-sm font-medium text-zinc-700">Long Teaser</label>
+              <textarea [(ngModel)]="form.longTeaser" rows="4" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100"></textarea>
             </div>
 
             <div class="md:col-span-2">
@@ -167,6 +164,65 @@
             <div class="md:col-span-2">
               <label class="text-sm font-medium text-zinc-700">Host Notes</label>
               <textarea [(ngModel)]="form.notes" rows="4" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div *ngIf="activeTab === 'artists'" class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <h2 class="text-lg font-semibold text-zinc-900">Artists</h2>
+          <p class="mt-1 text-sm text-zinc-500">Review all artists attached to this request before publishing the event.</p>
+
+          <div *ngIf="request.artists.length === 0" class="mt-5 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-10 text-center text-sm text-zinc-500">
+            No artists are attached to this request.
+          </div>
+
+          <div *ngIf="request.artists.length > 0" class="mt-5 space-y-3">
+            <div *ngFor="let artist of request.artists; trackBy: trackByArtist" class="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+              <div class="flex items-start gap-4">
+                <div class="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-zinc-200 bg-gradient-to-br from-zinc-100 to-zinc-200">
+                  <img *ngIf="artist.image_url" [src]="artist.image_url" [alt]="artist.display_name || 'Artist'" class="h-full w-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'" />
+                  <div class="flex h-full w-full items-center justify-center text-2xl font-bold uppercase text-zinc-500" [style.display]="artist.image_url ? 'none' : 'flex'">
+                    {{ (artist.display_name || artist.invited_full_name || artist.invited_email || '?').charAt(0) }}
+                  </div>
+                </div>
+
+                <div class="min-w-0 flex-1">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <div class="text-sm font-semibold text-zinc-900">{{ artist.display_name || 'Unnamed artist' }}</div>
+                    <span class="inline-flex rounded-full border px-2.5 py-1 text-xs font-medium"
+                      [class.border-red-200]="artist.is_primary"
+                      [class.bg-red-50]="artist.is_primary"
+                      [class.text-red-700]="artist.is_primary"
+                      [class.border-amber-200]="!artist.is_primary && artist.invited_email"
+                      [class.bg-amber-50]="!artist.is_primary && artist.invited_email"
+                      [class.text-amber-800]="!artist.is_primary && artist.invited_email"
+                      [class.border-zinc-200]="!artist.is_primary && !artist.invited_email"
+                      [class.bg-white]="!artist.is_primary && !artist.invited_email"
+                      [class.text-zinc-700]="!artist.is_primary && !artist.invited_email">
+                      {{ artist.is_primary ? 'Primary artist' : (artist.invited_email ? 'Invited artist' : 'Linked artist') }}
+                    </span>
+                  </div>
+
+                  <div *ngIf="artist.invited_email" class="mt-2 text-xs text-zinc-500">{{ artist.invited_email }}</div>
+
+                  <div class="mt-4">
+                    <div class="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Teaser</div>
+                    <div class="mt-1 text-sm text-zinc-700">{{ artist.tagline || 'No teaser provided.' }}</div>
+                  </div>
+
+                  <div class="mt-4">
+                    <div class="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Instruments</div>
+                    <div *ngIf="artist.instruments?.length; else noEditorArtistInstruments" class="mt-2 flex flex-wrap gap-2">
+                      <span *ngFor="let instrument of artist.instruments" class="inline-flex rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
+                        {{ instrument }}
+                      </span>
+                    </div>
+                    <ng-template #noEditorArtistInstruments>
+                      <div class="mt-1 text-sm text-zinc-500">No instruments added.</div>
+                    </ng-template>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

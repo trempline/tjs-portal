@@ -251,7 +251,7 @@
       </div>
 
       <div *ngIf="!isLoading && filteredItems.length > 0" class="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
-        <article *ngFor="let item of filteredItems" class="group relative flex flex-col overflow-hidden rounded-2xl bg-white shadow-md transition-all duration-300 hover:shadow-xl">
+        <article *ngFor="let item of filteredItems" [routerLink]="['/events', item.id]" class="group relative flex flex-col overflow-hidden rounded-2xl bg-white shadow-md transition-all duration-300 hover:shadow-xl cursor-pointer">
           <!-- Image Section -->
           <div class="relative h-64 overflow-hidden bg-zinc-900">
             <img *ngIf="item.image_url; else imageFallback" 

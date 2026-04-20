@@ -12,6 +12,7 @@ import {
   CreateHostEventFromRequestPayload,
   EventEditionOption,
   EventTypeOption,
+  HostVenueScheduleConflict,
   HostWorkspaceEventDetail,
   SupabaseService,
   TjsHost,
@@ -55,7 +56,7 @@ export class HostCreateEvent implements OnInit {
   successMessage = '';
   request: ArtistRequestDetail | null = null;
   hosts: TjsHost[] = [];
-  activeTab: 'details' | 'instruments' | 'proposed-dates' | 'image' | 'media' | 'comments' = 'details';
+  activeTab: 'details' | 'artists' | 'instruments' | 'proposed-dates' | 'image' | 'media' | 'comments' = 'details';
   eventDomains: Array<{ id: number; name: string }> = [];
   editionOptions: EventEditionOption[] = [];
   eventTypeOptions: EventTypeOption[] = [];
@@ -74,6 +75,9 @@ export class HostCreateEvent implements OnInit {
   form: CreateHostEventFromRequestPayload = {
     hostId: 0,
     title: '',
+    eventDomainId: null,
+    teaser: '',
+    longTeaser: '',
     description: '',
     editionId: null,
     eventTypeId: null,
@@ -143,7 +147,7 @@ export class HostCreateEvent implements OnInit {
       || 'Unassigned';
   }
 
-  setTab(tab: 'details' | 'instruments' | 'proposed-dates' | 'image' | 'media' | 'comments') {
+  setTab(tab: 'details' | 'artists' | 'instruments' | 'proposed-dates' | 'image' | 'media' | 'comments') {
     this.activeTab = tab;
   }
 
@@ -201,6 +205,10 @@ export class HostCreateEvent implements OnInit {
     return item.id ?? index;
   }
 
+  trackByArtist(index: number, item: NonNullable<ArtistRequestDetail['artists']>[number]) {
+    return item.id ?? item.artist_id ?? item.invited_artist_id ?? item.profile_id ?? item.invited_email ?? index;
+  }
+
   get selectedHostLabel(): string {
     const host = this.hosts.find((item) => item.id === this.form.hostId) ?? this.hosts[0] ?? null;
     return host?.name || host?.public_name || (host ? `Host #${host.id}` : 'No host linked');
@@ -215,11 +223,11 @@ export class HostCreateEvent implements OnInit {
   }
 
   get selectedDomainName(): string {
-    if (!this.request?.event_domain_id) {
+    if (!this.form.eventDomainId) {
       return 'No domain';
     }
 
-    return this.eventDomains.find((domain) => domain.id === this.request?.event_domain_id)?.name ?? 'No domain';
+    return this.eventDomains.find((domain) => domain.id === this.form.eventDomainId)?.name ?? 'No domain';
   }
 
   artistRequestedDateLabel(date: ArtistRequestDateEntry): string {
@@ -370,14 +378,21 @@ export class HostCreateEvent implements OnInit {
       return;
     }
 
+    const venueConflicts = await this.supabase.getHostVenueScheduleConflicts(entries);
+    if (venueConflicts.length > 0) {
+      const shouldContinue = window.confirm(this.buildVenueConflictPrompt(venueConflicts));
+      if (!shouldContinue) {
+        this.error = 'Event creation was cancelled because of a venue date clash.';
+        return;
+      }
+    }
+
     this.error = '';
     this.successMessage = '';
     this.isSaving = true;
 
     const firstEntry = entries[0];
-    const persistedLocationId = this.publicLocations.some((location) => location.id === firstEntry.locationId)
-      ? firstEntry.locationId
-      : null;
+    const persistedLocationId = firstEntry.locationId;
 
     const payload: CreateHostEventFromRequestPayload = {
       ...this.form,
@@ -403,12 +418,11 @@ export class HostCreateEvent implements OnInit {
       ...this.request,
       status: 'published',
     };
-    await this.reloadRequest();
-    await this.router.navigate(['/backoffice/host/requests', this.request.id, 'create-event'], {
-      replaceUrl: true,
-    });
     this.successMessage = 'Event created and the request is now published.';
     this.isSaving = false;
+    await this.router.navigate(['/backoffice/host/events', result.eventId], {
+      replaceUrl: true,
+    });
   }
 
   private prefillForm() {
@@ -420,6 +434,9 @@ export class HostCreateEvent implements OnInit {
     this.form = {
       hostId: this.hosts[0]?.id ?? 0,
       title: this.request.event_title || '',
+      eventDomainId: this.request.event_domain_id,
+      teaser: this.request.teaser || '',
+      longTeaser: this.request.long_teaser || '',
       description: this.request.description || this.request.long_teaser || this.request.teaser || '',
       editionId: this.matchEditionIdFromComments(this.request.comments),
       eventTypeId: this.matchEventTypeIdFromComments(this.request.comments),
@@ -442,13 +459,32 @@ export class HostCreateEvent implements OnInit {
   }
 
   private async loadInstruments() {
-    const primaryProfileId = this.request?.artists.find((artist) => artist.profile_id)?.profile_id;
-    if (!primaryProfileId) {
+    const profileIds = Array.from(
+      new Set(
+        (this.request?.artists ?? [])
+          .map((artist) => artist.profile_id?.trim())
+          .filter((profileId): profileId is string => !!profileId)
+      )
+    );
+
+    if (profileIds.length === 0) {
       this.instrumentOptions = [];
       return;
     }
 
-    this.instrumentOptions = await this.supabase.getArtistWorkspaceInstruments(primaryProfileId);
+    const instrumentGroups = await Promise.all(
+      profileIds.map((profileId) => this.supabase.getArtistWorkspaceInstruments(profileId))
+    );
+
+    const uniqueInstruments = new Map<number, ArtistInstrumentOption>();
+    for (const group of instrumentGroups) {
+      for (const instrument of group) {
+        uniqueInstruments.set(instrument.id, instrument);
+      }
+    }
+
+    this.instrumentOptions = Array.from(uniqueInstruments.values())
+      .sort((left, right) => left.name.localeCompare(right.name));
   }
 
   private parseHostProposal(comments: ArtistRequestCommentEntry[]): HostProposalEntry[] {
@@ -550,7 +586,7 @@ export class HostCreateEvent implements OnInit {
   private buildEventNotes(entries: Array<{ mode: 'day_show' | 'period'; startDate: string; endDate: string; showTime: string; locationId: string | null }>): string {
     const notes = [this.form.notes.trim()];
 
-    if (this.request?.event_domain_id) {
+    if (this.form.eventDomainId) {
       notes.push(`Event Domain: ${this.selectedDomainName}`);
     }
 
@@ -633,6 +669,22 @@ export class HostCreateEvent implements OnInit {
     }
 
     return null;
+  }
+
+  private buildVenueConflictPrompt(conflicts: HostVenueScheduleConflict[]): string {
+    const lines = [
+      'There is a clash of events on the same date and location.',
+      'Press OK to save anyway, or Cancel to review the schedule.',
+      '',
+    ];
+
+    for (const conflict of conflicts) {
+      lines.push(`${conflict.location_label} | ${conflict.event_title} (${conflict.event_status})`);
+      lines.push(...conflict.conflicting_schedule_lines.map((line) => `- ${line}`));
+      lines.push('');
+    }
+
+    return lines.join('\n').trim();
   }
 
   private async reloadRequest() {

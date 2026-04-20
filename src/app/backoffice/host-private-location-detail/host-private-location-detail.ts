@@ -2,7 +2,15 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
-import { SaveTjsPrivateLocationInput, SupabaseService, TjsPrivateLocation } from '../../services/supabase.service';
+import { HostPrivateLocationBookingItem, SaveTjsPrivateLocationInput, SupabaseService, TjsPrivateLocation } from '../../services/supabase.service';
+
+interface PrivateLocationCalendarDay {
+  date: string;
+  dayNumber: number;
+  inCurrentMonth: boolean;
+  isToday: boolean;
+  bookings: HostPrivateLocationBookingItem[];
+}
 
 @Component({
   selector: 'app-host-private-location-detail',
@@ -21,6 +29,8 @@ export class HostPrivateLocationDetail implements OnInit {
   successMessage = '';
   location: TjsPrivateLocation | null = null;
   zoomedImageUrl: string | null = null;
+  bookings: HostPrivateLocationBookingItem[] = [];
+  calendarMonth = this.startOfMonth(new Date());
 
   async ngOnInit() {
     await this.authService.waitForAuthReady();
@@ -32,7 +42,11 @@ export class HostPrivateLocationDetail implements OnInit {
       return;
     }
 
-    const location = await this.supabase.getPrivateLocationById(locationId, this.currentUserId);
+    const [location, bookings] = await Promise.all([
+      this.supabase.getPrivateLocationById(locationId, this.currentUserId),
+      this.supabase.getHostPrivateLocationBookings(this.currentUserId, locationId),
+    ]);
+
     if (!location) {
       this.error = 'Private location not found.';
       this.isLoading = false;
@@ -40,6 +54,7 @@ export class HostPrivateLocationDetail implements OnInit {
     }
 
     this.location = location;
+    this.bookings = bookings;
     this.isLoading = false;
   }
 
@@ -91,6 +106,85 @@ export class HostPrivateLocationDetail implements OnInit {
 
   closeImageZoom() {
     this.zoomedImageUrl = null;
+  }
+
+  get monthLabel(): string {
+    return this.calendarMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  }
+
+  get calendarDays(): PrivateLocationCalendarDay[] {
+    const firstDay = this.startOfMonth(this.calendarMonth);
+    const gridStart = new Date(firstDay);
+    gridStart.setDate(firstDay.getDate() - firstDay.getDay());
+
+    const days: PrivateLocationCalendarDay[] = [];
+    const today = new Date().toISOString().slice(0, 10);
+    for (let index = 0; index < 42; index += 1) {
+      const current = new Date(gridStart);
+      current.setDate(gridStart.getDate() + index);
+      const dateLabel = current.toISOString().slice(0, 10);
+
+      days.push({
+        date: dateLabel,
+        dayNumber: current.getDate(),
+        inCurrentMonth: current.getMonth() === this.calendarMonth.getMonth() && current.getFullYear() === this.calendarMonth.getFullYear(),
+        isToday: dateLabel === today,
+        bookings: this.bookings.filter((booking) => booking.booked_dates.includes(dateLabel)),
+      });
+    }
+
+    return days;
+  }
+
+  previousMonth() {
+    const next = new Date(this.calendarMonth);
+    next.setMonth(next.getMonth() - 1);
+    this.calendarMonth = this.startOfMonth(next);
+  }
+
+  nextMonth() {
+    const next = new Date(this.calendarMonth);
+    next.setMonth(next.getMonth() + 1);
+    this.calendarMonth = this.startOfMonth(next);
+  }
+
+  trackByCalendarDate(_: number, day: PrivateLocationCalendarDay) {
+    return day.date;
+  }
+
+  trackByBooking(_: number, booking: HostPrivateLocationBookingItem) {
+    return booking.event_id;
+  }
+
+  statusLabel(status: string): string {
+    switch (status) {
+      case 'APPROVED':
+        return 'Active';
+      case 'SELECTED':
+        return 'Inactive';
+      case 'COMPLETED':
+        return 'Completed';
+      case 'CANCELLED':
+        return 'Cancelled';
+      default:
+        return status;
+    }
+  }
+
+  scheduleLabel(booking: HostPrivateLocationBookingItem): string {
+    if (booking.schedule_entries.length === 0) {
+      return 'No schedule saved';
+    }
+
+    return booking.schedule_entries
+      .map((entry) => entry.mode === 'period'
+        ? `${entry.start_date} to ${entry.end_date || 'TBD'}`
+        : entry.start_date)
+      .join(', ');
+  }
+
+  private startOfMonth(value: Date): Date {
+    return new Date(value.getFullYear(), value.getMonth(), 1);
   }
 
   private buildSavePayload(location: TjsPrivateLocation, isActive: boolean): SaveTjsPrivateLocationInput {

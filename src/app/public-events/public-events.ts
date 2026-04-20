@@ -1,13 +1,14 @@
 import { NgFor, NgIf } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { SharedModule } from '../shared/shared-module';
 import { PublicWebsiteEventItem, SupabaseService } from '../services/supabase.service';
 
 @Component({
   selector: 'app-public-events',
   standalone: true,
-  imports: [SharedModule, NgIf, NgFor, FormsModule],
+  imports: [SharedModule, NgIf, NgFor, FormsModule, RouterLink],
   templateUrl: './public-events.html',
 })
 export class PublicEvents implements OnInit {
