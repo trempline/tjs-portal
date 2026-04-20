@@ -22,6 +22,7 @@ import { Membership } from './backoffice/membership/membership';
 import { AccountSettings } from './backoffice/account-settings/account-settings';
 import { AuthCallback } from './auth-callback/auth-callback';
 import { TestHostCreationComponent } from './test-host-creation/test-host-creation.component';
+import { PublicEvents } from './public-events/public-events';
 import { HostManagerHosts } from './backoffice/host-manager-hosts/host-manager-hosts';
 import { HostManagerHostDetail } from './backoffice/host-manager-host-detail/host-manager-host-detail';
 import { HostManagerDashboard } from './backoffice/host-manager-dashboard/host-manager-dashboard';
@@ -65,6 +66,10 @@ export const routes: Routes = [
     {
         path: 'about',
         component: About,
+    },
+    {
+        path: 'events',
+        component: PublicEvents,
     },
     {
         path: 'admin',

@@ -137,6 +137,19 @@ export interface HostWorkspaceEventDetail extends HostWorkspaceEventItem {
   request_detail: ArtistRequestDetail | null;
 }
 
+export interface PublicWebsiteEventItem {
+  id: string;
+  title: string;
+  teaser: string;
+  image_url: string | null;
+  event_domain_name: string | null;
+  instruments: string[];
+  event_type_name: string | null;
+  artist_names: string[];
+  primary_date: string | null;
+  schedule_lines: string[];
+}
+
 export interface UpdateHostWorkspaceEventDetailPayload {
   title: string;
   eventDomainId: number | null;
@@ -3333,7 +3346,10 @@ export class SupabaseService {
       const notes = notesByEventId.get(event.id) ?? '';
       const profileIds = profileIdsByEventId.get(event.id) ?? [];
       const instruments = Array.from(
-        new Set(profileIds.flatMap((profileId) => instrumentsByProfileId.get(profileId) ?? []))
+        new Set([
+          ...profileIds.flatMap((profileId) => instrumentsByProfileId.get(profileId) ?? []),
+          ...this.extractAdditionalInstruments(notes),
+        ])
       );
 
       return {
@@ -3345,56 +3361,18 @@ export class SupabaseService {
         instruments,
         primary_upcoming_date: this.pickPrimaryUpcomingDate(event.selected_dates),
         is_featured: !!event.is_featured,
+        city: event.city ?? this.extractPrimaryScheduleLocationLabel(notes),
       };
     });
   }
 
   async getArtistWorkspaceUpcomingEvents(profileId: string): Promise<AdminEventOverviewItem[]> {
-    const { data: artistRow, error: artistError } = await this.adminSupabase
-      .from('tjs_artists')
-      .select('id')
-      .eq('profile_id', profileId)
-      .maybeSingle();
-
-    if (artistError && !this.isMissingSchemaError(artistError)) {
-      console.error('getArtistWorkspaceUpcomingEvents artist lookup error:', artistError.message);
-      return [];
-    }
-
-    const artistId = artistRow?.id as string | undefined;
-    if (!artistId) {
-      return [];
-    }
-
-    const { data: assignmentRows, error: assignmentsError } = await this.adminSupabase
-      .from('tjs_event_artists')
-      .select('event_id')
-      .eq('artist_id', artistId);
-
-    if (assignmentsError && !this.isMissingSchemaError(assignmentsError)) {
-      console.error('getArtistWorkspaceUpcomingEvents assignments error:', assignmentsError.message);
-      return [];
-    }
-
-    const eventIds = Array.from(
-      new Set(
-        ((assignmentRows ?? []) as any[])
-          .map((row) => row.event_id as string | null | undefined)
-          .filter((value): value is string => !!value)
-      )
-    );
-
-    if (eventIds.length === 0) {
-      return [];
-    }
-
-    const overview = await this.getAdminEventOverview();
+    const overview = await this.getArtistWorkspaceEvents(profileId);
     const today = this.todayDateString();
 
     return overview
       .filter((item) =>
         item.event_type === 'EVENT_INSTANCE'
-        && eventIds.includes(item.id)
         && item.selected_dates.some((date) => date >= today)
       )
       .sort((a, b) => {
@@ -3536,7 +3514,10 @@ export class SupabaseService {
       const notes = notesByEventId.get(event.id) ?? '';
       const profileIds = profileIdsByEventId.get(event.id) ?? [];
       const instruments = Array.from(
-        new Set(profileIds.flatMap((artistProfileId) => instrumentsByProfileId.get(artistProfileId) ?? []))
+        new Set([
+          ...profileIds.flatMap((artistProfileId) => instrumentsByProfileId.get(artistProfileId) ?? []),
+          ...this.extractAdditionalInstruments(notes),
+        ])
       );
 
       return {
@@ -3548,8 +3529,265 @@ export class SupabaseService {
         instruments,
         primary_upcoming_date: this.pickPrimaryUpcomingDate(event.selected_dates),
         is_featured: !!event.is_featured,
+        city: event.city ?? this.extractPrimaryScheduleLocationLabel(notes),
       };
-    });
+      });
+  }
+
+  async getPublicWebsiteEvents(): Promise<PublicWebsiteEventItem[]> {
+    const eventsResult = await this.adminSupabase
+      .from('tjs_events')
+      .select(`
+        id,
+        title,
+        status,
+        event_type,
+        parent_event_id,
+        created_at
+      `)
+      .eq('event_type', 'EVENT_INSTANCE')
+      .eq('status', 'APPROVED')
+      .order('created_at', { ascending: false });
+
+    if (eventsResult.error && !this.isMissingSchemaError(eventsResult.error)) {
+      console.error('getPublicWebsiteEvents events error:', eventsResult.error.message);
+      return [];
+    }
+
+    const eventRows = this.isMissingSchemaError(eventsResult.error)
+      ? []
+      : ((eventsResult.data ?? []) as any[]);
+
+    if (eventRows.length === 0) {
+      return [];
+    }
+
+    const eventIds = eventRows.map((row) => row.id as string);
+    const requestIds = Array.from(
+      new Set(
+        eventRows
+          .map((row) => row.parent_event_id as string | null)
+          .filter((value): value is string => !!value)
+      )
+    );
+
+    const [hostAssignmentsResult, eventArtistsResult, requestDetailsResult, requestArtistsResult, instrumentsResult] = await Promise.all([
+      this.adminSupabase
+        .from('tjs_event_hosts')
+        .select('event_id, selected_dates, notes')
+        .in('event_id', eventIds),
+      this.adminSupabase
+        .from('tjs_event_artists')
+        .select(`
+          event_id,
+          artist:tjs_artists (
+            artist_name
+          )
+        `)
+        .in('event_id', eventIds),
+      requestIds.length > 0
+        ? this.adminSupabase
+            .from('tjs_artist_requests')
+            .select('id, teaser, image_url, event_domain:sys_event_domain(name)')
+            .in('id', requestIds)
+        : Promise.resolve({ data: [], error: null }),
+      requestIds.length > 0
+        ? this.adminSupabase
+            .from('tjs_artist_request_artists')
+            .select(`
+              request_id,
+              artist:tjs_artists!tjs_artist_request_artists_artist_id_fkey (
+                artist_name
+              ),
+              invited_artist:tjs_artists!tjs_artist_request_artists_invited_artist_id_fkey (
+                artist_name
+              )
+            `)
+            .in('request_id', requestIds)
+        : Promise.resolve({ data: [], error: null }),
+      eventIds.length > 0
+        ? this.adminSupabase
+            .from('tjs_event_artists')
+            .select(`
+              event_id,
+              artist_id,
+              artist:tjs_artists (
+                profile_id
+              )
+            `)
+            .in('event_id', eventIds)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+
+    if (hostAssignmentsResult.error && !this.isMissingSchemaError(hostAssignmentsResult.error)) {
+      console.error('getPublicWebsiteEvents host assignments error:', hostAssignmentsResult.error.message);
+    }
+
+    if (eventArtistsResult.error && !this.isMissingSchemaError(eventArtistsResult.error)) {
+      console.error('getPublicWebsiteEvents event artists error:', eventArtistsResult.error.message);
+    }
+
+    if (requestDetailsResult.error && !this.isMissingSchemaError(requestDetailsResult.error)) {
+      console.error('getPublicWebsiteEvents request details error:', requestDetailsResult.error.message);
+    }
+
+    if (requestArtistsResult.error && !this.isMissingSchemaError(requestArtistsResult.error)) {
+      console.error('getPublicWebsiteEvents request artists error:', requestArtistsResult.error.message);
+    }
+
+    if (instrumentsResult.error && !this.isMissingSchemaError(instrumentsResult.error)) {
+      console.error('getPublicWebsiteEvents instruments error:', instrumentsResult.error.message);
+    }
+
+    const hostAssignmentsByEventId = new Map<string, any[]>();
+    for (const assignment of ((hostAssignmentsResult.data ?? []) as any[])) {
+      const eventId = assignment.event_id as string;
+      const existing = hostAssignmentsByEventId.get(eventId) ?? [];
+      existing.push(assignment);
+      hostAssignmentsByEventId.set(eventId, existing);
+    }
+
+    const eventArtistNamesByEventId = new Map<string, string[]>();
+    for (const assignment of ((eventArtistsResult.data ?? []) as any[])) {
+      const eventId = assignment.event_id as string;
+      const artistName = (assignment.artist?.artist_name as string | null | undefined)?.trim();
+      if (!artistName) {
+        continue;
+      }
+
+      const existing = eventArtistNamesByEventId.get(eventId) ?? [];
+      if (!existing.includes(artistName)) {
+        existing.push(artistName);
+      }
+      eventArtistNamesByEventId.set(eventId, existing);
+    }
+
+    const requestDetailsById = new Map<string, { teaser: string; image_url: string | null; event_domain_name: string | null }>();
+    for (const row of ((requestDetailsResult.data ?? []) as any[])) {
+      const requestId = row.id as string;
+      requestDetailsById.set(requestId, {
+        teaser: (row.teaser as string | null | undefined)?.trim() || '',
+        image_url: (row.image_url as string | null | undefined) ?? null,
+        event_domain_name: (row.event_domain?.name as string | null | undefined) ?? null,
+      });
+    }
+
+    const requestArtistNamesByRequestId = new Map<string, string[]>();
+    for (const assignment of ((requestArtistsResult.data ?? []) as any[])) {
+      const requestId = assignment.request_id as string;
+      const artistName = (
+        (assignment.artist?.artist_name as string | null | undefined)
+        || (assignment.invited_artist?.artist_name as string | null | undefined)
+      )?.trim();
+
+      if (!artistName) {
+        continue;
+      }
+
+      const existing = requestArtistNamesByRequestId.get(requestId) ?? [];
+      if (!existing.includes(artistName)) {
+        existing.push(artistName);
+      }
+      requestArtistNamesByRequestId.set(requestId, existing);
+    }
+
+    const artistProfileIdsByEventId = new Map<string, string[]>();
+    for (const assignment of ((instrumentsResult.data ?? []) as any[])) {
+      const eventId = assignment.event_id as string;
+      const profileId = (assignment.artist?.profile_id as string | null | undefined)?.trim();
+      if (!profileId) {
+        continue;
+      }
+
+      const existing = artistProfileIdsByEventId.get(eventId) ?? [];
+      if (!existing.includes(profileId)) {
+        existing.push(profileId);
+      }
+      artistProfileIdsByEventId.set(eventId, existing);
+    }
+
+    const artistProfileIds = Array.from(
+      new Set(
+        Array.from(artistProfileIdsByEventId.values()).flat()
+      )
+    );
+
+    const instrumentNamesByProfileId = new Map<string, string[]>();
+    if (artistProfileIds.length > 0) {
+      const instrumentAssignmentsResult = await this.adminSupabase
+        .from('tjs_artist_instruments')
+        .select(`
+          profile_id,
+          instrument:sys_instruments (
+            name
+          )
+        `)
+        .in('profile_id', artistProfileIds);
+
+      if (instrumentAssignmentsResult.error && !this.isMissingSchemaError(instrumentAssignmentsResult.error)) {
+        console.error('getPublicWebsiteEvents instrument assignments error:', instrumentAssignmentsResult.error.message);
+      } else {
+        for (const assignment of ((instrumentAssignmentsResult.data ?? []) as any[])) {
+          const profileId = assignment.profile_id as string;
+          const instrumentName = (assignment.instrument?.name as string | null | undefined)?.trim();
+          if (!instrumentName) {
+            continue;
+          }
+
+          const existing = instrumentNamesByProfileId.get(profileId) ?? [];
+          if (!existing.includes(instrumentName)) {
+            existing.push(instrumentName);
+          }
+          instrumentNamesByProfileId.set(profileId, existing);
+        }
+      }
+    }
+
+    return eventRows
+      .map((event) => {
+        const eventId = event.id as string;
+        const requestId = (event.parent_event_id as string | null | undefined) ?? null;
+        const requestDetail = requestId ? requestDetailsById.get(requestId) : undefined;
+        const artistNames = eventArtistNamesByEventId.get(eventId)
+          ?? (requestId ? requestArtistNamesByRequestId.get(requestId) : undefined)
+          ?? [];
+        const primaryAssignment = (hostAssignmentsByEventId.get(eventId) ?? [])[0];
+        const notes = (primaryAssignment?.notes as string | null | undefined) ?? '';
+        const instruments = Array.from(new Set([
+          ...(artistProfileIdsByEventId.get(eventId) ?? [])
+            .flatMap((profileId) => instrumentNamesByProfileId.get(profileId) ?? []),
+          ...this.extractAdditionalInstruments(notes),
+        ]));
+        const scheduleEntries = this.extractScheduleEntries(
+          notes,
+          Array.isArray(primaryAssignment?.selected_dates)
+            ? (primaryAssignment.selected_dates as string[])
+            : [],
+        );
+        const scheduleLines = this.extractEventScheduleLines(notes, scheduleEntries);
+
+        return {
+          id: eventId,
+          title: (event.title as string | null | undefined)?.trim() || 'Untitled event',
+          teaser: requestDetail?.teaser || '',
+          image_url: requestDetail?.image_url ?? null,
+          event_domain_name: requestDetail?.event_domain_name ?? null,
+          instruments,
+          event_type_name: this.extractNoteValue(notes, 'Event Type:'),
+          artist_names: artistNames,
+          primary_date: scheduleEntries[0]?.start_date ?? null,
+          schedule_lines: scheduleLines,
+        } satisfies PublicWebsiteEventItem;
+      })
+      .sort((a, b) => {
+        const aDate = a.primary_date ?? '9999-12-31';
+        const bDate = b.primary_date ?? '9999-12-31';
+        if (aDate !== bDate) {
+          return aDate.localeCompare(bDate);
+        }
+
+        return a.title.localeCompare(b.title);
+      });
   }
 
   async getEventLocationSummaries(eventIds: string[], hostIds?: number[]): Promise<Map<string, EventLocationSummary>> {
@@ -3705,7 +3943,12 @@ export class SupabaseService {
       location_name: (hostRow?.location?.name as string | null | undefined)
         || (hostRow?.location?.city as string | null | undefined)
         || (hostRow?.location?.address as string | null | undefined)
+        || this.extractPrimaryScheduleLocationLabel((hostRow?.notes as string | null | undefined) ?? '')
         || null,
+      instruments: Array.from(new Set([
+        ...(event.instruments ?? []),
+        ...this.extractAdditionalInstruments((hostRow?.notes as string | null | undefined) ?? ''),
+      ])),
       schedule_entries: scheduleEntries,
       request_detail: requestDetail,
     };
@@ -4952,7 +5195,12 @@ export class SupabaseService {
       location_name: (hostRow?.location?.name as string | null | undefined)
         || (hostRow?.location?.city as string | null | undefined)
         || (hostRow?.location?.address as string | null | undefined)
+        || this.extractPrimaryScheduleLocationLabel((hostRow?.notes as string | null | undefined) ?? '')
         || null,
+      instruments: Array.from(new Set([
+        ...(event.instruments ?? []),
+        ...this.extractAdditionalInstruments((hostRow?.notes as string | null | undefined) ?? ''),
+      ])),
       schedule_entries: scheduleEntries,
       request_detail: requestDetail,
     };
@@ -7080,6 +7328,70 @@ export class SupabaseService {
       .find((line) => line.startsWith(prefix))
       ?.replace(prefix, '')
       .trim() ?? null;
+  }
+
+  private extractAdditionalInstruments(notes: string | null | undefined): string[] {
+    const value = this.extractNoteValue(notes, 'Additional Instruments:');
+    if (!value) {
+      return [];
+    }
+
+    return value
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  private extractPrimaryScheduleLocationLabel(notes: string | null | undefined): string | null {
+    const scheduleLine = (notes ?? '')
+      .split('\n')
+      .map((line) => line.trim())
+      .find((line) => line.startsWith('- Day Show |') || line.startsWith('- Period |'));
+
+    if (!scheduleLine) {
+      return null;
+    }
+
+    const segments = scheduleLine.replace(/^- /, '').split('|').map((item) => item.trim());
+    return segments.length >= 4 ? segments.slice(3).join(' | ') : null;
+  }
+
+  private extractEventScheduleLines(
+    notes: string | null | undefined,
+    fallbackEntries: Array<{ mode: 'day_show' | 'period'; start_date: string; end_date: string }>,
+  ): string[] {
+    const lines = (notes ?? '')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const headerIndex = lines.findIndex((line) => line === 'Event Schedule:');
+
+    if (headerIndex >= 0) {
+      return lines
+        .slice(headerIndex + 1)
+        .filter((line) => line.startsWith('- '))
+        .map((line) => line.replace(/^- /, '').trim())
+        .map((line) => {
+          const [typeLabel, dateLabel, timeLabel, ...locationParts] = line.split('|').map((item) => item.trim());
+          const locationLabel = locationParts.join(' | ');
+          const normalizedDateLabel = typeLabel.toLowerCase() === 'period'
+            ? dateLabel.replace(' to ', ' - ')
+            : dateLabel;
+
+          return `${normalizedDateLabel} : ${timeLabel || 'Time TBA'} | ${locationLabel || 'Location TBA'}`;
+        });
+    }
+
+    const showTime = this.extractNoteValue(notes, 'Show Time:') || 'Time TBA';
+    const locationLabel = this.extractPrimaryScheduleLocationLabel(notes) || 'Location TBA';
+
+    return fallbackEntries.map((entry) => {
+      const dateLabel = entry.mode === 'period'
+        ? `${entry.start_date} - ${entry.end_date || 'TBD'}`
+        : entry.start_date;
+
+      return `${dateLabel} : ${showTime} | ${locationLabel}`;
+    });
   }
 
   private mergeStructuredHostNotes(

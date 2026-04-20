@@ -181,6 +181,11 @@ export class ArtistRequests implements OnInit {
       return;
     }
 
+    if (this.isPublishedRequestLocked()) {
+      this.error = 'Published requests cannot be edited.';
+      return;
+    }
+
     this.error = '';
     this.successMessage = '';
     this.isEditing = true;
@@ -260,7 +265,7 @@ export class ArtistRequests implements OnInit {
 
   async deleteRequest() {
     const profileId = this.authService.currentUser?.id;
-    if (!profileId || !this.request.id) {
+    if (!profileId || !this.request.id || this.isPublishedRequestLocked()) {
       this.error = 'Request could not be deleted.';
       return;
     }
@@ -281,7 +286,7 @@ export class ArtistRequests implements OnInit {
   }
 
   canDeleteSelectedRequest(): boolean {
-    return !!this.request.id && this.request.status !== 'approved';
+    return !!this.request.id && this.request.status !== 'approved' && !this.isPublishedRequestLocked();
   }
 
   addDate() {
@@ -419,6 +424,11 @@ export class ArtistRequests implements OnInit {
     const profileId = this.authService.currentUser?.id;
     if (!profileId) {
       this.error = 'Request could not be submitted.';
+      return;
+    }
+
+    if (this.request.id && this.isPublishedRequestLocked()) {
+      this.error = 'Published requests cannot be edited.';
       return;
     }
 
@@ -746,6 +756,10 @@ export class ArtistRequests implements OnInit {
 
   get canRespondToHostProposal(): boolean {
     return !!this.request.id && this.request.status === 'host_proposed' && !this.isEditing;
+  }
+
+  isPublishedRequestLocked(): boolean {
+    return !!this.request.id && this.request.status === 'published';
   }
 
   async acceptHostProposal() {

@@ -403,6 +403,10 @@ export class HostCreateEvent implements OnInit {
       ...this.request,
       status: 'published',
     };
+    await this.reloadRequest();
+    await this.router.navigate(['/backoffice/host/requests', this.request.id, 'create-event'], {
+      replaceUrl: true,
+    });
     this.successMessage = 'Event created and the request is now published.';
     this.isSaving = false;
   }

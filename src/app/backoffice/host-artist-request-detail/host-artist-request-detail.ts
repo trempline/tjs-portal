@@ -280,7 +280,8 @@ export class HostArtistRequestDetail implements OnInit {
         return `${item.mode === 'period' ? 'Period' : 'One Day'} | ${datePart} | ${item.show_time} | ${locationName}`;
       });
       const acceptanceLines = [
-        '[HOST_PROPOSED]',
+        '[HOST_ACCEPTED]',
+        'Host accepted the artist proposed dates.',
         `Edition: ${selectedEdition}`,
         `Event Type: ${selectedEventType}`,
         'Proposed Dates:',
