@@ -123,13 +123,11 @@
               <div *ngIf="request.artists.length > 0" class="mt-4 space-y-3">
                 <div *ngFor="let artist of request.artists; trackBy: trackByOptionalId" class="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
                   <div class="flex items-start gap-4">
-                    <div class="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-zinc-200 bg-white">
-                      <img *ngIf="artist.image_url; else artistImageFallback" [src]="artist.image_url" alt="Artist image" class="h-full w-full object-cover" />
-                      <ng-template #artistImageFallback>
-                        <div class="text-lg font-semibold uppercase text-zinc-400">
-                          {{ (artist.display_name || artist.invited_full_name || artist.invited_email || '?').slice(0, 1) }}
-                        </div>
-                      </ng-template>
+                    <div class="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-zinc-200 bg-gradient-to-br from-zinc-100 to-zinc-200">
+                      <img *ngIf="artist.image_url" [src]="artist.image_url" [alt]="artist.display_name" class="h-full w-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'" />
+                      <div class="flex h-full w-full items-center justify-center text-2xl font-bold uppercase text-zinc-500" [style.display]="artist.image_url ? 'none' : 'flex'">
+                        {{ (artist.display_name || artist.invited_full_name || artist.invited_email || '?').charAt(0) }}
+                      </div>
                     </div>
                     <div class="min-w-0 flex-1">
                       <div class="text-sm font-semibold text-zinc-900">{{ artist.display_name || 'Unnamed artist' }}</div>

@@ -2447,20 +2447,21 @@ export class SupabaseService {
       artists: artistRows.map((row) => {
         const selectedArtist = row.artist_id ? artistsById.get(row.artist_id) : null;
         const invitedArtist = row.invited_artist_id ? artistsById.get(row.invited_artist_id) : null;
+        const selectedProfile = selectedArtist?.profile_id ? profilesById.get(selectedArtist.profile_id) : null;
         const invitedProfile = invitedArtist?.profile_id ? profilesById.get(invitedArtist.profile_id) : null;
 
-        const artistProfileId = selectedArtist?.profile_id ?? invitedArtist?.profile_id ?? invitedProfile?.id ?? '';
+        const artistProfileId = selectedArtist?.profile_id ?? invitedArtist?.profile_id ?? '';
 
         return {
           id: row.id,
           artist_id: row.artist_id ?? null,
           invited_artist_id: row.invited_artist_id ?? null,
-          profile_id: selectedArtist?.profile_id ?? invitedArtist?.profile_id ?? invitedProfile?.id ?? null,
+          profile_id: selectedArtist?.profile_id ?? invitedArtist?.profile_id ?? null,
           invited_email: row.invited_email ?? invitedProfile?.email ?? '',
           display_name: selectedArtist?.artist_name || invitedProfile?.full_name || invitedArtist?.artist_name || row.invited_email || '',
           invited_full_name: invitedProfile?.full_name || invitedArtist?.artist_name || '',
           tagline: artistProfilesById.get(artistProfileId)?.tagline ?? null,
-          image_url: invitedProfile?.avatar_url ?? null,
+          image_url: selectedProfile?.avatar_url ?? invitedProfile?.avatar_url ?? null,
           instruments: instrumentsByProfileId.get(artistProfileId) ?? [],
         };
       }),
