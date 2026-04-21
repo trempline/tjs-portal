@@ -2,7 +2,7 @@
   <div class="flex flex-col gap-3 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
     <a [routerLink]="['/backoffice/host-manager/hosts']" class="inline-flex w-fit items-center gap-2 text-sm font-semibold text-red-700 transition hover:text-red-800">
       <span aria-hidden="true">←</span>
-      <span>Back to My Hosts</span>
+      <span>Back to My TJS Hosts</span>
     </a>
 
     <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -13,7 +13,7 @@
       </div>
 
       @if (!isLoading && host) {
-        <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div class="grid grid-cols-2 gap-4 sm:grid-cols-3">
           <div>
             <div class="text-xs font-medium uppercase tracking-wide text-zinc-500">City</div>
             <div class="mt-1 font-semibold text-zinc-900">{{ host.city || '-' }}</div>
@@ -71,10 +71,6 @@
           <div class="rounded-xl border border-zinc-200 p-4 text-sm">
             <div class="text-xs uppercase tracking-wide text-zinc-500">Events</div>
             <div class="mt-1 font-semibold text-zinc-900">{{ hostEvents.length }}</div>
-          </div>
-          <div class="rounded-xl border border-zinc-200 p-4 text-sm">
-            <div class="text-xs uppercase tracking-wide text-zinc-500">Artists</div>
-            <div class="mt-1 font-semibold text-zinc-900">{{ hostArtists.length }}</div>
           </div>
         </div>
       </div>
@@ -195,26 +191,6 @@
               </div>
             </section>
 
-            <section class="rounded-xl border border-zinc-200 bg-zinc-50 p-5">
-              <h3 class="text-base font-semibold text-zinc-950">Comment</h3>
-              <p class="mt-4 rounded-lg bg-white px-4 py-4 text-sm leading-6 text-zinc-700">{{ host.comment || 'No comment added for this host.' }}</p>
-            </section>
-
-            <section class="rounded-xl border border-zinc-200 bg-zinc-50 p-5">
-              <h3 class="text-base font-semibold text-zinc-950">Artists</h3>
-              @if (hostArtists.length === 0) {
-                <p class="mt-4 text-sm text-zinc-600">No artists linked to this host yet.</p>
-              } @else {
-                <div class="mt-4 space-y-3">
-                  @for (artist of hostArtists; track trackByArtist($index, artist)) {
-                    <div class="flex items-center justify-between gap-3 rounded-lg bg-white px-4 py-3">
-                      <div class="font-medium text-zinc-900">{{ artist.artist_name }}</div>
-                      <div class="text-sm text-zinc-600">{{ artist.event_count }} event{{ artist.event_count === 1 ? '' : 's' }}</div>
-                    </div>
-                  }
-                </div>
-              }
-            </section>
           </div>
         </div>
       }

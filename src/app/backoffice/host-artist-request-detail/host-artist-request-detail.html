@@ -9,7 +9,7 @@
         Back to Artist Requests
       </button>
       <h1 class="mt-3 text-2xl font-bold text-zinc-900">Artist Request Detail</h1>
-      <p class="mt-1 text-sm text-zinc-500">Review the request, inspect artist context, propose dates, and record your response.</p>
+      <p class="mt-1 text-sm text-zinc-500">{{ canManageRequestActions ? 'Review the request, inspect artist context, propose dates, and record your response.' : (isCommitteeMember ? 'Review the request detail in read-only mode and record your comments.' : 'Review the request, inspect artist context, and record your comments.') }}</p>
     </div>
     <div class="flex flex-wrap items-center gap-3">
       <button
@@ -30,6 +30,7 @@
         {{ isSaving ? 'Saving...' : 'Release' }}
       </button>
       <button
+        *ngIf="canManageRequestActions"
         type="button"
         (click)="openProposalModal()"
         [disabled]="isSaving || hasSubmittedHostProposal"
@@ -38,7 +39,7 @@
         Propose New Dates
       </button>
       <button
-        *ngIf="!hasSubmittedHostProposal"
+        *ngIf="canManageRequestActions && !hasSubmittedHostProposal"
         type="button"
         (click)="acceptRequest()"
         [disabled]="isSaving"

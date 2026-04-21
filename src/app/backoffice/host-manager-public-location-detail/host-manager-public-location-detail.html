@@ -7,7 +7,7 @@
       Back to Public Locations
     </a>
     <h1 class="mt-3 text-3xl font-bold tracking-tight text-zinc-900">Public Location Detail</h1>
-    <p class="mt-1 text-sm text-zinc-500">Read-only detail view for a host manager public location.</p>
+    <p class="mt-1 text-sm text-zinc-500">{{ canManageLocations ? 'Read-only detail view for a host manager public location.' : 'Public location detail and availability view.' }}</p>
   </div>
 
   <div *ngIf="error" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -50,6 +50,7 @@
               <div class="mt-1 font-medium text-white">{{ location.is_active ? 'Active' : 'Inactive' }}</div>
             </div>
             <button
+              *ngIf="canManageLocations"
               type="button"
               (click)="toggleLocationStatus()"
               [disabled]="isUpdatingStatus"
@@ -125,6 +126,70 @@
           <ng-template #noImages>
             <div class="mt-5 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-8 text-center text-sm text-zinc-500">No images uploaded.</div>
           </ng-template>
+        </section>
+
+        <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 class="text-lg font-semibold text-zinc-900">Booked Dates Calendar</h3>
+              <p class="mt-1 text-sm text-zinc-500">{{ shouldHideBookingDetails ? 'Booked dates are visible here without exposing event details.' : 'Track booked public events month by month.' }}</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button type="button" (click)="previousMonth()" class="rounded-2xl border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50">
+                Previous
+              </button>
+              <div class="min-w-40 text-center text-sm font-semibold text-zinc-900">{{ monthLabel }}</div>
+              <button type="button" (click)="nextMonth()" class="rounded-2xl border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50">
+                Next
+              </button>
+            </div>
+          </div>
+
+          <div class="mt-5 grid grid-cols-7 gap-2 text-center text-xs font-semibold uppercase tracking-[0.16em] text-zinc-400">
+            <div>Sun</div>
+            <div>Mon</div>
+            <div>Tue</div>
+            <div>Wed</div>
+            <div>Thu</div>
+            <div>Fri</div>
+            <div>Sat</div>
+          </div>
+
+          <div class="mt-2 grid grid-cols-7 gap-2">
+            <div *ngFor="let day of calendarDays; trackBy: trackByCalendarDate"
+              class="min-h-28 rounded-2xl border p-3"
+              [class.border-blue-300]="day.bookings.length > 0"
+              [class.bg-blue-50]="day.bookings.length > 0 && day.inCurrentMonth"
+              [class.bg-blue-100]="day.bookings.length > 0 && !day.inCurrentMonth"
+              [class.shadow-sm]="day.bookings.length > 0"
+              [class.border-zinc-200]="day.inCurrentMonth && day.bookings.length === 0"
+              [class.bg-white]="day.inCurrentMonth && day.bookings.length === 0"
+              [class.border-zinc-100]="!day.inCurrentMonth && day.bookings.length === 0"
+              [class.bg-zinc-50]="!day.inCurrentMonth && day.bookings.length === 0">
+              <div class="flex items-center justify-between">
+                <span class="inline-flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold"
+                  [class.bg-red-600]="day.isToday"
+                  [class.text-white]="day.isToday"
+                  [class.text-zinc-900]="!day.isToday && day.inCurrentMonth"
+                  [class.text-zinc-400]="!day.isToday && !day.inCurrentMonth">
+                  {{ day.dayNumber }}
+                </span>
+                <span *ngIf="day.bookings.length > 0" class="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
+                  {{ day.bookings.length }}
+                </span>
+              </div>
+
+              <div *ngIf="day.bookings.length > 0" class="mt-3 space-y-2">
+                <div *ngFor="let booking of day.bookings.slice(0, 2); trackBy: trackByBooking" class="rounded-xl bg-blue-50 px-2.5 py-2 text-left">
+                  <div class="truncate text-xs font-semibold text-blue-900">{{ shouldHideBookingDetails ? 'Booked' : booking.title }}</div>
+                  <div *ngIf="!shouldHideBookingDetails" class="mt-1 truncate text-[11px] text-blue-700">{{ booking.show_time || 'Time TBA' }}</div>
+                </div>
+                <div *ngIf="day.bookings.length > 2" class="text-[11px] font-medium text-zinc-500">
+                  +{{ day.bookings.length - 2 }} more
+                </div>
+              </div>
+            </div>
+          </div>
         </section>
       </section>
 

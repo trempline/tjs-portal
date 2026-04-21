@@ -20,7 +20,6 @@ export class EventRequests implements OnInit {
   isLoading = true;
   error = '';
   searchQuery = '';
-  showAllPlatform = false;
 
   items: AdminEventOverviewItem[] = [];
   myArtistIds = new Set<string>();
@@ -32,7 +31,7 @@ export class EventRequests implements OnInit {
       return;
     }
 
-    if (!this.isHostWorkspace) {
+    if (!this.isHostRequestWorkspace) {
       this.activeTab = 'PENDING';
     }
 
@@ -52,7 +51,7 @@ export class EventRequests implements OnInit {
       const [artists, overview, hostOptions] = await Promise.all([
         artistScope ? this.supabase.getArtists(artistScope) : Promise.resolve([]),
         this.supabase.getAdminEventOverview(),
-        this.isHostWorkspace && currentUserId ? this.supabase.getMyHosts(currentUserId) : Promise.resolve([]),
+        this.isHostRequestWorkspace && currentUserId ? this.supabase.getAccessibleHosts(currentUserId) : Promise.resolve([]),
       ]);
 
       this.myArtistIds = new Set(artists.map((artist) => artist.id));
@@ -67,10 +66,6 @@ export class EventRequests implements OnInit {
 
   setTab(tab: 'PENDING' | 'APPROVED' | 'AVAILABLE' | 'SELECTED' | 'new_request' | 'accepted_by_host' | 'host_proposed' | 'artist_proposed' | 'artist_accepted' | 'published' | 'rejected') {
     this.activeTab = tab;
-  }
-
-  togglePlatformScope() {
-    this.showAllPlatform = !this.showAllPlatform;
   }
 
   get isMembershipGated(): boolean {
@@ -91,8 +86,16 @@ export class EventRequests implements OnInit {
     return this.authService.hasAnyRole(['Host', 'Host+']) && !this.authService.isHostManager;
   }
 
+  get isHostManagerWorkspace(): boolean {
+    return this.authService.isHostManager;
+  }
+
+  get isHostRequestWorkspace(): boolean {
+    return this.isHostWorkspace || this.isHostManagerWorkspace;
+  }
+
   get supportsOverview(): boolean {
-    return this.authService.isAdmin || this.isCommitteeMember || this.isHostWorkspace;
+    return this.authService.isAdmin || this.isCommitteeMember || this.isHostRequestWorkspace;
   }
 
   get scopeLabel(): string {
@@ -100,7 +103,7 @@ export class EventRequests implements OnInit {
       return 'All platform requests';
     }
 
-    return this.showAllPlatform ? 'All platform requests' : 'My artists only';
+    return 'My assigned artists';
   }
 
   get filteredRequests() {
@@ -109,13 +112,13 @@ export class EventRequests implements OnInit {
     const currentUserId = this.authService.currentUser?.id ?? '';
 
     return this.items.filter((item) => {
-      if (this.isHostWorkspace && !['new_request', 'accepted_by_host', 'host_proposed', 'artist_proposed', 'artist_accepted', 'approved', 'published'].includes(item.status)) {
+      if (this.isHostRequestWorkspace && !['new_request', 'accepted_by_host', 'host_proposed', 'artist_proposed', 'artist_accepted', 'approved', 'published'].includes(item.status)) {
         return false;
       }
 
       const isAssignedToHost = item.host_ids.some((hostId) => hostIds.has(hostId));
       const isAcceptedByCurrentHost = item.accepted_host_profile_ids.includes(currentUserId);
-      const matchesActiveTab = this.isHostWorkspace
+      const matchesActiveTab = this.isHostRequestWorkspace
         ? item.status === this.activeTab
         : this.activeTab === 'PENDING'
           ? ['new_request', 'artist_proposed'].includes(item.status)
@@ -124,14 +127,13 @@ export class EventRequests implements OnInit {
             : this.activeTab === 'APPROVED'
               ? ['artist_accepted', 'approved', 'published'].includes(item.status)
               : ['accepted_by_host', 'host_proposed'].includes(item.status);
-      const matchesHostWorkflow = !this.isHostWorkspace
+      const matchesHostWorkflow = !this.isHostRequestWorkspace
         || item.status === 'new_request'
         || item.status === 'artist_proposed'
         || (['accepted_by_host', 'host_proposed', 'artist_accepted', 'approved', 'published'].includes(item.status) && (isAssignedToHost || isAcceptedByCurrentHost));
 
       const matchesScope =
         !this.isCommitteeMember ||
-        this.showAllPlatform ||
         item.artist_ids.some((artistId) => this.myArtistIds.has(artistId));
 
       if (!matchesHostWorkflow || !matchesScope || !matchesActiveTab) {
@@ -226,10 +228,17 @@ export class EventRequests implements OnInit {
   }
 
   async openRequest(item: AdminEventOverviewItem) {
-    if (!this.isHostWorkspace) {
+    if (!this.isHostRequestWorkspace && !this.isCommitteeMember) {
       return;
     }
 
-    await this.router.navigate(['/backoffice/host/requests', item.id]);
+    await this.router.navigate([
+      this.isCommitteeMember
+        ? '/backoffice/event-requests'
+        : this.isHostManagerWorkspace
+          ? '/backoffice/host-manager/requests'
+          : '/backoffice/host/requests',
+      item.id,
+    ]);
   }
 }

@@ -21,6 +21,23 @@
     {{ error }}
   </div>
 
+  <div *ngIf="saveSuccessMessage" class="flex items-center gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+    <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+      <polyline points="22 4 12 14.01 9 11.01"></polyline>
+    </svg>
+    {{ saveSuccessMessage }}
+  </div>
+
+  <div *ngIf="saveError" class="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+    <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="10"></circle>
+      <line x1="15" y1="9" x2="9" y2="15"></line>
+      <line x1="9" y1="9" x2="15" y2="15"></line>
+    </svg>
+    {{ saveError }}
+  </div>
+
   <div class="overflow-hidden rounded-[2rem] border border-zinc-200 bg-white shadow-sm">
     <div
       class="relative overflow-hidden px-6 py-8 text-white"
@@ -65,7 +82,7 @@
         <button type="button" (click)="setTab('availability')" [ngClass]="activeTab === 'availability' ? 'bg-zinc-900 text-white shadow-sm' : 'bg-white text-zinc-600 hover:bg-zinc-100'" class=" cursor-pointer rounded-full px-4 py-2 text-sm font-medium transition-colors">Availability</button>
         <ng-container *ngIf="!isPagOnlyProfile">
         <button type="button" (click)="setTab('events')" [ngClass]="activeTab === 'events' ? 'bg-zinc-900 text-white shadow-sm' : 'bg-white text-zinc-600 hover:bg-zinc-100'" class="cursor-pointer rounded-full px-4 py-2 text-sm font-medium transition-colors">Upcoming Events</button>
-        <button type="button" (click)="setTab('request')" [ngClass]="activeTab === 'request' ? 'bg-zinc-900 text-white shadow-sm' : 'bg-white text-zinc-600 hover:bg-zinc-100 cursor-pointer'" class="rounded-full px-4 py-2 text-sm font-medium transition-colors">Pending Requests</button>
+        <button type="button" (click)="setTab('request')" [ngClass]="activeTab === 'request' ? 'bg-zinc-900 text-white shadow-sm' : 'bg-white text-zinc-600 hover:bg-zinc-100 cursor-pointer'" class="rounded-full px-4 py-2 text-sm font-medium transition-colors">{{ requestTabTitle }}</button>
         </ng-container>
       </div>
     </div>
@@ -77,9 +94,148 @@
 
       <ng-container *ngIf="!isLoading && (artist || pagProfile)">
         <div *ngIf="activeTab === 'profile'" class="space-y-6">
-        
+          <div *ngIf="canEditTjsArtist && !isPagOnlyProfile" class="flex justify-end">
+            <div *ngIf="!isProfileEditing; else profileEditActions">
+              <button type="button" (click)="startEditingProfile()" class="rounded-2xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-zinc-800">Edit Profile</button>
+            </div>
+            <ng-template #profileEditActions>
+              <div class="flex gap-3">
+                <button type="button" (click)="cancelEditingProfile()" class="rounded-2xl border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50">Cancel</button>
+                <button type="button" (click)="saveProfile()" [disabled]="isSavingSection" class="rounded-2xl bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60">{{ isSavingSection ? 'Saving...' : 'Save Profile' }}</button>
+              </div>
+            </ng-template>
+          </div>
 
-          <div class="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+          <div *ngIf="isProfileEditing && editableProfile" class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+            <div class="grid gap-5 lg:grid-cols-2">
+              <div class="space-y-2 lg:col-span-2">
+                <label class="text-sm font-medium text-zinc-700">Banner Image</label>
+                <div class="overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-50">
+                  <div class="h-40 bg-zinc-200">
+                    <img *ngIf="editableProfile.banner_url; else emptyBanner" [src]="editableProfile.banner_url" alt="Banner" class="h-full w-full object-cover" />
+                    <ng-template #emptyBanner><div class="flex h-full items-center justify-center text-sm text-zinc-500">No banner uploaded</div></ng-template>
+                  </div>
+                  <label class="flex cursor-pointer items-center justify-center border-t border-zinc-200 px-4 py-3 text-sm font-medium text-zinc-700 hover:bg-white">
+                    {{ isUploadingBanner ? 'Uploading...' : 'Upload Banner' }}
+                    <input type="file" accept="image/*" class="hidden" (change)="onProfileImageSelected($event, 'banner')" [disabled]="isUploadingBanner" />
+                  </label>
+                </div>
+              </div>
+
+              <div class="space-y-2 lg:col-span-2">
+                <label class="text-sm font-medium text-zinc-700">Profile Picture</label>
+                <div class="flex items-center gap-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                  <div class="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl bg-zinc-200 text-lg font-semibold text-zinc-600">
+                    <img *ngIf="editableProfile.profile_picture_url; else emptyAvatar" [src]="editableProfile.profile_picture_url" alt="Avatar" class="h-full w-full object-cover" />
+                    <ng-template #emptyAvatar>{{ avatarLetter() }}</ng-template>
+                  </div>
+                  <label class="inline-flex cursor-pointer items-center rounded-xl border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
+                    {{ isUploadingAvatar ? 'Uploading...' : 'Upload Picture' }}
+                    <input type="file" accept="image/*" class="hidden" (change)="onProfileImageSelected($event, 'avatar')" [disabled]="isUploadingAvatar" />
+                  </label>
+                </div>
+              </div>
+
+              <div class="space-y-2">
+                <label class="text-sm font-medium text-zinc-700">First Name</label>
+                <input [(ngModel)]="editableProfile.first_name" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+              </div>
+              <div class="space-y-2">
+                <label class="text-sm font-medium text-zinc-700">Last Name</label>
+                <input [(ngModel)]="editableProfile.last_name" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+              </div>
+              <div class="space-y-2">
+                <label class="text-sm font-medium text-zinc-700">Email</label>
+                <input [(ngModel)]="editableProfile.email" type="email" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+              </div>
+              <div class="space-y-2">
+                <label class="text-sm font-medium text-zinc-700">Phone</label>
+                <input [(ngModel)]="editableProfile.phone" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+              </div>
+              <div class="space-y-2">
+                <label class="text-sm font-medium text-zinc-700">Website</label>
+                <input [(ngModel)]="editableProfile.website" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+              </div>
+              <div class="space-y-2">
+                <label class="text-sm font-medium text-zinc-700">Tagline</label>
+                <input [(ngModel)]="editableProfile.tagline" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+              </div>
+              <div class="space-y-2">
+                <label class="text-sm font-medium text-zinc-700">City</label>
+                <input [(ngModel)]="editableProfile.city" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+              </div>
+              <div class="space-y-2">
+                <label class="text-sm font-medium text-zinc-700">Country</label>
+                <input [(ngModel)]="editableProfile.country" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+              </div>
+              <div class="space-y-2 lg:col-span-2">
+                <label class="text-sm font-medium text-zinc-700">Performance Types</label>
+                <div class="flex gap-2">
+                  <select [(ngModel)]="selectedPerformanceId" class="flex-1 rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100">
+                    <option value="">Select performance type</option>
+                    <option *ngFor="let option of performanceOptions; trackBy: trackByPerformance" [value]="option.id">{{ option.name }}</option>
+                  </select>
+                  <button type="button" (click)="addPerformanceType()" class="rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800">Add</button>
+                </div>
+                <div class="mt-3 flex flex-wrap gap-2">
+                  <span *ngFor="let item of editableProfile.performance_types; trackBy: trackByPerformance" class="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700">
+                    {{ item.name }}
+                    <button type="button" (click)="removePerformanceType(item.id)" class="text-blue-600 hover:text-blue-800">x</button>
+                  </span>
+                </div>
+              </div>
+              <div class="space-y-2 lg:col-span-2">
+                <label class="text-sm font-medium text-zinc-700">Short Biography</label>
+                <textarea [(ngModel)]="editableProfile.short_biography" rows="4" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100"></textarea>
+              </div>
+              <div class="space-y-2 lg:col-span-2">
+                <label class="text-sm font-medium text-zinc-700">Long Biography</label>
+                <textarea [(ngModel)]="editableProfile.long_biography" rows="6" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100"></textarea>
+              </div>
+            </div>
+
+            <div class="mt-6 grid gap-6 xl:grid-cols-2">
+              <section class="rounded-3xl border border-zinc-200 bg-zinc-50 p-5">
+                <div class="flex items-center justify-between">
+                  <h4 class="text-base font-semibold text-zinc-900">Education</h4>
+                  <button type="button" (click)="addEducation()" class="rounded-xl bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800">Add</button>
+                </div>
+                <div class="mt-4 space-y-4">
+                  <div *ngFor="let education of editableProfile.educations; let i = index; trackBy: trackByIndex" class="rounded-2xl border border-zinc-200 bg-white p-4">
+                    <div class="grid gap-3">
+                      <input [(ngModel)]="education.school_name" type="text" placeholder="School name" class="rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+                      <input [(ngModel)]="education.course_name" type="text" placeholder="Course name" class="rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+                      <div class="flex gap-3">
+                        <input [(ngModel)]="education.year" type="number" placeholder="Year" class="flex-1 rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+                        <button type="button" (click)="removeEducation(i)" class="rounded-xl border border-red-200 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50">Remove</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section class="rounded-3xl border border-zinc-200 bg-zinc-50 p-5">
+                <div class="flex items-center justify-between">
+                  <h4 class="text-base font-semibold text-zinc-900">Awards</h4>
+                  <button type="button" (click)="addAward()" class="rounded-xl bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800">Add</button>
+                </div>
+                <div class="mt-4 space-y-4">
+                  <div *ngFor="let award of editableProfile.awards; let i = index; trackBy: trackByIndex" class="rounded-2xl border border-zinc-200 bg-white p-4">
+                    <div class="grid gap-3">
+                      <input [(ngModel)]="award.award" type="text" placeholder="Award name" class="rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+                      <textarea [(ngModel)]="award.description" rows="3" placeholder="Description" class="rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100"></textarea>
+                      <div class="flex gap-3">
+                        <input [(ngModel)]="award.year" type="number" placeholder="Year" class="flex-1 rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+                        <button type="button" (click)="removeAward(i)" class="rounded-xl border border-red-200 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50">Remove</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
+
+          <div *ngIf="!isProfileEditing" class="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
             <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
               <h3 class="text-lg font-semibold text-zinc-900">Biography</h3>
               <div class="mt-5 space-y-5">
@@ -348,12 +504,42 @@
         </div>
 
         <div *ngIf="activeTab === 'instruments' && !isPagOnlyProfile" class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <div class="flex items-center justify-between gap-4">
           <h3 class="text-lg font-semibold text-zinc-900">Instruments</h3>
+            <div *ngIf="canEditTjsArtist">
+              <div *ngIf="!isInstrumentEditing; else instrumentActions">
+                <button type="button" (click)="startEditingInstruments()" class="rounded-2xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800">Edit Instruments</button>
+              </div>
+              <ng-template #instrumentActions>
+                <div class="flex gap-3">
+                  <button type="button" (click)="cancelEditingInstruments()" class="rounded-2xl border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">Cancel</button>
+                  <button type="button" (click)="saveInstruments()" [disabled]="isSavingSection" class="rounded-2xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60">{{ isSavingSection ? 'Saving...' : 'Save' }}</button>
+                </div>
+              </ng-template>
+            </div>
+          </div>
+          <div *ngIf="isInstrumentEditing; else instrumentReadOnly" class="mt-5 space-y-4">
+            <div class="flex gap-2">
+              <select [(ngModel)]="selectedInstrumentId" class="flex-1 rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100">
+                <option value="">Select instrument</option>
+                <option *ngFor="let option of instrumentOptions; trackBy: trackByNumericId" [value]="option.id">{{ option.name }}</option>
+              </select>
+              <button type="button" (click)="addInstrument()" class="rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800">Add</button>
+            </div>
+            <div class="flex flex-wrap gap-3">
+              <span *ngFor="let instrument of editableInstruments; trackBy: trackByNumericId" class="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700">
+                {{ instrument.name }}
+                <button type="button" (click)="removeInstrument(instrument.id)" class="text-blue-600 hover:text-blue-800">x</button>
+              </span>
+            </div>
+          </div>
+          <ng-template #instrumentReadOnly>
           <div *ngIf="instruments.length; else noInstruments" class="mt-5 flex flex-wrap gap-3">
             <span *ngFor="let instrument of instruments; trackBy: trackByNumericId" class="inline-flex rounded-full border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700">
               {{ instrument.name }}
             </span>
           </div>
+          </ng-template>
           <ng-template #noInstruments>
             <div class="mt-5 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-10 text-center text-sm text-zinc-500">No instruments added.</div>
           </ng-template>
@@ -372,6 +558,81 @@
         </div>
 
         <div *ngIf="activeTab === 'media' && !isPagOnlyProfile" class="space-y-6">
+          <div *ngIf="canEditTjsArtist" class="flex justify-end">
+            <div *ngIf="!isMediaEditing; else mediaActions">
+              <button type="button" (click)="startEditingMedia()" class="rounded-2xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800">Edit Media</button>
+            </div>
+            <ng-template #mediaActions>
+              <div class="flex gap-3">
+                <button type="button" (click)="cancelEditingMedia()" class="rounded-2xl border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">Cancel</button>
+                <button type="button" (click)="saveMedia()" [disabled]="isSavingSection" class="rounded-2xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60">{{ isSavingSection ? 'Saving...' : 'Save Media' }}</button>
+              </div>
+            </ng-template>
+          </div>
+          <div *ngIf="isMediaEditing" class="grid gap-6 lg:grid-cols-2">
+            <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+              <div class="flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-zinc-900">Videos</h3>
+                <button type="button" (click)="addMedia('video')" class="rounded-xl bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800">Add Video</button>
+              </div>
+              <div *ngIf="editableMediaByType('video').length === 0" class="mt-5 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-10 text-center text-sm text-zinc-500">No videos added.</div>
+              <div class="mt-5 space-y-4">
+                <div *ngFor="let item of editableMediaByType('video'); let i = index; trackBy: trackByIndex" class="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                  <div class="grid gap-3">
+                    <input [(ngModel)]="item.name" type="text" placeholder="Video title" class="rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+                    <textarea [(ngModel)]="item.description" rows="3" placeholder="Description" class="rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100"></textarea>
+                    <label class="inline-flex cursor-pointer items-center rounded-xl border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
+                      {{ isUploadingMedia('video', i) ? 'Uploading...' : 'Upload Cover' }}
+                      <input type="file" accept="image/*" class="hidden" (change)="onMediaImageSelected($event, item, 'video', i)" [disabled]="isUploadingMedia('video', i)" />
+                    </label>
+                    <div *ngIf="item.image_url" class="h-32 overflow-hidden rounded-2xl bg-zinc-200"><img [src]="item.image_url" alt="Media cover" class="h-full w-full object-cover" /></div>
+                    <div class="space-y-2">
+                      <div *ngFor="let url of item.urls; let urlIndex = index; trackBy: trackByIndex" class="flex gap-2">
+                        <input [(ngModel)]="item.urls[urlIndex]" type="text" placeholder="Media URL" class="flex-1 rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+                        <button type="button" (click)="removeMediaUrl(item, urlIndex)" class="rounded-xl border border-red-200 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50">Remove</button>
+                      </div>
+                      <div class="flex justify-between">
+                        <button type="button" (click)="addMediaUrl(item)" class="rounded-xl border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-white">Add URL</button>
+                        <button type="button" (click)="removeMedia(item)" class="rounded-xl border border-red-200 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50">Delete</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+              <div class="flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-zinc-900">CDs</h3>
+                <button type="button" (click)="addMedia('cd')" class="rounded-xl bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800">Add CD</button>
+              </div>
+              <div *ngIf="editableMediaByType('cd').length === 0" class="mt-5 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-10 text-center text-sm text-zinc-500">No CDs added.</div>
+              <div class="mt-5 space-y-4">
+                <div *ngFor="let item of editableMediaByType('cd'); let i = index; trackBy: trackByIndex" class="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                  <div class="grid gap-3">
+                    <input [(ngModel)]="item.name" type="text" placeholder="CD title" class="rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+                    <textarea [(ngModel)]="item.description" rows="3" placeholder="Description" class="rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100"></textarea>
+                    <label class="inline-flex cursor-pointer items-center rounded-xl border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
+                      {{ isUploadingMedia('cd', i) ? 'Uploading...' : 'Upload Cover' }}
+                      <input type="file" accept="image/*" class="hidden" (change)="onMediaImageSelected($event, item, 'cd', i)" [disabled]="isUploadingMedia('cd', i)" />
+                    </label>
+                    <div *ngIf="item.image_url" class="h-32 overflow-hidden rounded-2xl bg-zinc-200"><img [src]="item.image_url" alt="Media cover" class="h-full w-full object-cover" /></div>
+                    <div class="space-y-2">
+                      <div *ngFor="let url of item.urls; let urlIndex = index; trackBy: trackByIndex" class="flex gap-2">
+                        <input [(ngModel)]="item.urls[urlIndex]" type="text" placeholder="Media URL" class="flex-1 rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+                        <button type="button" (click)="removeMediaUrl(item, urlIndex)" class="rounded-xl border border-red-200 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50">Remove</button>
+                      </div>
+                      <div class="flex justify-between">
+                        <button type="button" (click)="addMediaUrl(item)" class="rounded-xl border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-white">Add URL</button>
+                        <button type="button" (click)="removeMedia(item)" class="rounded-xl border border-red-200 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50">Delete</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+          <ng-container *ngIf="!isMediaEditing">
           <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
             <h3 class="text-lg font-semibold text-zinc-900">Videos</h3>
             <div *ngIf="mediaByType('video').length; else noVideoMedia" class="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -419,6 +680,7 @@
               <div class="mt-5 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-10 text-center text-sm text-zinc-500">No CDs added.</div>
             </ng-template>
           </section>
+          </ng-container>
         </div>
 
         <div *ngIf="activeTab === 'media' && isPagOnlyProfile" class="space-y-6">
@@ -472,7 +734,43 @@
         </div>
 
         <div *ngIf="activeTab === 'availability' && !isPagOnlyProfile" class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
-          <h3 class="text-lg font-semibold text-zinc-900">Availability</h3>
+          <div class="flex items-center justify-between gap-4">
+            <h3 class="text-lg font-semibold text-zinc-900">Availability</h3>
+            <div *ngIf="canEditTjsArtist">
+              <div *ngIf="!isAvailabilityEditing; else availabilityActions">
+                <button type="button" (click)="startEditingAvailability()" class="rounded-2xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800">Edit Availability</button>
+              </div>
+              <ng-template #availabilityActions>
+                <div class="flex gap-3">
+                  <button type="button" (click)="cancelEditingAvailability()" class="rounded-2xl border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">Cancel</button>
+                  <button type="button" (click)="saveAvailability()" [disabled]="isSavingSection" class="rounded-2xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60">{{ isSavingSection ? 'Saving...' : 'Save' }}</button>
+                </div>
+              </ng-template>
+            </div>
+          </div>
+          <div *ngIf="isAvailabilityEditing" class="mt-5 space-y-4">
+            <div *ngFor="let entry of editableAvailability; let i = index; trackBy: trackByIndex" class="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+              <div class="grid gap-3 md:grid-cols-4">
+                <div class="space-y-2">
+                  <label class="text-sm font-medium text-zinc-700">Start Date</label>
+                  <input [(ngModel)]="entry.start_date" type="date" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+                </div>
+                <div class="space-y-2">
+                  <label class="text-sm font-medium text-zinc-700">End Date</label>
+                  <input [(ngModel)]="entry.end_date" type="date" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+                </div>
+                <div class="space-y-2 md:col-span-2">
+                  <label class="text-sm font-medium text-zinc-700">Note</label>
+                  <div class="flex gap-3">
+                    <input [(ngModel)]="entry.note" type="text" class="flex-1 rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+                    <button type="button" (click)="removeAvailabilityEntry(i)" class="rounded-xl border border-red-200 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50">Remove</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <button type="button" (click)="addAvailabilityEntry()" class="rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800">Add Availability</button>
+          </div>
+          <ng-container *ngIf="!isAvailabilityEditing">
           <div class="mt-5 overflow-x-auto">
             <table *ngIf="availability.length; else noAvailability" class="min-w-full divide-y divide-zinc-200 text-sm">
               <thead class="bg-zinc-50">
@@ -496,6 +794,7 @@
               <div class="rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-10 text-center text-sm text-zinc-500">No availability added.</div>
             </ng-template>
           </div>
+          </ng-container>
         </div>
 
         <div *ngIf="activeTab === 'availability' && isPagOnlyProfile" class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
@@ -525,20 +824,65 @@
           </div>
         </div>
 
-        <div *ngIf="activeTab === 'events'" class="rounded-3xl border border-dashed border-zinc-300 bg-white px-6 py-16 text-center shadow-sm">
-          <h3 class="text-lg font-semibold text-zinc-900">Upcoming Events</h3>
-          <p class="mt-2 text-sm text-zinc-500">This section is intentionally left blank for now.</p>
+        <div *ngIf="activeTab === 'events'" class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <div class="flex flex-col gap-3 border-b border-zinc-100 pb-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 class="text-lg font-semibold text-zinc-900">Upcoming Events</h3>
+              <p class="mt-1 text-sm text-zinc-500">Events linked to this artist profile, ordered by the next scheduled date.</p>
+            </div>
+            <div class="inline-flex rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700">
+              {{ upcomingEvents.length }} upcoming
+            </div>
+          </div>
+
+          <div *ngIf="upcomingEvents.length === 0" class="mt-5 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-12 text-center text-sm text-zinc-500">
+            No upcoming events linked to this artist.
+          </div>
+
+          <div *ngIf="upcomingEvents.length > 0" class="mt-5 overflow-x-auto">
+            <table class="min-w-full divide-y divide-zinc-200 text-sm">
+              <thead class="bg-zinc-50">
+                <tr>
+                  <th class="px-4 py-3 text-left font-semibold text-zinc-600">Event</th>
+                  <th class="px-4 py-3 text-left font-semibold text-zinc-600">Domain</th>
+                  <th class="px-4 py-3 text-left font-semibold text-zinc-600">Edition</th>
+                  <th class="px-4 py-3 text-left font-semibold text-zinc-600">Event Type</th>
+                  <th class="px-4 py-3 text-left font-semibold text-zinc-600">Instruments</th>
+                  <th class="px-4 py-3 text-left font-semibold text-zinc-600">Next Date</th>
+                  <th class="px-4 py-3 text-left font-semibold text-zinc-600">Status</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-zinc-100">
+                <tr *ngFor="let item of upcomingEvents; trackBy: trackByEvent" class="hover:bg-zinc-50">
+                  <td class="px-4 py-3 align-top">
+                    <div class="font-semibold text-zinc-900">{{ item.title }}</div>
+                    <div *ngIf="item.description" class="mt-1 max-w-xl text-xs text-zinc-500">{{ item.description }}</div>
+                  </td>
+                  <td class="px-4 py-3 text-zinc-700">{{ item.event_domain_name || 'No domain' }}</td>
+                  <td class="px-4 py-3 text-zinc-700">{{ item.edition || 'Not set' }}</td>
+                  <td class="px-4 py-3 text-zinc-700">{{ item.event_type_name || 'Not set' }}</td>
+                  <td class="px-4 py-3 text-zinc-700">{{ upcomingEventInstrumentLabel(item) }}</td>
+                  <td class="px-4 py-3 text-zinc-700">{{ item.primary_upcoming_date ? (item.primary_upcoming_date | date:'mediumDate') : 'Not scheduled' }}</td>
+                  <td class="px-4 py-3">
+                    <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold" [ngClass]="upcomingEventStatusClass(item.status)">
+                      {{ upcomingEventStatusLabel(item.status) }}
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <div *ngIf="activeTab === 'request'" class="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
           <section class="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm">
             <div class="border-b border-zinc-200 bg-zinc-50 px-5 py-4">
-              <h3 class="text-lg font-semibold text-zinc-900">Pending Requests</h3>
-              <p class="mt-1 text-sm text-zinc-500">Review open requests submitted by this artist.</p>
+              <h3 class="text-lg font-semibold text-zinc-900">{{ requestTabTitle }}</h3>
+              <p class="mt-1 text-sm text-zinc-500">{{ requestTabDescription }}</p>
             </div>
 
             <div *ngIf="pendingRequests.length === 0" class="px-5 py-12 text-center text-sm text-zinc-500">
-              No pending requests from this artist.
+              No requests available in this section.
             </div>
 
             <div *ngIf="pendingRequests.length > 0" class="divide-y divide-zinc-100">
@@ -555,8 +899,8 @@
                   <div class="mt-2 text-sm text-zinc-600">{{ request.date_summary }}</div>
                 </div>
                 <div class="shrink-0 text-right">
-                  <span class="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-700">
-                    Pending
+                  <span class="inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide" [ngClass]="requestStatusClass(request.status)">
+                    {{ requestStatusLabel(request.status) }}
                   </span>
                   <div class="mt-2 text-xs text-zinc-400">{{ request.created_at | date:'mediumDate' }}</div>
                 </div>
@@ -580,8 +924,8 @@
             <div *ngIf="!requestLoading && selectedRequest" class="space-y-6 p-6">
               <div class="flex flex-wrap items-start justify-between gap-4 border-b border-zinc-100 pb-5">
                 <div>
-                  <div class="inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">
-                    Pending Request
+                  <div class="inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em]" [ngClass]="requestStatusClass(selectedRequest.status)">
+                    {{ requestStatusLabel(selectedRequest.status) }}
                   </div>
                   <h3 class="mt-3 text-2xl font-semibold tracking-tight text-zinc-900">{{ selectedRequest.event_title || 'Untitled Request' }}</h3>
                   <p class="mt-1 text-sm text-zinc-500">{{ selectedRequestSummary?.event_domain_name || 'No domain selected' }}</p>

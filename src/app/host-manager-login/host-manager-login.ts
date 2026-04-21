@@ -4,6 +4,7 @@ import { RouterModule, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { NgIf } from '@angular/common';
 import { AuthService } from '../services/auth.service';
+import { SupabaseService } from '../services/supabase.service';
 
 @Component({
   selector: 'app-host-manager-login',
@@ -13,6 +14,7 @@ import { AuthService } from '../services/auth.service';
 export class HostManagerLogin {
   private authService = inject(AuthService);
   private router = inject(Router);
+  private supabase = inject(SupabaseService);
 
   credentials = {
     email: '',
@@ -22,6 +24,11 @@ export class HostManagerLogin {
   isLoading = false;
   errorMessage = '';
   showPassword = false;
+  showForgotPassword = false;
+  resetEmail = '';
+  resetError = '';
+  resetSuccess = '';
+  isResetting = false;
 
   togglePasswordVisibility() {
     this.showPassword = !this.showPassword;
@@ -63,6 +70,40 @@ export class HostManagerLogin {
     }
 
     this.isLoading = false;
+  }
+
+  async onForgotPassword() {
+    if (!this.resetEmail) {
+      this.resetError = 'Please enter your email address.';
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(this.resetEmail)) {
+      this.resetError = 'Please enter a valid email address.';
+      return;
+    }
+
+    this.isResetting = true;
+    this.resetError = '';
+    this.resetSuccess = '';
+
+    const redirectTo = `${window.location.origin}/auth/callback`;
+    const error = await this.supabase.sendPasswordResetEmail(this.resetEmail, redirectTo);
+
+    if (error) {
+      this.resetError = 'Failed to send reset email. Please try again.';
+    } else {
+      this.resetSuccess = 'Password reset link sent! Check your email.';
+      setTimeout(() => {
+        this.showForgotPassword = false;
+        this.resetEmail = '';
+        this.resetError = '';
+        this.resetSuccess = '';
+      }, 3000);
+    }
+
+    this.isResetting = false;
   }
 
   private mapError(error: string | null): string {

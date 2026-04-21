@@ -23,7 +23,7 @@ export class Events implements OnInit {
   isLoading = true;
   error = '';
   searchQuery = '';
-  showAllPlatform = false;
+  showAllPlatform = true;
 
   items: AdminEventOverviewItem[] = [];
   myArtistIds = new Set<string>();
@@ -73,10 +73,10 @@ export class Events implements OnInit {
         return true;
       });
 
-      this.eventLocationSummaries = this.isHostManager
+      this.eventLocationSummaries = (this.isHostManager || this.isCommitteeMember)
         ? await this.supabase.getEventLocationSummaries(
             this.items.map((item) => item.id),
-            Array.from(this.managedHostIds),
+            this.isHostManager ? Array.from(this.managedHostIds) : undefined,
           )
         : new Map<string, EventLocationSummary>();
     } catch (error) {
@@ -128,6 +128,10 @@ export class Events implements OnInit {
     return this.showAllPlatform ? 'All platform events' : 'My artists only';
   }
 
+  get committeeFilterButtonLabel(): string {
+    return this.showAllPlatform ? 'Filter: My artists only' : 'Filter: All platform events';
+  }
+
   get filteredEvents() {
     const query = this.searchQuery.trim().toLowerCase();
 
@@ -160,7 +164,7 @@ export class Events implements OnInit {
         item.description ?? '',
         item.artist_names.join(' '),
         item.host_names.join(' '),
-        this.locationLabel(item),
+        this.locationSummary(item),
         this.displayStatus(item),
         this.displayHostStatuses(item).join(' '),
       ];
@@ -225,6 +229,54 @@ export class Events implements OnInit {
     return item.artist_names[0] ?? 'Unassigned';
   }
 
+  artistsSummary(item: AdminEventOverviewItem): string {
+    return this.compactSummary(item.artist_names, 'Unassigned');
+  }
+
+  hostsSummary(item: AdminEventOverviewItem): string {
+    return this.compactSummary(item.host_names, 'Unassigned');
+  }
+
+  locationSummary(item: AdminEventOverviewItem): string {
+    if (this.eventLocationSummaries.has(item.id)) {
+      return this.eventLocationSummaries.get(item.id)?.display_label ?? 'Unknown';
+    }
+
+    const fallbacks = [item.city, item.department].filter((value): value is string => !!value);
+    return this.compactSummary(fallbacks, 'Unknown');
+  }
+
+  startDateSummary(item: AdminEventOverviewItem): string {
+    const dates = [...item.selected_dates].sort((left, right) => left.localeCompare(right));
+    if (dates.length === 0) {
+      return 'Not scheduled';
+    }
+
+    const firstDate = dates[0];
+    return dates.length > 1 ? `${firstDate} +${dates.length - 1}` : firstDate;
+  }
+
+  editionLabel(item: AdminEventOverviewItem): string {
+    return (item as AdminEventOverviewItem & { edition?: string | null }).edition || '-';
+  }
+
+  eventTypeNameLabel(item: AdminEventOverviewItem): string {
+    const explicitName = (item as AdminEventOverviewItem & { event_type_name?: string | null }).event_type_name;
+    if (explicitName) {
+      return explicitName;
+    }
+
+    if (item.event_type === 'EVENT_INSTANCE') {
+      return 'Event';
+    }
+
+    if (item.event_type === 'REQUEST') {
+      return 'Request';
+    }
+
+    return item.event_type || '-';
+  }
+
   locationLabel(item: AdminEventOverviewItem): string {
     if (this.isHostManager) {
       return this.eventLocationSummaries.get(item.id)?.display_label ?? 'Unknown';
@@ -234,10 +286,22 @@ export class Events implements OnInit {
   }
 
   async openEvent(item: AdminEventOverviewItem) {
-    if (!this.isHostManager) {
+    if (!this.isHostManager && !this.isCommitteeMember) {
       return;
     }
 
-    await this.router.navigate(['/backoffice/host-manager/events', item.id]);
+    await this.router.navigate([
+      this.isHostManager ? '/backoffice/host-manager/events' : '/backoffice/events',
+      item.id,
+    ]);
+  }
+
+  private compactSummary(values: string[], fallback: string): string {
+    const normalized = values.filter((value) => !!value);
+    if (normalized.length === 0) {
+      return fallback;
+    }
+
+    return normalized.length > 1 ? `${normalized[0]} +${normalized.length - 1}` : normalized[0];
   }
 }

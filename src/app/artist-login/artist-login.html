@@ -1,110 +1,189 @@
-<div class="min-h-screen bg-zinc-100">
-  <div class="mx-auto flex min-h-screen w-full max-w-md items-center px-6 py-12">
-    <div class="w-full rounded-2xl border border-zinc-200 bg-white p-8 shadow-sm">
-      <div class="mb-8">
-        <p class="text-sm font-semibold uppercase tracking-[0.24em] text-red-600">Artist Workspace</p>
-        <h1 class="mt-3 text-3xl font-bold text-zinc-900">{{ showForgotPassword ? 'Reset Password' : 'Artist Login' }}</h1>
-        <p class="mt-2 text-sm text-zinc-500">
-          {{ showForgotPassword ? 'Enter your email to receive a password reset link.' : 'Sign in to manage your profile, media, requests, availability, and events.' }}
-        </p>
-      </div>
+<div class="relative min-h-screen overflow-hidden bg-gradient-to-br from-red-50 via-white to-rose-50">
+  <!-- Decorative background elements -->
+  <div class="absolute inset-0 overflow-hidden">
+    <div class="absolute -left-4 top-0 h-72 w-72 rounded-full bg-red-100 opacity-20 blur-3xl"></div>
+    <div class="absolute -right-4 bottom-0 h-96 w-96 rounded-full bg-rose-100 opacity-20 blur-3xl"></div>
+  </div>
 
-      <!-- Forgot Password View -->
-      <div *ngIf="showForgotPassword" class="space-y-5">
-        <div *ngIf="forgotError" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {{ forgotError }}
-        </div>
-        <div *ngIf="forgotMessage" class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-          {{ forgotMessage }}
-        </div>
-
-        <div class="space-y-2">
-          <label for="forgot-email" class="text-sm font-medium text-zinc-700">Email Address</label>
-          <input
-            id="forgot-email"
-            name="forgotEmail"
-            type="email"
-            [(ngModel)]="forgotEmail"
-            class="w-full rounded-xl border border-zinc-300 px-4 py-3 text-sm text-zinc-900 outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100"
-            placeholder="artist@example.com"
-          />
-        </div>
-
-        <button
-          type="button"
-          (click)="onForgotPassword()"
-          [disabled]="forgotLoading"
-          class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <svg *ngIf="forgotLoading" class="mr-2 h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+  <div class="relative mx-auto flex min-h-screen w-full max-w-md items-center px-6 py-12">
+    <div class="w-full">
+      <!-- Logo/Brand Section -->
+      <div class="mb-8 text-center">
+        <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-red-500 to-rose-600 shadow-lg shadow-red-500/30">
+          <svg class="h-8 w-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/>
           </svg>
-          {{ forgotLoading ? 'Sending...' : 'Send Reset Link' }}
-        </button>
-
-        <div class="text-center">
-          <button type="button" (click)="toggleForgotPassword()" class="text-sm text-zinc-500 hover:text-red-600 transition-colors">
-            ← Back to login
-          </button>
         </div>
+        <h1 class="text-3xl font-bold text-zinc-900">Artist Portal</h1>
+        <p class="mt-2 text-sm text-zinc-600">Welcome back! Manage your artistic journey</p>
       </div>
 
-      <!-- Login Form -->
-      <form *ngIf="!showForgotPassword" class="space-y-5" (ngSubmit)="onSubmit()">
-        <div class="space-y-2">
-          <label for="artist-email" class="text-sm font-medium text-zinc-700">Email</label>
-          <input
-            id="artist-email"
-            name="email"
-            type="email"
-            [(ngModel)]="credentials.email"
-            class="w-full rounded-xl border border-zinc-300 px-4 py-3 text-sm text-zinc-900 outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100"
-            placeholder="artist@example.com"
-          />
-        </div>
-
-        <div class="space-y-2">
-          <div class="flex items-center justify-between">
-            <label for="artist-password" class="text-sm font-medium text-zinc-700">Password</label>
+      <!-- Login Card -->
+      <div class="rounded-3xl border border-zinc-200/60 bg-white/80 p-8 shadow-xl shadow-zinc-900/5 backdrop-blur-sm">
+        <form *ngIf="!showForgotPassword" class="space-y-5" (ngSubmit)="onSubmit()">
+          <!-- Email Field -->
+          <div class="space-y-2">
+            <label for="artist-email" class="block text-sm font-semibold text-zinc-700">Email Address</label>
+            <div class="relative">
+              <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
+                <svg class="h-5 w-5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207"/>
+                </svg>
+              </div>
+              <input
+                id="artist-email"
+                name="email"
+                type="email"
+                [(ngModel)]="credentials.email"
+                class="w-full rounded-xl border border-zinc-300 bg-white py-3 pl-12 pr-4 text-sm text-zinc-900 placeholder-zinc-400 outline-none transition-all focus:border-red-500 focus:ring-4 focus:ring-red-500/10"
+                placeholder="artist@example.com"
+              />
+            </div>
           </div>
-          <div class="relative">
-            <input
-              id="artist-password"
-              name="password"
-              [type]="showPassword ? 'text' : 'password'"
-              [(ngModel)]="credentials.password"
-              class="w-full rounded-xl border border-zinc-300 px-4 py-3 pr-12 text-sm text-zinc-900 outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100"
-              placeholder="Enter your password"
-            />
+
+          <!-- Password Field -->
+          <div class="space-y-2">
+            <label for="artist-password" class="block text-sm font-semibold text-zinc-700">Password</label>
+            <div class="relative">
+              <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
+                <svg class="h-5 w-5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                </svg>
+              </div>
+              <input
+                id="artist-password"
+                name="password"
+                [type]="showPassword ? 'text' : 'password'"
+                [(ngModel)]="credentials.password"
+                class="w-full rounded-xl border border-zinc-300 bg-white py-3 pl-12 pr-12 text-sm text-zinc-900 placeholder-zinc-400 outline-none transition-all focus:border-red-500 focus:ring-4 focus:ring-red-500/10"
+                placeholder="Enter your password"
+              />
+              <button
+                type="button"
+                (click)="togglePasswordVisibility()"
+                class="absolute inset-y-0 right-0 flex items-center pr-4 text-zinc-400 transition-colors hover:text-zinc-600"
+              >
+                <svg *ngIf="!showPassword" class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                </svg>
+                <svg *ngIf="showPassword" class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Forgot Password Link -->
+          <div class="flex items-center justify-end">
             <button
               type="button"
-              (click)="togglePasswordVisibility()"
-              class="absolute inset-y-0 right-3 flex items-center text-zinc-400 transition-colors hover:text-zinc-600"
+              (click)="toggleForgotPassword()"
+              class="text-sm font-medium text-red-600 transition-colors hover:text-red-700"
             >
-              <span class="text-xs font-medium">{{ showPassword ? 'Hide' : 'Show' }}</span>
+              Forgot password?
+            </button>
+          </div>
+
+          <!-- Error Message -->
+          <div *ngIf="errorMessage" class="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+            <svg class="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <p class="text-sm text-red-700">{{ errorMessage }}</p>
+          </div>
+
+          <!-- Submit Button -->
+          <button
+            type="submit"
+            [disabled]="isLoading"
+            class="group relative w-full overflow-hidden rounded-xl bg-gradient-to-r from-red-600 to-rose-600 px-4 py-3.5 text-sm font-semibold text-white shadow-lg shadow-red-500/30 transition-all hover:shadow-xl hover:shadow-red-500/40 disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none"
+          >
+            <span class="relative z-10 flex items-center justify-center gap-2">
+              <svg *ngIf="isLoading" class="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span>{{ isLoading ? 'Signing in...' : 'Sign in to Artist Portal' }}</span>
+            </span>
+            <div class="absolute inset-0 -z-0 bg-gradient-to-r from-red-700 to-rose-700 opacity-0 transition-opacity group-hover:opacity-100"></div>
+          </button>
+        </form>
+
+        <!-- Forgot Password Form -->
+        <div *ngIf="showForgotPassword" class="space-y-5">
+          <div class="mb-6 text-center">
+            <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-red-100">
+              <svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+              </svg>
+            </div>
+            <h2 class="text-xl font-bold text-zinc-900">Reset Password</h2>
+            <p class="mt-1 text-sm text-zinc-600">Enter your email to receive a reset link</p>
+          </div>
+
+          <div class="space-y-2">
+            <label for="forgot-email" class="block text-sm font-semibold text-zinc-700">Email Address</label>
+            <div class="relative">
+              <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
+                <svg class="h-5 w-5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207"/>
+                </svg>
+              </div>
+              <input
+                id="forgot-email"
+                name="forgotEmail"
+                type="email"
+                [(ngModel)]="forgotEmail"
+                class="w-full rounded-xl border border-zinc-300 bg-white py-3 pl-12 pr-4 text-sm text-zinc-900 placeholder-zinc-400 outline-none transition-all focus:border-red-500 focus:ring-4 focus:ring-red-500/10"
+                placeholder="artist@example.com"
+              />
+            </div>
+          </div>
+
+          <div *ngIf="forgotError" class="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+            <svg class="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <p class="text-sm text-red-700">{{ forgotError }}</p>
+          </div>
+
+          <div *ngIf="forgotMessage" class="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+            <svg class="mt-0.5 h-5 w-5 flex-shrink-0 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <p class="text-sm text-emerald-700">{{ forgotMessage }}</p>
+          </div>
+
+          <div class="flex gap-3">
+            <button
+              type="button"
+              (click)="toggleForgotPassword()"
+              class="flex-1 rounded-xl border border-zinc-300 bg-white px-4 py-3 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50"
+            >
+              Back to Login
+            </button>
+            <button
+              type="button"
+              (click)="onForgotPassword()"
+              [disabled]="forgotLoading"
+              class="flex-1 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-red-500/30 transition-all hover:shadow-xl hover:shadow-red-500/40 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {{ forgotLoading ? 'Sending...' : 'Send Reset Link' }}
             </button>
           </div>
         </div>
+      </div>
 
-        <div class="text-right">
-          <button type="button" (click)="toggleForgotPassword()" class="text-sm text-zinc-500 hover:text-red-600 transition-colors">
-            Forgot password?
-          </button>
-        </div>
-
-        <div *ngIf="errorMessage" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {{ errorMessage }}
-        </div>
-
-        <button
-          type="submit"
-          [disabled]="isLoading"
-          class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {{ isLoading ? 'Signing in...' : 'Sign in' }}
-        </button>
-      </form>
+      <!-- Footer Links -->
+      <div class="mt-6 text-center">
+        <p class="text-sm text-zinc-600">
+          Need help?
+          <a href="mailto:support@tjs.com" class="font-medium text-red-600 transition-colors hover:text-red-700">
+            Contact Support
+          </a>
+        </p>
+      </div>
     </div>
   </div>
 </div>

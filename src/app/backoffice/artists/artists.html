@@ -1,12 +1,8 @@
 <div class="space-y-6">
   <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
     <div>
-      <h1 class="text-2xl font-bold text-zinc-900">{{ isCommittee ? 'My Artists' : 'Artists' }}</h1>
-      <p class="mt-0.5 text-sm text-zinc-500">
-        {{ isCommittee
-          ? 'Track the artists assigned to you, including activation status and visibility flags.'
-          : 'Manage TJS and invited artists, and assign committee owners where needed.' }}
-      </p>
+      <h1 class="text-2xl font-bold text-zinc-900">{{ pageTitle }}</h1>
+      <p class="mt-0.5 text-sm text-zinc-500">{{ pageDescription }}</p>
     </div>
     <button
       *ngIf="canManageArtists"
@@ -62,7 +58,7 @@
     </div>
   </div>
 
-  <div *ngIf="!isCommittee" class="flex w-fit gap-1 rounded-lg bg-zinc-100 p-1">
+  <div *ngIf="showArtistTabs" class="flex w-fit gap-1 rounded-lg bg-zinc-100 p-1">
     <button
       (click)="setTab('tjs')"
       [class.bg-white]="activeTab === 'tjs'"
@@ -137,7 +133,7 @@
             class="transition-colors hover:bg-zinc-50"
             [class.bg-amber-50/30]="artist.is_featured"
             [class.bg-red-50/20]="needsAssignment(artist) && !isCommittee"
-            [class.cursor-pointer]="isCommittee"
+            [class.cursor-pointer]="canOpenArtistDetail(artist)"
             (click)="openArtistDetail(artist)"
           >
             <td class="px-6 py-4">
@@ -148,6 +144,9 @@
                 <div class="space-y-1">
                   <p class="font-medium text-zinc-900">{{ displayName(artist) }}</p>
                   <p *ngIf="artist.profile?.phone" class="text-xs text-zinc-400">{{ artist.profile?.phone }}</p>
+                  <span *ngIf="isCommittee && activeTab === 'invited' && !canOpenArtistDetail(artist)" class="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-600">
+                    Details available after activation
+                  </span>
                   <span *ngIf="needsAssignment(artist) && !isCommittee" class="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">
                     Assignment required
                   </span>

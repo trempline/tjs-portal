@@ -110,6 +110,10 @@ export class Artists implements OnInit {
     return this.authService.hasRole('Committee Member');
   }
 
+  get isHostManagerWorkspace(): boolean {
+    return this.authService.isHostManager && this.router.url.includes('/host-manager/artists/tjs');
+  }
+
   get canManageArtists(): boolean {
     return this.isAdmin || this.isCommittee;
   }
@@ -130,10 +134,42 @@ export class Artists implements OnInit {
     return this.activeTab === 'invited' ? 'Invite Invited Artist' : 'Invite Artist';
   }
 
+  get pageTitle(): string {
+    if (this.isHostManagerWorkspace) {
+      return 'TJS Artists';
+    }
+
+    if (this.isCommittee && this.activeTab === 'invited') {
+      return 'Invited Artists';
+    }
+
+    return this.isCommittee ? 'My Artists' : 'Artists';
+  }
+
+  get pageDescription(): string {
+    if (this.isHostManagerWorkspace) {
+      return 'Review the TJS artist directory and open each artist profile for requests, availability, media, and upcoming events.';
+    }
+
+    if (this.isCommittee && this.activeTab === 'invited') {
+      return 'Review all invited artists in tabular format. Activated invited artists can be opened for the full profile details.';
+    }
+
+    return this.isCommittee
+      ? 'Track the artists assigned to you, including activation status and visibility flags.'
+      : 'Manage TJS and invited artists, and assign committee owners where needed.';
+  }
+
+  get showArtistTabs(): boolean {
+    return !this.isCommittee && !this.isHostManagerWorkspace;
+  }
+
   async ngOnInit() {
     // Set activeTab based on route
     const url = this.router.url;
-    if (url.includes('/artists/invited')) {
+    if (this.isHostManagerWorkspace) {
+      this.activeTab = 'tjs';
+    } else if (url.includes('/artists/invited')) {
       this.activeTab = 'invited';
     } else {
       this.activeTab = 'tjs';
@@ -143,19 +179,24 @@ export class Artists implements OnInit {
   }
 
   async openArtistDetail(artist: TjsArtist) {
-    if (!this.isCommittee || !artist.profile_id) {
+    if ((!this.isCommittee && !this.isHostManagerWorkspace) || !this.canOpenArtistDetail(artist)) {
       return;
     }
-    await this.router.navigate(['/backoffice/artists', artist.id]);
+
+    await this.router.navigate(
+      this.isHostManagerWorkspace
+        ? ['/backoffice/host-manager/artists/tjs', artist.id]
+        : ['/backoffice/artists', artist.id]
+    );
   }
 
   private async loadData() {
     this.isLoading = true;
     this.error = '';
 
-    const artistScope = this.isAdmin || !this.currentUserId
+    const artistScope = this.isAdmin || this.isHostManagerWorkspace || !this.currentUserId
       ? undefined
-      : this.isCommittee && this.activeTab === 'tjs'
+      : this.isCommittee
         ? undefined
         : { committeeMemberId: this.currentUserId };
 
@@ -167,6 +208,18 @@ export class Artists implements OnInit {
     this.allArtists = artists;
     this.committeeMembers = committeeMembers;
     this.isLoading = false;
+  }
+
+  canOpenArtistDetail(artist: TjsArtist): boolean {
+    if (!artist.profile_id) {
+      return false;
+    }
+
+    if (this.isCommittee && this.activeTab === 'invited') {
+      return artist.activation_status === 'active';
+    }
+
+    return this.isCommittee || this.isHostManagerWorkspace;
   }
 
   async toggleFeatured(artist: TjsArtist) {

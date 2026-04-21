@@ -180,8 +180,18 @@ export class AuthService {
   }
 
   async signOut(): Promise<void> {
+    const logoutRoute = this.isCommitteeMember
+      ? '/committee-login'
+      : this.isHostManager
+        ? '/host-manager-login'
+        : this.hasAnyRole(['Host', 'Host+'])
+          ? '/host-login'
+          : this.isArtist
+            ? '/artist-login'
+            : '/admin';
+
     await this.supabaseService.signOut();
-    this.router.navigate(['/admin']);
+    this.router.navigate([logoutRoute]);
   }
 
   async waitForAuthReady(maxAttempts = 50, delayMs = 100): Promise<void> {

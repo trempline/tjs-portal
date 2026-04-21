@@ -77,4 +77,8 @@ export class PublicEventDetailComponent implements OnInit {
   toggleSchedules() {
     this.showAllSchedules = !this.showAllSchedules;
   }
+
+  get hasCallToAction(): boolean {
+    return !!this.event?.call_to_action_url?.trim();
+  }
 }

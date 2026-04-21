@@ -39,7 +39,7 @@
                 <polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/>
                 <line x1="9" y1="15" x2="15" y2="15"/>
               </svg>
-              <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Event Requests</span>
+              <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Artist Requests</span>
             </a>
           </li>
           <li>
@@ -467,7 +467,7 @@
                 <path d="M5 21V7l8-4 8 4v14"/>
                 <path d="M17 21v-8.5a1.5 1.5 0 0 0-1.5-1.5h-5a1.5 1.5 0 0 0-1.5 1.5V21"/>
               </svg>
-              <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">My Hosts</span>
+              <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">My TJS Hosts</span>
             </a>
           </li>
           <li>
@@ -562,6 +562,18 @@
                 </a>
               </li>
             </ul>
+          </li>
+          <li>
+            <a
+              routerLink="/backoffice/host-manager/messages"
+              routerLinkActive="bg-zinc-700 text-white"
+              class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+            >
+              <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              </svg>
+              <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Message Center</span>
+            </a>
           </li>
           <li><div class="mx-3 my-2 border-t border-zinc-700"></div></li>
           <li>

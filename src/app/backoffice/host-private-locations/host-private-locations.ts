@@ -7,6 +7,7 @@ import {
   LocationLookupOption,
   SaveTjsPrivateLocationInput,
   SupabaseService,
+  TjsHost,
   TjsPrivateLocation,
 } from '../../services/supabase.service';
 
@@ -55,6 +56,7 @@ export class HostPrivateLocations implements OnInit {
   selectedSpecId = '';
 
   locations: TjsPrivateLocation[] = [];
+  accessibleHosts: TjsHost[] = [];
   amenityOptions: LocationLookupOption[] = [];
   specOptions: LocationLookupOption[] = [];
   typeOptions: LocationLookupOption[] = [];
@@ -66,7 +68,23 @@ export class HostPrivateLocations implements OnInit {
   }
 
   get detailRoutePrefix(): string {
-    return '/backoffice/host/locations/my';
+    return this.authService.isHostManager
+      ? '/backoffice/host-manager/locations/private'
+      : '/backoffice/host/locations/my';
+  }
+
+  get pageTitle(): string {
+    return this.authService.isHostManager ? 'Private Locations' : 'My Locations';
+  }
+
+  get pageDescription(): string {
+    return this.authService.isHostManager
+      ? 'Manage private locations across your assigned hosts from this workspace.'
+      : 'Manage your private host locations from this workspace.';
+  }
+
+  get isHostManagerWorkspace(): boolean {
+    return this.authService.isHostManager;
   }
 
   get filteredLocations(): TjsPrivateLocation[] {
@@ -93,13 +111,14 @@ export class HostPrivateLocations implements OnInit {
 
     try {
       const [hosts, locations, amenityOptions, specOptions, typeOptions] = await Promise.all([
-        this.supabase.getMyHosts(this.currentUserId),
+        this.supabase.getAccessibleHosts(this.currentUserId),
         this.supabase.getPrivateLocations(this.currentUserId),
         this.supabase.listLocationAmenities(),
         this.supabase.listLocationSpecs(),
         this.supabase.listLocationTypes(),
       ]);
 
+      this.accessibleHosts = hosts;
       this.currentHostId = hosts[0]?.id ?? null;
       this.locations = locations;
       this.amenityOptions = amenityOptions;
@@ -365,12 +384,24 @@ export class HostPrivateLocations implements OnInit {
     return location.id;
   }
 
+  trackByHost(_: number, host: TjsHost) {
+    return host.id;
+  }
+
   trackByOption(_: number, option: LocationLookupOption) {
     return option.id;
   }
 
   trackByImage(index: number, imageUrl: string) {
     return `${index}:${imageUrl}`;
+  }
+
+  hostNameForLocation(location: TjsPrivateLocation): string {
+    return this.accessibleHosts.find((host) => host.id === location.id_host)?.name || `Host #${location.id_host}`;
+  }
+
+  onHostSelected(hostId: number | null) {
+    this.currentHostId = typeof hostId === 'number' ? hostId : null;
   }
 
   private blankForm(): LocationForm {

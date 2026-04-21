@@ -28,7 +28,7 @@
     <section class="overflow-hidden rounded-[2rem] border border-orange-100 bg-[linear-gradient(145deg,#fff3e6_0%,#fffdfa_42%,#eef6ff_100%)] shadow-sm">
       <div class="grid gap-6 p-6 lg:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
         <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.28em] text-red-600">Host Event</p>
+          <p class="text-xs font-semibold uppercase tracking-[0.28em] text-red-600">{{ isCommitteeMember ? 'Committee Event View' : 'Host Event' }}</p>
           <h2 class="mt-3 text-3xl font-semibold tracking-tight text-zinc-900">{{ detailTitle }}</h2>
           <p class="mt-2 max-w-2xl text-sm leading-6 text-zinc-600">{{ detailTeaser }}</p>
           <div class="mt-5 flex flex-wrap gap-3">
@@ -38,10 +38,13 @@
             <span class="inline-flex rounded-full border px-4 py-2 text-sm font-medium shadow-sm" [class.border-blue-200]="event.is_featured" [class.bg-blue-50]="event.is_featured" [class.text-blue-700]="event.is_featured" [class.border-zinc-200]="!event.is_featured" [class.bg-zinc-100]="!event.is_featured" [class.text-zinc-700]="!event.is_featured">
               Featured: {{ event.is_featured ? 'Active' : 'Inactive' }}
             </span>
+            <span *ngIf="isCommitteeMember" class="inline-flex rounded-full border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 shadow-sm">
+              Read only
+            </span>
           </div>
         </div>
 
-        <div class="rounded-3xl border border-white/70 bg-white/85 p-5 shadow-sm backdrop-blur">
+        <div *ngIf="canEditEvent; else committeeSummaryCard" class="rounded-3xl border border-white/70 bg-white/85 p-5 shadow-sm backdrop-blur">
           <div class="space-y-4">
             <button
               type="button"
@@ -74,6 +77,12 @@
             </button>
           </div>
         </div>
+        <ng-template #committeeSummaryCard>
+          <div class="rounded-3xl border border-white/70 bg-white/85 p-5 shadow-sm backdrop-blur">
+            <h3 class="text-sm font-semibold uppercase tracking-[0.14em] text-zinc-500">Access</h3>
+            <p class="mt-3 text-sm leading-6 text-zinc-600">This workspace is read-only for event data. You can review the event and add committee comments.</p>
+          </div>
+        </ng-template>
       </div>
     </section>
 
@@ -102,11 +111,12 @@
       <div class="border-b border-zinc-200 bg-zinc-50/80 px-6 py-4">
         <div class="flex flex-wrap gap-2">
           <button type="button" (click)="setTab('details')" [class.bg-zinc-900]="activeTab === 'details'" [class.text-white]="activeTab === 'details'" class="rounded-full bg-white px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100">Details</button>
-          <button type="button" (click)="setTab('host-notes')" [class.bg-zinc-900]="activeTab === 'host-notes'" [class.text-white]="activeTab === 'host-notes'" class="rounded-full bg-white px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100">Host Notes</button>
+          <button *ngIf="shouldShowHostNotes" type="button" (click)="setTab('host-notes')" [class.bg-zinc-900]="activeTab === 'host-notes'" [class.text-white]="activeTab === 'host-notes'" class="rounded-full bg-white px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100">Host Notes</button>
           <button type="button" (click)="setTab('artists')" [class.bg-zinc-900]="activeTab === 'artists'" [class.text-white]="activeTab === 'artists'" class="rounded-full bg-white px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100">Artists</button>
           <button type="button" (click)="setTab('show-dates')" [class.bg-zinc-900]="activeTab === 'show-dates'" [class.text-white]="activeTab === 'show-dates'" class="rounded-full bg-white px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100">Show Dates</button>
           <button type="button" (click)="setTab('media')" [class.bg-zinc-900]="activeTab === 'media'" [class.text-white]="activeTab === 'media'" class="rounded-full bg-white px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100">Media</button>
           <button type="button" (click)="setTab('images')" [class.bg-zinc-900]="activeTab === 'images'" [class.text-white]="activeTab === 'images'" class="rounded-full bg-white px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100">Images</button>
+          <button *ngIf="canCommentOnEvent" type="button" (click)="setTab('comments')" [class.bg-zinc-900]="activeTab === 'comments'" [class.text-white]="activeTab === 'comments'" class="rounded-full bg-white px-4 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100">Comments</button>
         </div>
       </div>
 
@@ -115,11 +125,11 @@
           <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h3 class="text-lg font-semibold text-zinc-900">Event Details</h3>
-              <p class="mt-1 text-sm text-zinc-500">Update the event metadata and public-facing story for this host event.</p>
+              <p class="mt-1 text-sm text-zinc-500">{{ canEditEvent ? 'Update the event metadata and public-facing story for this host event.' : 'Review the event metadata and public-facing story for this event.' }}</p>
             </div>
             <div class="flex flex-wrap gap-3">
               <button
-                *ngIf="!isEditingDetails"
+                *ngIf="!isEditingDetails && canEditEvent"
                 type="button"
                 (click)="startEditingDetails()"
                 class="inline-flex items-center justify-center rounded-2xl bg-zinc-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-zinc-800"
@@ -127,7 +137,7 @@
                 Edit
               </button>
               <button
-                *ngIf="isEditingDetails"
+                *ngIf="isEditingDetails && canEditEvent"
                 type="button"
                 (click)="saveDetails()"
                 [disabled]="isUpdating"
@@ -136,7 +146,7 @@
                 {{ isUpdating ? 'Updating...' : 'Update' }}
               </button>
               <button
-                *ngIf="isEditingDetails"
+                *ngIf="isEditingDetails && canEditEvent"
                 type="button"
                 (click)="cancelEditingDetails()"
                 [disabled]="isUpdating"
@@ -191,10 +201,16 @@
               <label class="text-sm font-medium text-zinc-700">Description</label>
               <textarea [(ngModel)]="detailForm.description" [disabled]="!isEditingDetails" rows="8" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none disabled:cursor-not-allowed disabled:bg-zinc-50 disabled:text-zinc-500 focus:border-red-500 focus:ring-2 focus:ring-red-100"></textarea>
             </div>
+
+            <div class="md:col-span-2">
+              <label class="text-sm font-medium text-zinc-700">Call to Action</label>
+              <input [(ngModel)]="detailForm.callToActionUrl" [disabled]="!isEditingDetails" type="url" placeholder="https://booking.example.com" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none disabled:cursor-not-allowed disabled:bg-zinc-50 disabled:text-zinc-500 focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+              <div class="mt-1 text-xs text-zinc-400">Booking URL shown as a button on the public event page.</div>
+            </div>
           </div>
         </div>
 
-        <div *ngIf="activeTab === 'host-notes'" class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+        <div *ngIf="activeTab === 'host-notes' && shouldShowHostNotes" class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
           <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h3 class="text-lg font-semibold text-zinc-900">Host Notes</h3>
@@ -202,7 +218,7 @@
             </div>
             <div class="flex flex-wrap gap-3">
               <button
-                *ngIf="!isEditingHostNotes"
+                *ngIf="!isEditingHostNotes && canEditEvent"
                 type="button"
                 (click)="startEditingHostNotes()"
                 class="inline-flex items-center justify-center rounded-2xl bg-zinc-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-zinc-800"
@@ -210,7 +226,7 @@
                 Edit
               </button>
               <button
-                *ngIf="isEditingHostNotes"
+                *ngIf="isEditingHostNotes && canEditEvent"
                 type="button"
                 (click)="saveDetails()"
                 [disabled]="isUpdating"
@@ -219,7 +235,7 @@
                 {{ isUpdating ? 'Updating...' : 'Update' }}
               </button>
               <button
-                *ngIf="isEditingHostNotes"
+                *ngIf="isEditingHostNotes && canEditEvent"
                 type="button"
                 (click)="cancelEditingHostNotes()"
                 [disabled]="isUpdating"
@@ -283,11 +299,11 @@
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h3 class="text-lg font-semibold text-zinc-900">Show Dates</h3>
-                <p class="mt-1 text-sm text-zinc-500">Manage event dates, show time, and location for this host event.</p>
+                <p class="mt-1 text-sm text-zinc-500">{{ canEditEvent ? 'Manage event dates, show time, and location for this host event.' : 'Review event dates, show time, and location for this event.' }}</p>
               </div>
               <div class="flex flex-wrap gap-3">
                 <button
-                  *ngIf="!isEditingSchedule"
+                  *ngIf="!isEditingSchedule && canEditEvent"
                   type="button"
                   (click)="startEditingSchedule()"
                   class="inline-flex items-center justify-center rounded-2xl bg-zinc-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-zinc-800"
@@ -295,7 +311,7 @@
                   Edit
                 </button>
                 <button
-                  *ngIf="isEditingSchedule"
+                  *ngIf="isEditingSchedule && canEditEvent"
                   type="button"
                   (click)="saveSchedule()"
                   [disabled]="isUpdating"
@@ -304,7 +320,7 @@
                   {{ isUpdating ? 'Updating...' : 'Update' }}
                 </button>
                 <button
-                  *ngIf="isEditingSchedule"
+                  *ngIf="isEditingSchedule && canEditEvent"
                   type="button"
                   (click)="cancelEditingSchedule()"
                   [disabled]="isUpdating"
@@ -443,6 +459,7 @@
                       <option *ngFor="let location of publicLocations; trackBy: trackByLocationId" [ngValue]="location.id">{{ locationLabel(location) }}</option>
                     </optgroup>
                   </select>
+                  <div class="mt-2 text-xs text-zinc-400">Private venues remain selectable here. Public venues are stored directly on the event record.</div>
                 </div>
               </div>
             </div>
@@ -484,7 +501,7 @@
               <h3 class="text-lg font-semibold text-zinc-900">Event Image</h3>
               <p class="mt-1 text-sm text-zinc-500">This tab shows only the request image used as the event image.</p>
             </div>
-            <label class="inline-flex cursor-pointer items-center justify-center rounded-2xl bg-zinc-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-zinc-800">
+            <label *ngIf="canEditEvent" class="inline-flex cursor-pointer items-center justify-center rounded-2xl bg-zinc-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-zinc-800">
               {{ isImageUploading ? 'Replacing...' : (eventImageUrl ? 'Replace Image' : 'Upload Image') }}
               <input type="file" accept="image/*" class="hidden" (change)="onEventImageSelected($event)" />
             </label>
@@ -494,6 +511,43 @@
           </div>
           <div *ngIf="eventImageUrl" class="mt-5 overflow-hidden rounded-3xl border border-zinc-200 bg-zinc-50">
             <img [src]="eventImageUrl" alt="Event image" class="h-80 w-full object-cover" />
+          </div>
+        </div>
+
+        <div *ngIf="activeTab === 'comments' && canCommentOnEvent" class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <div>
+            <h3 class="text-lg font-semibold text-zinc-900">Comments</h3>
+            <p class="mt-1 text-sm text-zinc-500">Add committee comments to the event discussion thread.</p>
+          </div>
+
+          <div class="mt-6">
+            <label class="text-sm font-medium text-zinc-700">New Comment</label>
+            <textarea [(ngModel)]="commentDraft" rows="4" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100"></textarea>
+            <div class="mt-4 flex justify-end">
+              <button
+                type="button"
+                (click)="submitComment()"
+                [disabled]="isSubmittingComment || !commentDraft.trim()"
+                class="inline-flex items-center justify-center rounded-2xl bg-zinc-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {{ isSubmittingComment ? 'Posting...' : 'Post Comment' }}
+              </button>
+            </div>
+          </div>
+
+          <div *ngIf="(event.request_detail?.comments?.length ?? 0) === 0" class="mt-6 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-8 text-center text-sm text-zinc-500">
+            No comments yet.
+          </div>
+
+          <div *ngIf="(event.request_detail?.comments?.length ?? 0) > 0" class="mt-6 space-y-3">
+            <div *ngFor="let comment of event.request_detail?.comments" class="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-4">
+              <div class="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+                <span class="font-semibold text-zinc-800">{{ comment.author_name }}</span>
+                <span *ngIf="comment.author_role">{{ comment.author_role }}</span>
+                <span>{{ comment.created_at | date:'dd/MM/yyyy HH:mm' }}</span>
+              </div>
+              <p class="mt-3 whitespace-pre-wrap text-sm leading-6 text-zinc-700">{{ comment.body }}</p>
+            </div>
           </div>
         </div>
       </div>

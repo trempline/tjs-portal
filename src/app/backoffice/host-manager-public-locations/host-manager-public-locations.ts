@@ -76,6 +76,10 @@ export class HostManagerPublicLocations implements OnInit {
     return '/backoffice/host/locations/public';
   }
 
+  get canManageLocations(): boolean {
+    return this.authService.isCommitteeMember || this.authService.isHostManager;
+  }
+
   get filteredLocations(): TjsLocation[] {
     const query = this.searchQuery.trim().toLowerCase();
     if (!query) {
@@ -116,6 +120,10 @@ export class HostManagerPublicLocations implements OnInit {
   }
 
   openCreateForm() {
+    if (!this.canManageLocations) {
+      return;
+    }
+
     this.error = '';
     this.successMessage = '';
     this.isEditing = true;
@@ -126,6 +134,10 @@ export class HostManagerPublicLocations implements OnInit {
   }
 
   openEditForm(location: TjsLocation) {
+    if (!this.canManageLocations) {
+      return;
+    }
+
     this.error = '';
     this.successMessage = '';
     this.isEditing = true;
@@ -164,6 +176,11 @@ export class HostManagerPublicLocations implements OnInit {
   }
 
   async saveLocation() {
+    if (!this.canManageLocations) {
+      this.error = 'You can view public locations, but only host managers and committee members can manage them.';
+      return;
+    }
+
     if (!this.form.name.trim()) {
       this.error = 'Location name is required.';
       return;
@@ -217,6 +234,10 @@ export class HostManagerPublicLocations implements OnInit {
   }
 
   async deleteLocation(location: TjsLocation) {
+    if (!this.canManageLocations) {
+      return;
+    }
+
     if (!window.confirm(`Delete "${location.name}"?`)) {
       return;
     }
@@ -331,7 +352,9 @@ export class HostManagerPublicLocations implements OnInit {
   }
 
   private get filterOwnerId(): string | undefined {
-    return this.authService.isCommitteeMember ? undefined : this.currentUserId;
+    return this.authService.isCommitteeMember || this.authService.isHostManager
+      ? undefined
+      : this.currentUserId;
   }
 
   private blankForm(): LocationForm {

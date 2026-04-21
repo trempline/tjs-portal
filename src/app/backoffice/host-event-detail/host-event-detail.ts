@@ -20,6 +20,7 @@ interface HostEventDetailForm {
   eventTypeId: number | null;
   teaser: string;
   description: string;
+  callToActionUrl: string;
   hostNotes: string;
 }
 
@@ -53,10 +54,12 @@ export class HostEventDetail implements OnInit {
   isEditingDetails = false;
   isEditingHostNotes = false;
   isEditingSchedule = false;
+  isSubmittingComment = false;
   error = '';
   successMessage = '';
   event: HostWorkspaceEventDetail | null = null;
-  activeTab: 'details' | 'host-notes' | 'artists' | 'show-dates' | 'media' | 'images' = 'details';
+  activeTab: 'details' | 'host-notes' | 'artists' | 'show-dates' | 'media' | 'images' | 'comments' = 'details';
+  commentDraft = '';
   eventDomains: Array<{ id: number; name: string }> = [];
   editionOptions: EventEditionOption[] = [];
   eventTypeOptions: EventTypeOption[] = [];
@@ -69,6 +72,7 @@ export class HostEventDetail implements OnInit {
     eventTypeId: null,
     teaser: '',
     description: '',
+    callToActionUrl: '',
     hostNotes: '',
   };
   scheduleForm: HostEventScheduleForm = {
@@ -96,11 +100,13 @@ export class HostEventDetail implements OnInit {
 
     try {
       const [event, eventDomains, editionOptions, eventTypeOptions, privateLocations, publicLocations] = await Promise.all([
-        this.supabase.getHostWorkspaceEventDetail(profileId, eventId),
+        this.isCommitteeMember
+          ? this.supabase.getCommitteeWorkspaceEventDetail(eventId)
+          : this.supabase.getHostWorkspaceEventDetail(profileId, eventId),
         this.supabase.listEventDomains(),
         this.supabase.listConcreteEventEditionOptions(),
         this.supabase.listEventTypeOptions(),
-        this.supabase.getPrivateLocations(profileId),
+        this.canEditEvent ? this.supabase.getPrivateLocations(profileId) : Promise.resolve([]),
         this.supabase.getPublicLocations(),
       ]);
 
@@ -127,8 +133,24 @@ export class HostEventDetail implements OnInit {
     this.location.back();
   }
 
-  setTab(tab: 'details' | 'host-notes' | 'artists' | 'show-dates' | 'media' | 'images') {
+  setTab(tab: 'details' | 'host-notes' | 'artists' | 'show-dates' | 'media' | 'images' | 'comments') {
     this.activeTab = tab;
+  }
+
+  get isCommitteeMember(): boolean {
+    return this.authService.isCommitteeMember;
+  }
+
+  get canEditEvent(): boolean {
+    return !this.isCommitteeMember;
+  }
+
+  get canCommentOnEvent(): boolean {
+    return this.isCommitteeMember && !!this.event?.request_detail?.id;
+  }
+
+  get shouldShowHostNotes(): boolean {
+    return !this.isCommitteeMember;
   }
 
   get isActive(): boolean {
@@ -170,6 +192,10 @@ export class HostEventDetail implements OnInit {
     return location.name || location.city || location.address || 'Unnamed location';
   }
 
+  get allVenueOptions(): TjsLocation[] {
+    return [...this.privateLocations, ...this.publicLocations];
+  }
+
   trackByNumericId(_: number, item: { id: number }) {
     return item.id;
   }
@@ -187,6 +213,10 @@ export class HostEventDetail implements OnInit {
   }
 
   async saveDetails() {
+    if (!this.canEditEvent) {
+      return;
+    }
+
     const profileId = this.authService.currentProfile?.id ?? this.authService.currentUser?.id ?? '';
     if (!profileId || !this.event) {
       return;
@@ -201,6 +231,7 @@ export class HostEventDetail implements OnInit {
       title: this.detailForm.title.trim(),
       teaser: this.detailForm.teaser.trim(),
       description: this.detailForm.description.trim(),
+      callToActionUrl: this.detailForm.callToActionUrl.trim(),
       hostNotes: this.detailForm.hostNotes,
     };
 
@@ -219,6 +250,10 @@ export class HostEventDetail implements OnInit {
   }
 
   async onEventImageSelected(event: Event) {
+    if (!this.canEditEvent) {
+      return;
+    }
+
     const profileId = this.authService.currentProfile?.id ?? this.authService.currentUser?.id ?? '';
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
@@ -254,6 +289,10 @@ export class HostEventDetail implements OnInit {
   }
 
   startEditingSchedule() {
+    if (!this.canEditEvent) {
+      return;
+    }
+
     this.isEditingSchedule = true;
     this.successMessage = '';
     this.error = '';
@@ -297,6 +336,10 @@ export class HostEventDetail implements OnInit {
   }
 
   async saveSchedule() {
+    if (!this.canEditEvent) {
+      return;
+    }
+
     const profileId = this.authService.currentProfile?.id ?? this.authService.currentUser?.id ?? '';
     if (!profileId || !this.event) {
       return;
@@ -333,7 +376,7 @@ export class HostEventDetail implements OnInit {
     const payload: UpdateHostWorkspaceEventSchedulePayload = {
       entries,
       showTime: this.scheduleForm.showTime.trim(),
-      locationId: this.scheduleForm.locationId,
+      locationId: this.resolvePersistedLocationId(this.scheduleForm.locationId),
     };
 
     const error = await this.supabase.updateHostWorkspaceEventSchedule(profileId, this.event.id, payload);
@@ -350,6 +393,10 @@ export class HostEventDetail implements OnInit {
   }
 
   startEditingDetails() {
+    if (!this.canEditEvent) {
+      return;
+    }
+
     this.isEditingDetails = true;
     this.successMessage = '';
     this.error = '';
@@ -361,6 +408,10 @@ export class HostEventDetail implements OnInit {
   }
 
   startEditingHostNotes() {
+    if (!this.canEditEvent) {
+      return;
+    }
+
     this.isEditingHostNotes = true;
     this.successMessage = '';
     this.error = '';
@@ -372,6 +423,10 @@ export class HostEventDetail implements OnInit {
   }
 
   async toggleActive() {
+    if (!this.canEditEvent) {
+      return;
+    }
+
     const profileId = this.authService.currentProfile?.id ?? this.authService.currentUser?.id ?? '';
     if (!profileId || !this.event) {
       return;
@@ -398,6 +453,10 @@ export class HostEventDetail implements OnInit {
   }
 
   async toggleFeatured() {
+    if (!this.canEditEvent) {
+      return;
+    }
+
     const profileId = this.authService.currentProfile?.id ?? this.authService.currentUser?.id ?? '';
     if (!profileId || !this.event) {
       return;
@@ -453,6 +512,33 @@ export class HostEventDetail implements OnInit {
     }
   }
 
+  async submitComment() {
+    const profileId = this.authService.currentProfile?.id ?? this.authService.currentUser?.id ?? '';
+    const requestId = this.event?.request_detail?.id ?? '';
+    const body = this.commentDraft.trim();
+
+    if (!this.canCommentOnEvent || !profileId || !requestId || !body) {
+      return;
+    }
+
+    this.isSubmittingComment = true;
+    this.error = '';
+    this.successMessage = '';
+
+    const error = await this.supabase.addArtistWorkspaceRequestComment(requestId, profileId, body);
+    if (error) {
+      this.error = error;
+      this.isSubmittingComment = false;
+      return;
+    }
+
+    this.commentDraft = '';
+    await this.loadData();
+    this.activeTab = 'comments';
+    this.successMessage = 'Comment added.';
+    this.isSubmittingComment = false;
+  }
+
   private resetFormFromEvent() {
     if (!this.event) {
       return;
@@ -465,6 +551,7 @@ export class HostEventDetail implements OnInit {
       eventTypeId: this.matchEventTypeId(this.event.event_type_name),
       teaser: this.event.request_detail?.teaser || this.event.description || '',
       description: this.event.request_detail?.description || this.event.description || '',
+      callToActionUrl: this.event.call_to_action_url || '',
       hostNotes: this.extractFreeformHostNotes(this.event.host_notes),
     };
     this.resetScheduleFormFromEvent();
@@ -484,8 +571,31 @@ export class HostEventDetail implements OnInit {
           }))
         : [{ mode: 'day_show', startDate: '', endDate: '' }],
       showTime: this.event.show_time || '',
-      locationId: this.event.location_id ?? null,
+      locationId: this.resolveLocationSelection(this.event.location_id ?? null, this.event.location_name ?? null),
     };
+  }
+
+  private resolvePersistedLocationId(locationId: string | null): string | null {
+    if (!locationId) {
+      return null;
+    }
+
+    return this.publicLocations.some((location) => location.id === locationId) ? locationId : null;
+  }
+
+  private resolveLocationSelection(locationId: string | null, locationName: string | null): string | null {
+    if (locationId) {
+      return locationId;
+    }
+
+    const normalizedLabel = locationName?.trim().toLowerCase();
+    if (!normalizedLabel) {
+      return null;
+    }
+
+    return this.allVenueOptions.find((location) =>
+      this.locationLabel(location).trim().toLowerCase() === normalizedLabel
+    )?.id ?? null;
   }
 
   private findScheduleOverlap(

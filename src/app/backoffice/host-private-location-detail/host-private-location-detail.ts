@@ -63,7 +63,9 @@ export class HostPrivateLocationDetail implements OnInit {
   }
 
   get backRoute(): string {
-    return '/backoffice/host/locations/my';
+    return this.authService.isHostManager
+      ? '/backoffice/host-manager/locations/private'
+      : '/backoffice/host/locations/my';
   }
 
   async toggleLocationStatus() {

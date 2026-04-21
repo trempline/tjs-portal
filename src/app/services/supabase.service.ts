@@ -88,6 +88,8 @@ export interface AdminEventOverviewItem {
   description: string | null;
   teaser: string | null;
   event_domain_name: string | null;
+  edition?: string | null;
+  event_type_name?: string | null;
   event_type: 'REQUEST' | 'EVENT_INSTANCE';
   status: string;
   origin_website: string;
@@ -140,6 +142,7 @@ export interface HostWorkspaceEventDetail extends HostWorkspaceEventItem {
   host_notes: string | null;
   all_dates: string[];
   show_time: string | null;
+  call_to_action_url: string | null;
   location_id?: string | null;
   location_name: string | null;
   schedule_entries?: Array<{ mode: 'day_show' | 'period'; start_date: string; end_date: string }>;
@@ -182,6 +185,7 @@ export interface PublicEventDetail {
   event_domain_name: string | null;
   edition: string | null;
   event_type_name: string | null;
+  call_to_action_url: string | null;
   instruments: string[];
   artist_names: string[];
   schedule_lines: string[];
@@ -209,6 +213,7 @@ export interface UpdateHostWorkspaceEventDetailPayload {
   eventTypeId: number | null;
   teaser: string;
   description: string;
+  callToActionUrl: string;
   hostNotes: string;
 }
 
@@ -435,6 +440,7 @@ export interface CreateHostEventFromRequestPayload {
   eventTypeId: number | null;
   entries: Array<{ mode: 'day_show' | 'period'; startDate: string; endDate: string }>;
   showTime: string;
+  callToActionUrl: string;
   locationId: string | null;
   isActive: boolean;
   isOpenToMembers: boolean;
@@ -2997,14 +3003,27 @@ export class SupabaseService {
     );
 
     const eventIds = eventRows.map((event) => event.id as string);
+    const parentRequestIds = Array.from(
+      new Set(
+        eventRows
+          .map((event) => event.parent_event_id as string | null)
+          .filter((value): value is string => !!value)
+      )
+    );
     const artistRequestIds = artistRequestRows.map((request) => request.id as string);
 
-    const [profilesResult, hostAssignmentsResult, eventArtistsResult, artistRequestDatesResult, artistRequestArtistsResult, artistRequestCommentsResult] = await Promise.all([
+    const [profilesResult, requestDomainsResult, hostAssignmentsResult, eventArtistsResult, artistRequestDatesResult, artistRequestArtistsResult, artistRequestCommentsResult] = await Promise.all([
       creatorIds.length > 0
         ? this.adminSupabase
             .from('tjs_profiles')
             .select('id, email, full_name')
             .in('id', creatorIds)
+        : Promise.resolve({ data: [], error: null }),
+      parentRequestIds.length > 0
+        ? this.adminSupabase
+            .from('tjs_artist_requests')
+            .select('id, teaser, event_domain:sys_event_domain(name)')
+            .in('id', parentRequestIds)
         : Promise.resolve({ data: [], error: null }),
       eventIds.length > 0
         ? this.adminSupabase
@@ -3012,6 +3031,7 @@ export class SupabaseService {
             .select(`
               event_id,
               host_status,
+              notes,
               selected_dates,
               host:tjs_hosts (
                 id,
@@ -3072,6 +3092,10 @@ export class SupabaseService {
       console.error('getAdminEventOverview profiles error:', profilesResult.error.message);
     }
 
+    if (requestDomainsResult.error && !this.isMissingSchemaError(requestDomainsResult.error)) {
+      console.error('getAdminEventOverview request domains error:', requestDomainsResult.error.message);
+    }
+
     if (hostAssignmentsResult.error) {
       console.error('getAdminEventOverview host assignments error:', hostAssignmentsResult.error.message);
     }
@@ -3097,6 +3121,14 @@ export class SupabaseService {
       if (profile.id) {
         profilesById.set(profile.id, profile);
       }
+    }
+
+    const requestById = new Map<string, { teaser: string | null; event_domain_name: string | null }>();
+    for (const row of ((requestDomainsResult.data ?? []) as any[])) {
+      requestById.set(row.id as string, {
+        teaser: (row.teaser as string | null | undefined) ?? null,
+        event_domain_name: (row.event_domain?.name as string | null | undefined) ?? null,
+      });
     }
 
     const hostsByEventId = new Map<string, any[]>();
@@ -3178,15 +3210,20 @@ export class SupabaseService {
 
     const eventItems = eventRows.map((event) => {
       const profile = event.created_by ? profilesById.get(event.created_by) : null;
+      const requestMeta = event.parent_event_id ? requestById.get(event.parent_event_id as string) : null;
       const assignments = hostsByEventId.get(event.id) ?? [];
       const artistAssignments = artistsByEventId.get(event.id) ?? [];
+      const primaryAssignment = assignments[0] ?? null;
+      const notes = (primaryAssignment?.notes as string | null | undefined) ?? '';
 
       return {
         id: event.id,
         title: event.title,
         description: event.description ?? null,
-        teaser: null,
-        event_domain_name: null,
+        teaser: requestMeta?.teaser ?? null,
+        event_domain_name: requestMeta?.event_domain_name ?? null,
+        edition: this.extractNoteValue(notes, 'Edition:'),
+        event_type_name: this.extractNoteValue(notes, 'Event Type:'),
         event_type: event.event_type,
         status: event.event_type === 'REQUEST'
           ? this.mapBaseRequestStatus(event.status)
@@ -3260,6 +3297,8 @@ export class SupabaseService {
         description: (request.description as string | null) ?? (request.teaser as string | null) ?? null,
         teaser: (request.teaser as string | null) ?? null,
         event_domain_name: (request.event_domain?.name as string | null | undefined) ?? null,
+        edition: null,
+        event_type_name: null,
         event_type: 'REQUEST' as const,
         status: workflowStatus ?? this.normalizeArtistRequestStatus(request.status as string | null),
         origin_website: 'TJS',
@@ -3988,6 +4027,7 @@ export class SupabaseService {
       event_domain_name: requestDetail?.event_domain?.name ?? null,
       edition,
       event_type_name: this.extractNoteValue(notes, 'Event Type:'),
+      call_to_action_url: this.extractNoteValue(notes, 'Call to Action URL:'),
       instruments,
       artist_names: artistNames,
       schedule_lines: scheduleLines,
@@ -4141,29 +4181,6 @@ export class SupabaseService {
     }
 
     const locationIds = Array.from(new Set(normalizedEntries.map((entry) => entry.locationId)));
-    const assignmentsResult = await this.adminSupabase
-      .from('tjs_event_hosts')
-      .select(`
-        event_id,
-        location_id,
-        selected_dates,
-        notes,
-        event:tjs_events (
-          title,
-          status,
-          event_type
-        )
-      `)
-      .in('location_id', locationIds);
-
-    if (assignmentsResult.error) {
-      if (this.isMissingSchemaError(assignmentsResult.error)) {
-        return [];
-      }
-      console.error('getHostVenueScheduleConflicts assignments error:', assignmentsResult.error.message);
-      return [];
-    }
-
     const [publicLocationsResult, privateLocationsResult] = await Promise.all([
       this.adminSupabase
         .from('tjs_locations')
@@ -4196,11 +4213,44 @@ export class SupabaseService {
       }
     }
 
+    const selectedEntries = normalizedEntries
+      .map((entry) => ({
+        ...entry,
+        locationLabel: locationLabelById.get(entry.locationId) ?? null,
+      }))
+      .filter((entry) => !!entry.locationLabel);
+
+    if (selectedEntries.length === 0) {
+      return [];
+    }
+
+    const assignmentsResult = await this.adminSupabase
+      .from('tjs_event_hosts')
+      .select(`
+        event_id,
+        location_id,
+        selected_dates,
+        notes,
+        event:tjs_events (
+          title,
+          status,
+          event_type
+        )
+      `);
+
+    if (assignmentsResult.error) {
+      if (this.isMissingSchemaError(assignmentsResult.error)) {
+        return [];
+      }
+      console.error('getHostVenueScheduleConflicts assignments error:', assignmentsResult.error.message);
+      return [];
+    }
+
     const conflicts = new Map<string, HostVenueScheduleConflict>();
     for (const row of ((assignmentsResult.data ?? []) as any[])) {
       const eventType = row.event?.event_type as string | null | undefined;
       const locationId = row.location_id as string | null | undefined;
-      if (eventType !== 'EVENT_INSTANCE' || !locationId) {
+      if (eventType !== 'EVENT_INSTANCE') {
         continue;
       }
 
@@ -4213,15 +4263,28 @@ export class SupabaseService {
         continue;
       }
 
+      const existingScheduleLines = this.extractEventScheduleLines(
+        (row.notes as string | null | undefined) ?? '',
+        existingEntries,
+      );
+
       const conflictingLines = this.extractEventScheduleLines(
         (row.notes as string | null | undefined) ?? '',
         existingEntries,
       ).filter((_, index) => {
         const existing = existingEntries[index];
         const existingEnd = existing.mode === 'period' ? (existing.end_date || existing.start_date) : existing.start_date;
+        const existingLineLocationLabel = this.extractScheduleLineLocationLabel(existingScheduleLines[index] ?? null);
+        const normalizedExistingLineLocationLabel = this.normalizeLocationComparisonValue(existingLineLocationLabel);
 
-        return normalizedEntries.some((entry) =>
-          entry.locationId === locationId
+        return selectedEntries.some((entry) =>
+          (
+            (locationId && entry.locationId === locationId)
+            || (
+              this.normalizeLocationComparisonValue(entry.locationLabel)
+              && this.normalizeLocationComparisonValue(entry.locationLabel) === normalizedExistingLineLocationLabel
+            )
+          )
           && entry.startDate <= existingEnd
           && existing.start_date <= entry.endDate
         );
@@ -4236,8 +4299,10 @@ export class SupabaseService {
         event_id: row.event_id as string,
         event_title: (row.event?.title as string | null | undefined)?.trim() || 'Untitled event',
         event_status: (row.event?.status as string | null | undefined)?.trim() || 'Unknown',
-        location_id: locationId,
-        location_label: locationLabelById.get(locationId) ?? 'Unknown venue',
+        location_id: locationId ?? '',
+        location_label: locationId
+          ? (locationLabelById.get(locationId) ?? this.extractScheduleLineLocationLabel(conflictingLines[0] ?? null) ?? 'Unknown venue')
+          : (this.extractScheduleLineLocationLabel(conflictingLines[0] ?? null) ?? 'Unknown venue'),
         conflicting_schedule_lines: Array.from(new Set(conflictingLines)),
       });
     }
@@ -4283,6 +4348,7 @@ export class SupabaseService {
         entry.mode === 'period' ? [entry.start_date, entry.end_date].filter(Boolean) : [entry.start_date].filter(Boolean)
       ),
       show_time: this.extractNoteValue((hostRow?.notes as string | null | undefined) ?? '', 'Show Time:'),
+      call_to_action_url: this.extractNoteValue((hostRow?.notes as string | null | undefined) ?? '', 'Call to Action URL:'),
       location_id: (hostRow?.location_id as string | null | undefined) ?? null,
       location_name: (hostRow?.location?.name as string | null | undefined)
         || (hostRow?.location?.city as string | null | undefined)
@@ -4293,6 +4359,62 @@ export class SupabaseService {
         ...(event.instruments ?? []),
         ...this.extractAdditionalInstruments((hostRow?.notes as string | null | undefined) ?? ''),
       ])),
+      schedule_entries: scheduleEntries,
+      request_detail: requestDetail,
+    };
+  }
+
+  async getCommitteeWorkspaceEventDetail(eventId: string): Promise<HostWorkspaceEventDetail | null> {
+    const overview = await this.getAdminEventOverview();
+    const event = overview.find((item) => item.id === eventId && item.event_type === 'EVENT_INSTANCE');
+    if (!event) {
+      return null;
+    }
+
+    const hostNotesResult = await this.adminSupabase
+      .from('tjs_event_hosts')
+      .select('host_id, notes, selected_dates, location_id, location:tjs_locations(name, city, address)')
+      .eq('event_id', eventId);
+
+    if (hostNotesResult.error && !this.isMissingSchemaError(hostNotesResult.error)) {
+      console.error('getCommitteeWorkspaceEventDetail host notes error:', hostNotesResult.error.message);
+    }
+
+    const hostRow = ((hostNotesResult.data ?? []) as any[])[0] ?? null;
+    const requestDetail = event.parent_event_id
+      ? await this.getArtistWorkspaceRequestDetail(event.parent_event_id)
+      : null;
+    const hostNotes = (hostRow?.notes as string | null | undefined) ?? '';
+    const scheduleEntries = this.extractScheduleEntries(
+      hostNotes,
+      Array.isArray(hostRow?.selected_dates)
+        ? (hostRow.selected_dates as string[])
+        : (event.selected_dates ?? []),
+    );
+
+    return {
+      ...event,
+      event_domain_id: requestDetail?.event_domain_id ?? null,
+      edition: this.extractNoteValue(hostNotes, 'Edition:') ?? event.edition ?? null,
+      event_type_name: this.extractNoteValue(hostNotes, 'Event Type:') ?? event.event_type_name ?? null,
+      instruments: Array.from(new Set([
+        ...(requestDetail?.artists ?? []).flatMap((artist) => artist.instruments ?? []),
+        ...this.extractAdditionalInstruments(hostNotes),
+      ])),
+      primary_upcoming_date: this.pickPrimaryUpcomingDate(event.selected_dates),
+      is_featured: !!event.is_featured,
+      host_notes: null,
+      all_dates: scheduleEntries.flatMap((entry) =>
+        entry.mode === 'period' ? [entry.start_date, entry.end_date].filter(Boolean) : [entry.start_date].filter(Boolean)
+      ),
+      show_time: this.extractNoteValue(hostNotes, 'Show Time:'),
+      call_to_action_url: this.extractNoteValue(hostNotes, 'Call to Action URL:'),
+      location_id: (hostRow?.location_id as string | null | undefined) ?? null,
+      location_name: (hostRow?.location?.name as string | null | undefined)
+        || (hostRow?.location?.city as string | null | undefined)
+        || (hostRow?.location?.address as string | null | undefined)
+        || this.extractPrimaryScheduleLocationLabel(hostNotes)
+        || null,
       schedule_entries: scheduleEntries,
       request_detail: requestDetail,
     };
@@ -4437,6 +4559,7 @@ export class SupabaseService {
       edition: selectedEdition?.label ?? selectedEdition?.name ?? null,
       eventType: selectedEventType?.name ?? null,
       showTime,
+      callToActionUrl: payload.callToActionUrl.trim() || null,
       hostNotes: payload.hostNotes,
     });
     const timestamp = new Date().toISOString();
@@ -4585,6 +4708,19 @@ export class SupabaseService {
       return 'You do not have access to this event.';
     }
 
+    let persistedLocationId: string | null = null;
+    if (payload.locationId) {
+      const publicLocation = await this.getPublicLocationById(payload.locationId);
+      if (publicLocation) {
+        persistedLocationId = payload.locationId;
+      } else {
+        const privateLocation = await this.getPrivateLocationById(payload.locationId, profileId);
+        if (!privateLocation) {
+          return 'The selected location could not be found. Choose a valid public or private location and try again.';
+        }
+      }
+    }
+
     const notes = this.mergeStructuredHostNotes((hostAssignment.notes as string | null | undefined) ?? '', {
       edition: this.extractNoteValue((hostAssignment.notes as string | null | undefined) ?? '', 'Edition:'),
       eventType: this.extractNoteValue((hostAssignment.notes as string | null | undefined) ?? '', 'Event Type:'),
@@ -4602,7 +4738,7 @@ export class SupabaseService {
       .from('tjs_event_hosts')
       .update({
         selected_dates: selectedDates,
-        location_id: payload.locationId,
+        location_id: persistedLocationId,
         notes: notes || null,
       })
       .eq('event_id', eventId)
@@ -5555,6 +5691,7 @@ export class SupabaseService {
         entry.mode === 'period' ? [entry.start_date, entry.end_date].filter(Boolean) : [entry.start_date].filter(Boolean)
       ),
       show_time: this.extractNoteValue((hostRow?.notes as string | null | undefined) ?? '', 'Show Time:'),
+      call_to_action_url: this.extractNoteValue((hostRow?.notes as string | null | undefined) ?? '', 'Call to Action URL:'),
       location_id: (hostRow?.location_id as string | null | undefined) ?? null,
       location_name: (hostRow?.location?.name as string | null | undefined)
         || (hostRow?.location?.city as string | null | undefined)
@@ -6580,6 +6717,22 @@ export class SupabaseService {
       return { eventId: existingEventId, error: null };
     }
 
+    let persistedLocationId: string | null = null;
+    if (payload.locationId) {
+      const publicLocation = await this.getPublicLocationById(payload.locationId);
+      if (publicLocation) {
+        persistedLocationId = payload.locationId;
+      } else {
+        const privateLocation = await this.getPrivateLocationById(payload.locationId, createdBy);
+        if (!privateLocation) {
+          return {
+            eventId: null,
+            error: 'The selected location could not be found. Choose a valid public or private location and try again.',
+          };
+        }
+      }
+    }
+
     const { error: requestUpdateError } = await this.adminSupabase
       .from('tjs_artist_requests')
       .update({
@@ -6641,6 +6794,7 @@ export class SupabaseService {
       edition: selectedEdition ? (selectedEdition.label ?? selectedEdition.name) : null,
       eventType: selectedEventType?.name ?? null,
       showTime: payload.showTime.trim() || null,
+      callToActionUrl: payload.callToActionUrl.trim() || null,
       hostNotes: payload.notes.trim() || null,
       scheduleEntries: payload.entries,
     });
@@ -6657,7 +6811,7 @@ export class SupabaseService {
         event_id: insertedEvent.id,
         host_id: payload.hostId,
         selected_dates: selectedDates,
-        location_id: payload.locationId,
+        location_id: persistedLocationId,
         host_status: 'CONFIRMED',
         selected_at: timestamp,
         notes: eventNotes || null,
@@ -7872,6 +8026,20 @@ export class SupabaseService {
     return segments.length >= 4 ? segments.slice(3).join(' | ') : null;
   }
 
+  private extractScheduleLineLocationLabel(scheduleLine: string | null | undefined): string | null {
+    if (!scheduleLine) {
+      return null;
+    }
+
+    const lastSeparatorIndex = scheduleLine.lastIndexOf('|');
+    if (lastSeparatorIndex < 0) {
+      return null;
+    }
+
+    const label = scheduleLine.slice(lastSeparatorIndex + 1).trim();
+    return label || null;
+  }
+
   private normalizeLocationComparisonValue(value: string | null | undefined): string | null {
     const normalized = value?.trim().toLowerCase() ?? '';
     return normalized || null;
@@ -7921,6 +8089,7 @@ export class SupabaseService {
       edition: string | null;
       eventType: string | null;
       showTime: string | null;
+      callToActionUrl?: string | null;
       hostNotes: string | null;
       scheduleEntries?: Array<{ mode: 'day_show' | 'period'; startDate: string; endDate: string }> | null;
     },
@@ -7933,6 +8102,7 @@ export class SupabaseService {
         !line.startsWith('Edition:')
         && !line.startsWith('Event Type:')
         && !line.startsWith('Show Time:')
+        && !line.startsWith('Call to Action URL:')
         && (values.scheduleEntries === undefined || !line.startsWith('[SCHEDULE]'))
       );
 
@@ -7940,6 +8110,7 @@ export class SupabaseService {
       values.edition ? `Edition: ${values.edition}` : null,
       values.eventType ? `Event Type: ${values.eventType}` : null,
       values.showTime ? `Show Time: ${values.showTime}` : null,
+      values.callToActionUrl ? `Call to Action URL: ${values.callToActionUrl}` : null,
       ...((values.scheduleEntries ?? []).map((entry) =>
         `[SCHEDULE] ${entry.mode}|${entry.startDate}|${entry.endDate || ''}`
       )),

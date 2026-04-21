@@ -2,7 +2,15 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
-import { SaveTjsLocationInput, SupabaseService, TjsLocation } from '../../services/supabase.service';
+import { HostPrivateLocationBookingItem, SaveTjsLocationInput, SupabaseService, TjsLocation } from '../../services/supabase.service';
+
+interface PublicLocationCalendarDay {
+  date: string;
+  dayNumber: number;
+  inCurrentMonth: boolean;
+  isToday: boolean;
+  bookings: HostPrivateLocationBookingItem[];
+}
 
 @Component({
   selector: 'app-host-manager-public-location-detail',
@@ -21,6 +29,8 @@ export class HostManagerPublicLocationDetail implements OnInit {
   successMessage = '';
   location: TjsLocation | null = null;
   zoomedImageUrl: string | null = null;
+  bookings: HostPrivateLocationBookingItem[] = [];
+  calendarMonth = this.startOfMonth(new Date());
 
   async ngOnInit() {
     await this.authService.waitForAuthReady();
@@ -32,7 +42,10 @@ export class HostManagerPublicLocationDetail implements OnInit {
       return;
     }
 
-    const location = await this.supabase.getPublicLocationById(locationId, this.filterOwnerId);
+    const [location, bookings] = await Promise.all([
+      this.supabase.getPublicLocationById(locationId, this.filterOwnerId),
+      this.supabase.getHostPrivateLocationBookings(this.currentUserId, locationId),
+    ]);
     if (!location) {
       this.error = 'Public location not found.';
       this.isLoading = false;
@@ -40,6 +53,7 @@ export class HostManagerPublicLocationDetail implements OnInit {
     }
 
     this.location = location;
+    this.bookings = bookings;
     this.isLoading = false;
   }
 
@@ -59,8 +73,16 @@ export class HostManagerPublicLocationDetail implements OnInit {
     return '/backoffice/host/locations/public';
   }
 
+  get canManageLocations(): boolean {
+    return this.authService.isCommitteeMember || this.authService.isHostManager;
+  }
+
+  get shouldHideBookingDetails(): boolean {
+    return !this.canManageLocations;
+  }
+
   async toggleLocationStatus() {
-    if (!this.location || this.isUpdatingStatus) {
+    if (!this.location || this.isUpdatingStatus || !this.canManageLocations) {
       return;
     }
 
@@ -101,8 +123,62 @@ export class HostManagerPublicLocationDetail implements OnInit {
     this.zoomedImageUrl = null;
   }
 
+  get monthLabel(): string {
+    return this.calendarMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  }
+
+  get calendarDays(): PublicLocationCalendarDay[] {
+    const firstDay = this.startOfMonth(this.calendarMonth);
+    const gridStart = new Date(firstDay);
+    gridStart.setDate(firstDay.getDate() - firstDay.getDay());
+
+    const days: PublicLocationCalendarDay[] = [];
+    const today = new Date().toISOString().slice(0, 10);
+    for (let index = 0; index < 42; index += 1) {
+      const current = new Date(gridStart);
+      current.setDate(gridStart.getDate() + index);
+      const dateLabel = current.toISOString().slice(0, 10);
+
+      days.push({
+        date: dateLabel,
+        dayNumber: current.getDate(),
+        inCurrentMonth: current.getMonth() === this.calendarMonth.getMonth() && current.getFullYear() === this.calendarMonth.getFullYear(),
+        isToday: dateLabel === today,
+        bookings: this.bookings.filter((booking) => booking.booked_dates.includes(dateLabel)),
+      });
+    }
+
+    return days;
+  }
+
+  previousMonth() {
+    const next = new Date(this.calendarMonth);
+    next.setMonth(next.getMonth() - 1);
+    this.calendarMonth = this.startOfMonth(next);
+  }
+
+  nextMonth() {
+    const next = new Date(this.calendarMonth);
+    next.setMonth(next.getMonth() + 1);
+    this.calendarMonth = this.startOfMonth(next);
+  }
+
+  trackByCalendarDate(_: number, day: PublicLocationCalendarDay) {
+    return day.date;
+  }
+
+  trackByBooking(_: number, booking: HostPrivateLocationBookingItem) {
+    return booking.event_id;
+  }
+
   private get filterOwnerId(): string | undefined {
-    return this.authService.isCommitteeMember ? undefined : this.currentUserId;
+    return this.authService.isCommitteeMember || this.authService.isHostManager
+      ? undefined
+      : this.currentUserId;
+  }
+
+  private startOfMonth(value: Date): Date {
+    return new Date(value.getFullYear(), value.getMonth(), 1);
   }
 
   private buildSavePayload(location: TjsLocation, isActive: boolean): SaveTjsLocationInput {

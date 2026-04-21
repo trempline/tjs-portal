@@ -36,6 +36,14 @@ interface HostCreateEventScheduleEntryForm {
   locationId: string | null;
 }
 
+interface NormalizedScheduleEntry {
+  mode: 'day_show' | 'period';
+  startDate: string;
+  endDate: string;
+  showTime: string;
+  locationId: string | null;
+}
+
 @Component({
   selector: 'app-host-create-event',
   standalone: true,
@@ -71,6 +79,9 @@ export class HostCreateEvent implements OnInit {
   commentDraft = '';
   scheduleEntries: HostCreateEventScheduleEntryForm[] = [{ mode: 'day_show', startDate: '', endDate: '', showTime: '', locationId: null }];
   publishedEvent: HostWorkspaceEventDetail | null = null;
+  showVenueConflictModal = false;
+  venueConflicts: HostVenueScheduleConflict[] = [];
+  pendingCreateEntries: NormalizedScheduleEntry[] | null = null;
 
   form: CreateHostEventFromRequestPayload = {
     hostId: 0,
@@ -83,6 +94,7 @@ export class HostCreateEvent implements OnInit {
     eventTypeId: null,
     entries: [],
     showTime: '',
+    callToActionUrl: '',
     locationId: null,
     isActive: true,
     isOpenToMembers: false,
@@ -153,6 +165,10 @@ export class HostCreateEvent implements OnInit {
 
   locationLabel(location: TjsLocation): string {
     return location.name || location.city || location.address || 'Unnamed location';
+  }
+
+  get allVenueOptions(): TjsLocation[] {
+    return [...this.privateLocations, ...this.publicLocations];
   }
 
   trackByHostId(_: number, item: TjsHost) {
@@ -340,7 +356,7 @@ export class HostCreateEvent implements OnInit {
       return;
     }
 
-    const entries = this.scheduleEntries
+    const entries: NormalizedScheduleEntry[] = this.scheduleEntries
       .filter((entry) => !!entry.startDate)
       .map((entry) => ({
         mode: entry.mode,
@@ -380,11 +396,44 @@ export class HostCreateEvent implements OnInit {
 
     const venueConflicts = await this.supabase.getHostVenueScheduleConflicts(entries);
     if (venueConflicts.length > 0) {
-      const shouldContinue = window.confirm(this.buildVenueConflictPrompt(venueConflicts));
-      if (!shouldContinue) {
-        this.error = 'Event creation was cancelled because of a venue date clash.';
-        return;
-      }
+      this.pendingCreateEntries = entries;
+      this.venueConflicts = venueConflicts;
+      this.showVenueConflictModal = true;
+      return;
+    }
+
+    await this.submitEventCreation(entries);
+  }
+
+  cancelVenueConflictModal() {
+    this.showVenueConflictModal = false;
+    this.venueConflicts = [];
+    this.pendingCreateEntries = null;
+    this.error = 'Event creation was cancelled because of a venue date clash.';
+  }
+
+  async continueVenueConflictModal() {
+    if (!this.pendingCreateEntries) {
+      this.showVenueConflictModal = false;
+      return;
+    }
+
+    const entries = this.pendingCreateEntries;
+    this.showVenueConflictModal = false;
+    this.venueConflicts = [];
+    this.pendingCreateEntries = null;
+    await this.submitEventCreation(entries);
+  }
+
+  trackByVenueConflict(_: number, item: HostVenueScheduleConflict) {
+    return `${item.event_id}:${item.location_id}:${item.location_label}`;
+  }
+
+  private async submitEventCreation(entries: NormalizedScheduleEntry[]) {
+    const profileId = this.authService.currentUser?.id;
+    if (!profileId || !this.request?.id || this.isRequestPublished) {
+      this.error = 'Event could not be created.';
+      return;
     }
 
     this.error = '';
@@ -392,10 +441,11 @@ export class HostCreateEvent implements OnInit {
     this.isSaving = true;
 
     const firstEntry = entries[0];
-    const persistedLocationId = firstEntry.locationId;
+    const persistedLocationId = this.resolvePersistedLocationId(firstEntry.locationId);
 
     const payload: CreateHostEventFromRequestPayload = {
       ...this.form,
+      callToActionUrl: this.form.callToActionUrl.trim(),
       entries: entries.map((entry) => ({
         mode: entry.mode,
         startDate: entry.startDate,
@@ -442,6 +492,7 @@ export class HostCreateEvent implements OnInit {
       eventTypeId: this.matchEventTypeIdFromComments(this.request.comments),
       entries: [],
       showTime: '',
+      callToActionUrl: '',
       locationId: null,
       isActive: true,
       isOpenToMembers: false,
@@ -575,8 +626,7 @@ export class HostCreateEvent implements OnInit {
 
   private findLocationIdByLabel(label: string): string | null {
     const normalized = label.trim().toLowerCase();
-    const allLocations = [...this.privateLocations, ...this.publicLocations];
-    return allLocations.find((location) => {
+    return this.allVenueOptions.find((location) => {
       const name = (location.name || '').trim().toLowerCase();
       const display = this.locationLabel(location).trim().toLowerCase();
       return name === normalized || display === normalized;
@@ -635,10 +685,18 @@ export class HostCreateEvent implements OnInit {
       return null;
     }
 
-    const selectedLocation = [...this.privateLocations, ...this.publicLocations]
+    const selectedLocation = this.allVenueOptions
       .find((location) => location.id === locationId);
 
     return selectedLocation ? this.locationLabel(selectedLocation) : null;
+  }
+
+  private resolvePersistedLocationId(locationId: string | null): string | null {
+    if (!locationId) {
+      return null;
+    }
+
+    return this.publicLocations.some((location) => location.id === locationId) ? locationId : null;
   }
 
   private findScheduleOverlap(
@@ -738,8 +796,23 @@ export class HostCreateEvent implements OnInit {
           startDate: entry.start_date,
           endDate: entry.end_date,
           showTime: this.publishedEvent?.show_time ?? '',
-          locationId: this.publishedEvent?.location_id ?? null,
+          locationId: this.resolveLocationSelection(this.publishedEvent?.location_id ?? null, this.publishedEvent?.location_name ?? null),
         }))
       : this.scheduleEntries;
+  }
+
+  private resolveLocationSelection(locationId: string | null, locationName: string | null): string | null {
+    if (locationId) {
+      return locationId;
+    }
+
+    const normalizedLabel = locationName?.trim().toLowerCase();
+    if (!normalizedLabel) {
+      return null;
+    }
+
+    return this.allVenueOptions.find((location) =>
+      this.locationLabel(location).trim().toLowerCase() === normalizedLabel
+    )?.id ?? null;
   }
 }

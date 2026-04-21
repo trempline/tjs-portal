@@ -124,6 +124,12 @@
               <textarea [(ngModel)]="form.description" rows="5" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100"></textarea>
             </div>
 
+            <div class="md:col-span-2">
+              <label class="text-sm font-medium text-zinc-700">Call to Action</label>
+              <input [(ngModel)]="form.callToActionUrl" type="url" placeholder="https://booking.example.com" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+              <div class="mt-1 text-xs text-zinc-400">Booking URL shown as a button on the public event page.</div>
+            </div>
+
             <div>
               <label class="text-sm font-medium text-zinc-700">Host</label>
               <div class="mt-2 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-medium text-zinc-800">
@@ -329,6 +335,7 @@
                           <option *ngFor="let location of publicLocations; trackBy: trackByLocationId" [ngValue]="location.id">{{ locationLabel(location) }}</option>
                         </optgroup>
                       </select>
+                      <div class="mt-2 text-xs text-zinc-400">Private venues stay visible for hosts. Public venues are stored directly on the event record.</div>
                     </td>
                     <td class="px-4 py-3">
                       <button *ngIf="!isRequestPublished" type="button" (click)="removeScheduleEntry(i)" class="rounded-xl border border-red-200 px-4 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50">
@@ -444,4 +451,52 @@
       </div>
     </section>
   </ng-container>
+</div>
+
+<div *ngIf="showVenueConflictModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+  <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" (click)="cancelVenueConflictModal()"></div>
+  <div class="relative z-10 max-h-[85vh] w-full max-w-3xl overflow-hidden rounded-[2rem] border border-amber-200 bg-white shadow-2xl">
+    <div class="border-b border-amber-100 bg-[linear-gradient(135deg,#fff7ed_0%,#fffdf8_100%)] px-6 py-5">
+      <p class="text-xs font-semibold uppercase tracking-[0.24em] text-amber-700">Venue Clash Warning</p>
+      <h2 class="mt-2 text-2xl font-semibold tracking-tight text-zinc-900">Another event is already scheduled on one of these dates.</h2>
+      <p class="mt-2 text-sm text-zinc-600">You can still create this event, but review the conflicting bookings first.</p>
+    </div>
+
+    <div class="max-h-[calc(85vh-11rem)] space-y-4 overflow-y-auto px-6 py-6">
+      <article *ngFor="let conflict of venueConflicts; trackBy: trackByVenueConflict" class="rounded-3xl border border-zinc-200 bg-zinc-50 p-5">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div class="text-base font-semibold text-zinc-900">{{ conflict.event_title }}</div>
+            <div class="mt-1 text-sm text-zinc-500">{{ conflict.location_label }}</div>
+          </div>
+          <span class="inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-amber-800">
+            {{ conflict.event_status }}
+          </span>
+        </div>
+
+        <div class="mt-4 space-y-2">
+          <div *ngFor="let line of conflict.conflicting_schedule_lines" class="rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-700">
+            {{ line }}
+          </div>
+        </div>
+      </article>
+    </div>
+
+    <div class="flex flex-col-reverse gap-3 border-t border-zinc-200 bg-zinc-50 px-6 py-5 sm:flex-row sm:justify-end">
+      <button
+        type="button"
+        (click)="cancelVenueConflictModal()"
+        class="rounded-2xl border border-zinc-200 bg-white px-5 py-3 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-100"
+      >
+        Cancel
+      </button>
+      <button
+        type="button"
+        (click)="continueVenueConflictModal()"
+        class="rounded-2xl bg-amber-500 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-amber-600"
+      >
+        Ignore And Create Event
+      </button>
+    </div>
+  </div>
 </div>

@@ -81,6 +81,12 @@ export class HostArtistRequestDetail implements OnInit {
         return;
       }
 
+      if (!(await this.canViewRequest(this.request))) {
+        this.request = null;
+        this.error = 'Request not found.';
+        return;
+      }
+
       this.acceptedByHost = this.isHostAcceptedWorkflow(this.request.status);
       await Promise.all([this.loadInstruments(), this.loadLocations()]);
       this.hydrateArtistProposalFromComments();
@@ -130,7 +136,7 @@ export class HostArtistRequestDetail implements OnInit {
   }
 
   openProposalModal() {
-    if (this.hasSubmittedHostProposal) {
+    if (!this.canManageRequestActions || this.hasSubmittedHostProposal) {
       return;
     }
 
@@ -150,7 +156,7 @@ export class HostArtistRequestDetail implements OnInit {
   }
 
   async saveProposalDraft() {
-    if (!this.request?.id || !this.authService.currentUser?.id) {
+    if (!this.canManageRequestActions || !this.request?.id || !this.authService.currentUser?.id) {
       return;
     }
 
@@ -243,7 +249,7 @@ export class HostArtistRequestDetail implements OnInit {
   }
 
   async acceptRequest() {
-    if (!this.request?.id || !this.authService.currentUser?.id) {
+    if (!this.canManageRequestActions || !this.request?.id || !this.authService.currentUser?.id) {
       return;
     }
 
@@ -311,7 +317,7 @@ export class HostArtistRequestDetail implements OnInit {
   }
 
   async releaseRequest() {
-    if (!this.request?.id || !this.authService.currentUser?.id) {
+    if (!this.canManageRequestActions || !this.request?.id || !this.authService.currentUser?.id) {
       return;
     }
 
@@ -393,8 +399,16 @@ export class HostArtistRequestDetail implements OnInit {
     }
   }
 
+  get canManageRequestActions(): boolean {
+    return !this.authService.isHostManager && !this.authService.isCommitteeMember;
+  }
+
+  get isCommitteeMember(): boolean {
+    return this.authService.isCommitteeMember;
+  }
+
   get canCreateEvent(): boolean {
-    return ['accepted_by_host', 'artist_accepted', 'approved'].includes(this.request?.status ?? '');
+    return this.canManageRequestActions && ['accepted_by_host', 'artist_accepted', 'approved'].includes(this.request?.status ?? '');
   }
 
   get hasSubmittedHostProposal(): boolean {
@@ -406,7 +420,7 @@ export class HostArtistRequestDetail implements OnInit {
   }
 
   get canReleaseRequest(): boolean {
-    return ['accepted_by_host', 'host_proposed', 'artist_proposed'].includes(this.request?.status ?? '');
+    return this.canManageRequestActions && ['accepted_by_host', 'host_proposed', 'artist_proposed'].includes(this.request?.status ?? '');
   }
 
   get recentComments() {
@@ -439,11 +453,42 @@ export class HostArtistRequestDetail implements OnInit {
   }
 
   async openCreateEvent() {
-    if (!this.request?.id) {
+    if (!this.canManageRequestActions || !this.request?.id) {
       return;
     }
 
-    await this.router.navigate(['/backoffice/host/requests', this.request.id, 'create-event']);
+    await this.router.navigate([
+      this.authService.isHostManager ? '/backoffice/host-manager/requests' : '/backoffice/host/requests',
+      this.request.id,
+      'create-event',
+    ]);
+  }
+
+  private async canViewRequest(request: ArtistRequestDetail): Promise<boolean> {
+    if (this.authService.isHostManager || this.authService.hasAnyRole(['Host', 'Host+'])) {
+      return true;
+    }
+
+    if (!this.authService.isCommitteeMember) {
+      return false;
+    }
+
+    const committeeMemberId = this.authService.currentProfile?.id ?? this.authService.currentUser?.id ?? '';
+    if (!committeeMemberId) {
+      return false;
+    }
+
+    const assignedArtists = await this.supabase.getArtists({
+      committeeMemberId,
+      createdById: committeeMemberId,
+    });
+    const assignedArtistIds = new Set(assignedArtists.map((artist) => artist.id));
+
+    return request.artists.some((artist) => {
+      const artistId = artist.artist_id?.trim();
+      const invitedArtistId = artist.invited_artist_id?.trim();
+      return (!!artistId && assignedArtistIds.has(artistId)) || (!!invitedArtistId && assignedArtistIds.has(invitedArtistId));
+    });
   }
 
   private async loadInstruments() {
