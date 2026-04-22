@@ -286,7 +286,7 @@ export class Events implements OnInit {
   }
 
   async openEvent(item: AdminEventOverviewItem) {
-    if (!this.isHostManager && !this.isCommitteeMember) {
+    if (!this.isHostManager && !this.isCommitteeMember && !this.authService.isAdmin) {
       return;
     }
 

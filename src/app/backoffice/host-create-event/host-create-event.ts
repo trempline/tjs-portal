@@ -105,6 +105,7 @@ export class HostCreateEvent implements OnInit {
     await this.authService.waitForAuthReady();
     const requestId = this.route.snapshot.paramMap.get('id');
     const profileId = this.authService.currentProfile?.id ?? this.authService.currentUser?.id;
+    const requestedHostId = Number.parseInt(this.route.snapshot.queryParamMap.get('hostId') ?? '', 10);
 
     if (!requestId || !profileId) {
       this.error = 'Event creation could not be loaded.';
@@ -115,11 +116,13 @@ export class HostCreateEvent implements OnInit {
     try {
       const [request, hosts, eventDomains, editionOptions, eventTypeOptions, privateLocations, publicLocations, instrumentCatalog] = await Promise.all([
         this.supabase.getArtistWorkspaceRequestDetail(requestId),
-        this.supabase.getMyHosts(profileId),
+        this.isAdmin ? this.supabase.getHosts() : this.supabase.getMyHosts(profileId),
         this.supabase.listEventDomains(),
         this.supabase.listConcreteEventEditionOptions(),
         this.supabase.listEventTypeOptions(),
-        this.supabase.getPrivateLocations(profileId),
+        this.isAdmin && !Number.isNaN(requestedHostId)
+          ? this.supabase.getPrivateLocationsForHost(requestedHostId)
+          : this.supabase.getPrivateLocations(profileId),
         this.supabase.getPublicLocations(),
         this.supabase.listArtistInstrumentOptions(),
       ]);
@@ -141,6 +144,12 @@ export class HostCreateEvent implements OnInit {
       this.hostProposalEntries = this.parseHostProposal(this.request.comments);
       await this.loadInstruments();
       this.prefillForm();
+      if (this.isAdmin && !Number.isNaN(requestedHostId) && this.hosts.some((host) => host.id === requestedHostId)) {
+        this.form.hostId = requestedHostId;
+      }
+      if (this.isAdmin) {
+        await this.onHostChange();
+      }
       await this.loadPublishedEventSchedule(profileId);
     } catch (error) {
       this.error = error instanceof Error ? error.message : 'Event creation could not be loaded.';
@@ -173,6 +182,16 @@ export class HostCreateEvent implements OnInit {
 
   trackByHostId(_: number, item: TjsHost) {
     return item.id;
+  }
+
+  async onHostChange() {
+    if (!this.isAdmin) {
+      return;
+    }
+
+    this.privateLocations = this.form.hostId
+      ? await this.supabase.getPrivateLocationsForHost(this.form.hostId)
+      : [];
   }
 
   trackByEditionId(_: number, item: EventEditionOption) {
@@ -221,13 +240,21 @@ export class HostCreateEvent implements OnInit {
     return item.id ?? index;
   }
 
+  get sortedComments(): ArtistRequestCommentEntry[] {
+    return [...(this.request?.comments ?? [])].reverse();
+  }
+
   trackByArtist(index: number, item: NonNullable<ArtistRequestDetail['artists']>[number]) {
     return item.id ?? item.artist_id ?? item.invited_artist_id ?? item.profile_id ?? item.invited_email ?? index;
   }
 
   get selectedHostLabel(): string {
-    const host = this.hosts.find((item) => item.id === this.form.hostId) ?? this.hosts[0] ?? null;
+    const host = this.hosts.find((item) => item.id === this.form.hostId) ?? null;
     return host?.name || host?.public_name || (host ? `Host #${host.id}` : 'No host linked');
+  }
+
+  get isAdmin(): boolean {
+    return this.authService.isAdmin;
   }
 
   get eventStatusLabel(): string {
@@ -470,7 +497,14 @@ export class HostCreateEvent implements OnInit {
     };
     this.successMessage = 'Event created and the request is now published.';
     this.isSaving = false;
-    await this.router.navigate(['/backoffice/host/events', result.eventId], {
+    await this.router.navigate([
+      this.isAdmin
+        ? '/backoffice/events'
+        : this.authService.isHostManager
+          ? '/backoffice/host-manager/events'
+          : '/backoffice/host/events',
+      result.eventId,
+    ], {
       replaceUrl: true,
     });
   }
@@ -785,7 +819,9 @@ export class HostCreateEvent implements OnInit {
       return;
     }
 
-    this.publishedEvent = await this.supabase.getHostWorkspaceEventDetail(profileId, eventId);
+    this.publishedEvent = this.isAdmin
+      ? await this.supabase.getAdminWorkspaceEventDetail(eventId)
+      : await this.supabase.getHostWorkspaceEventDetail(profileId, eventId);
     if (!this.publishedEvent) {
       return;
     }

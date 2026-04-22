@@ -10,6 +10,7 @@ import {
   EventTypeOption,
   HostWorkspaceEventDetail,
   SupabaseService,
+  TjsHost,
   TjsLocation,
 } from '../../services/supabase.service';
 import { AuthService } from '../../services/auth.service';
@@ -46,7 +47,9 @@ export class HostArtistRequestDetail implements OnInit {
   eventTypeOptions: EventTypeOption[] = [];
   privateLocations: TjsLocation[] = [];
   publicLocations: TjsLocation[] = [];
+  adminHostOptions: TjsHost[] = [];
   commentDraft = '';
+  selectedAdminHostId: number | null = null;
   selectedEditionId: number | null = null;
   selectedEventTypeId: number | null = null;
   proposedDates: HostProposedDateEntry[] = [this.createBlankProposedDate()];
@@ -88,7 +91,8 @@ export class HostArtistRequestDetail implements OnInit {
       }
 
       this.acceptedByHost = this.isHostAcceptedWorkflow(this.request.status);
-      await Promise.all([this.loadInstruments(), this.loadLocations()]);
+      await Promise.all([this.loadInstruments(), this.loadLocations(), this.loadAdminHosts()]);
+      this.hydrateAssignedAdminHost();
       this.hydrateArtistProposalFromComments();
       this.hydrateHostProposalFromComments();
       await this.loadPublishedEvent();
@@ -362,6 +366,10 @@ export class HostArtistRequestDetail implements OnInit {
     return item.id;
   }
 
+  trackByHostId(_: number, item: TjsHost) {
+    return item.id;
+  }
+
   trackByProposalIndex(index: number) {
     return index;
   }
@@ -400,15 +408,24 @@ export class HostArtistRequestDetail implements OnInit {
   }
 
   get canManageRequestActions(): boolean {
-    return !this.authService.isHostManager && !this.authService.isCommitteeMember;
+    return !this.authService.isAdmin && !this.authService.isHostManager && !this.authService.isCommitteeMember;
   }
 
   get isCommitteeMember(): boolean {
     return this.authService.isCommitteeMember;
   }
 
+  get isAdmin(): boolean {
+    return this.authService.isAdmin;
+  }
+
+  get canAdminAssignHost(): boolean {
+    return this.isAdmin && this.request?.status !== 'published';
+  }
+
   get canCreateEvent(): boolean {
-    return this.canManageRequestActions && ['accepted_by_host', 'artist_accepted', 'approved'].includes(this.request?.status ?? '');
+    return (this.canManageRequestActions && ['accepted_by_host', 'artist_accepted', 'approved'].includes(this.request?.status ?? ''))
+      || (this.isAdmin && !!this.selectedAdminHostId && ['accepted_by_host', 'host_proposed', 'artist_accepted', 'approved', 'published'].includes(this.request?.status ?? ''));
   }
 
   get hasSubmittedHostProposal(): boolean {
@@ -453,18 +470,76 @@ export class HostArtistRequestDetail implements OnInit {
   }
 
   async openCreateEvent() {
-    if (!this.canManageRequestActions || !this.request?.id) {
+    if ((!this.canManageRequestActions && !this.isAdmin) || !this.request?.id) {
       return;
     }
 
     await this.router.navigate([
-      this.authService.isHostManager ? '/backoffice/host-manager/requests' : '/backoffice/host/requests',
+      this.isAdmin
+        ? '/backoffice/event-requests'
+        : this.authService.isHostManager
+          ? '/backoffice/host-manager/requests'
+          : '/backoffice/host/requests',
       this.request.id,
       'create-event',
-    ]);
+    ], this.isAdmin && this.selectedAdminHostId ? {
+      queryParams: {
+        hostId: this.selectedAdminHostId,
+      },
+    } : undefined);
+  }
+
+  async acceptOnBehalfOfHost() {
+    if (!this.canAdminAssignHost || !this.request?.id || !this.authService.currentUser?.id) {
+      return;
+    }
+
+    if (!this.selectedAdminHostId) {
+      this.error = 'Select a host before accepting the request.';
+      return;
+    }
+
+    const selectedHost = this.adminHostOptions.find((host) => host.id === this.selectedAdminHostId) ?? null;
+    if (!selectedHost) {
+      this.error = 'The selected host could not be found.';
+      return;
+    }
+
+    this.error = '';
+    this.successMessage = '';
+    this.isSaving = true;
+
+    const hostLabel = selectedHost.public_name || selectedHost.name || selectedHost.city || `Host #${selectedHost.id}`;
+    const commentBody = [
+      '[HOST_ACCEPTED]',
+      `Request accepted by Admin on behalf of ${hostLabel}.`,
+      `Assigned Host ID: ${selectedHost.id}`,
+      `Assigned Host: ${hostLabel}`,
+    ].join('\n');
+
+    const commentError = await this.supabase.addArtistWorkspaceRequestComment(
+      this.request.id,
+      this.authService.currentUser.id,
+      commentBody,
+    );
+
+    if (commentError) {
+      this.error = commentError;
+      this.isSaving = false;
+      return;
+    }
+
+    this.acceptedByHost = true;
+    this.successMessage = 'Request accepted on behalf of the selected host.';
+    await this.reloadRequest();
+    this.isSaving = false;
   }
 
   private async canViewRequest(request: ArtistRequestDetail): Promise<boolean> {
+    if (this.authService.isAdmin) {
+      return true;
+    }
+
     if (this.authService.isHostManager || this.authService.hasAnyRole(['Host', 'Host+'])) {
       return true;
     }
@@ -531,6 +606,15 @@ export class HostArtistRequestDetail implements OnInit {
     this.publicLocations = publicLocations;
   }
 
+  private async loadAdminHosts() {
+    if (!this.isAdmin) {
+      this.adminHostOptions = [];
+      return;
+    }
+
+    this.adminHostOptions = await this.supabase.getHosts();
+  }
+
   private createBlankProposedDate(): HostProposedDateEntry {
     return {
       mode: 'one_day',
@@ -563,6 +647,7 @@ export class HostArtistRequestDetail implements OnInit {
 
     this.request = refreshed;
     this.acceptedByHost = this.isHostAcceptedWorkflow(this.request.status);
+    this.hydrateAssignedAdminHost();
     this.hydrateArtistProposalFromComments();
     this.hydrateHostProposalFromComments();
     await this.loadPublishedEvent();
@@ -646,6 +731,32 @@ export class HostArtistRequestDetail implements OnInit {
 
     if (parsedDates.length > 0) {
       this.proposedDates = parsedDates;
+    }
+  }
+
+  private hydrateAssignedAdminHost() {
+    if (!this.isAdmin || !this.request) {
+      return;
+    }
+
+    const assignedHostId = [...this.request.comments]
+      .reverse()
+      .map((comment) => comment.body)
+      .map((body) => body
+        .split('\n')
+        .map((line) => line.trim())
+        .find((line) => line.startsWith('Assigned Host ID:'))
+        ?.replace('Assigned Host ID:', '')
+        .trim() ?? null)
+      .find((value) => !!value);
+
+    if (!assignedHostId) {
+      return;
+    }
+
+    const parsed = Number.parseInt(assignedHostId, 10);
+    if (!Number.isNaN(parsed)) {
+      this.selectedAdminHostId = parsed;
     }
   }
 

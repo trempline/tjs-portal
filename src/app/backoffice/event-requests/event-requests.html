@@ -8,13 +8,13 @@
   <div class="space-y-6">
     <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
       <div>
-        <h1 class="text-2xl font-bold text-zinc-900">{{ isCommitteeMember || isHostRequestWorkspace ? 'Artist Requests' : 'Event Requests' }}</h1>
+        <h1 class="text-2xl font-bold text-zinc-900">Artists Requests</h1>
         <p class="mt-1 text-sm text-zinc-500">
           {{ isHostRequestWorkspace
             ? 'Browse artist requests. Approved requests open directly in the event editor, while other requests open the negotiation detail page.'
             : (isCommitteeMember
             ? 'Read-only request monitoring for your assigned artists. Open any request to inspect the full detail thread.'
-            : 'Platform request overview.') }}
+            : 'Platform artist request overview with filters for workflow, hosts, metadata, and dates.') }}
         </p>
       </div>
 
@@ -23,7 +23,7 @@
           <input
             [(ngModel)]="searchQuery"
             type="text"
-            placeholder="Search title, artist, requester, city..."
+            placeholder="Search by event title..."
             class="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 shadow-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20"
           />
         </div>
@@ -120,6 +120,33 @@
           </button>
         </div>
         <ng-template #groupedRequestTabs>
+          <div *ngIf="isAdminView; else committeeRequestTabs" class="flex gap-1 rounded-lg bg-zinc-100 p-1">
+            <button
+              (click)="setTab('PENDING')"
+              [class.bg-white]="activeTab === 'PENDING'"
+              [class.shadow-sm]="activeTab === 'PENDING'"
+              [class.text-zinc-800]="activeTab === 'PENDING'"
+              [class.font-semibold]="activeTab === 'PENDING'"
+              [class.text-zinc-500]="activeTab !== 'PENDING'"
+              class="rounded-md px-4 py-1.5 text-sm transition-all duration-200"
+            >
+              Pending
+            </button>
+            <button
+              (click)="setTab('PUBLISHED')"
+              [class.bg-white]="activeTab === 'PUBLISHED'"
+              [class.shadow-sm]="activeTab === 'PUBLISHED'"
+              [class.text-zinc-800]="activeTab === 'PUBLISHED'"
+              [class.font-semibold]="activeTab === 'PUBLISHED'"
+              [class.text-zinc-500]="activeTab !== 'PUBLISHED'"
+              class="rounded-md px-4 py-1.5 text-sm transition-all duration-200"
+            >
+              Published
+            </button>
+          </div>
+        </ng-template>
+
+        <ng-template #committeeRequestTabs>
           <div class="flex gap-1 rounded-lg bg-zinc-100 p-1">
             <button
               (click)="setTab('PENDING')"
@@ -166,6 +193,66 @@
         </span>
       </div>
 
+      <div *ngIf="isAdminView" class="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+        <select
+          [(ngModel)]="selectedEventType"
+          class="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 shadow-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20"
+        >
+          <option value="">All event types</option>
+          <option *ngFor="let option of eventTypeOptions" [value]="option">{{ option }}</option>
+        </select>
+
+        <select
+          [(ngModel)]="selectedDomain"
+          class="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 shadow-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20"
+        >
+          <option value="">All domains</option>
+          <option *ngFor="let option of domainOptions" [value]="option">{{ option }}</option>
+        </select>
+
+        <select
+          [(ngModel)]="selectedEdition"
+          class="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 shadow-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20"
+        >
+          <option value="">All editions</option>
+          <option *ngFor="let option of editionOptions" [value]="option">{{ option }}</option>
+        </select>
+
+        <select
+          [(ngModel)]="selectedStatus"
+          class="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 shadow-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20"
+        >
+          <option value="">All statuses</option>
+          <option *ngFor="let option of statusOptions" [value]="option.value">{{ option.label }}</option>
+        </select>
+
+        <select
+          [(ngModel)]="selectedHost"
+          class="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 shadow-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20"
+        >
+          <option value="">All hosts</option>
+          <option *ngFor="let option of hostFilterOptions" [value]="option">{{ option }}</option>
+        </select>
+
+        <select
+          [(ngModel)]="selectedLocation"
+          class="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 shadow-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20"
+        >
+          <option value="">All locations</option>
+          <option *ngFor="let option of locationOptions" [value]="option">{{ option }}</option>
+        </select>
+      </div>
+
+      <div *ngIf="isAdminView" class="flex justify-end">
+        <select
+          [(ngModel)]="sortOrder"
+          class="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 shadow-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20 sm:w-52"
+        >
+          <option value="latest">Date: Latest first</option>
+          <option value="oldest">Date: Oldest first</option>
+        </select>
+      </div>
+
       <div class="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
         <div *ngIf="isLoading" class="flex items-center justify-center py-16">
           <div class="h-8 w-8 animate-spin rounded-full border-4 border-zinc-200 border-t-red-600"></div>
@@ -186,9 +273,13 @@
               <tr>
                 <th class="px-5 py-3 text-left font-semibold text-zinc-600">Title of Show</th>
                 <th class="px-5 py-3 text-left font-semibold text-zinc-600">Domain</th>
+                <th *ngIf="isAdminView" class="px-5 py-3 text-left font-semibold text-zinc-600">Edition</th>
+                <th *ngIf="isAdminView" class="px-5 py-3 text-left font-semibold text-zinc-600">Event Type</th>
                 <th class="px-5 py-3 text-left font-semibold text-zinc-600">Dates</th>
                 <th class="px-5 py-3 text-left font-semibold text-zinc-600">Artist Name</th>
-                <th class="px-5 py-3 text-left font-semibold text-zinc-600">Teaser</th>
+                <th *ngIf="isAdminView" class="px-5 py-3 text-left font-semibold text-zinc-600">Hosts</th>
+                
+                
                 <th class="px-5 py-3 text-left font-semibold text-zinc-600">Status</th>
               </tr>
             </thead>
@@ -200,9 +291,13 @@
                 class="hover:bg-zinc-50"
               >
                 <td class="px-5 py-4 align-top">
-                  <div class="font-semibold text-zinc-900">{{ item.title }}</div>
+                  <div class="font-semibold text-zinc-900">{{ item.title }} 
+                     <p class="max-w-md text-xs font-regular text-zinc-600">{{ teaserText(item) }}</p>
+                  </div>
                 </td>
                 <td class="px-5 py-4 text-zinc-600">{{ item.event_domain_name || 'No domain' }}</td>
+                <td *ngIf="isAdminView" class="px-5 py-4 text-zinc-600">{{ editionLabel(item) }}</td>
+                <td *ngIf="isAdminView" class="px-5 py-4 text-zinc-600">{{ eventTypeNameLabel(item) }}</td>
                 <td class="px-5 py-4 text-zinc-600">
                   <div *ngIf="!primaryRequestDate(item)">Not scheduled</div>
                   <div *ngIf="primaryRequestDate(item)" class="flex items-center gap-2">
@@ -213,10 +308,12 @@
                   </div>
                 </td>
                 <td class="px-5 py-4 text-zinc-600">{{ primaryArtist(item) }}</td>
-                <td class="px-5 py-4">
+                <td *ngIf="isAdminView" class="px-5 py-4 text-zinc-700">{{ hostsSummary(item) }}</td>
+                
+                <!-- <td class="px-5 py-4">
                   <div class="max-w-md text-zinc-600">{{ teaserText(item) }}</div>
                   <div class="mt-1 text-xs text-zinc-400">Created {{ item.created_at | date:'dd/MM/yyyy' }}</div>
-                </td>
+                </td> -->
                 <td class="px-5 py-4">
                   <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold" [ngClass]="badgeClass(item.status)">
                     {{ requestStatusLabel(item.status) }}

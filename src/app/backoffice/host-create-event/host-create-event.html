@@ -38,7 +38,7 @@
     <section class="overflow-hidden rounded-[2rem] border border-amber-100 bg-[linear-gradient(135deg,#fff8ef_0%,#ffffff_48%,#f6f7fb_100%)] shadow-sm">
       <div class="grid gap-5 p-6 md:grid-cols-[minmax(0,2fr)_minmax(16rem,1fr)]">
         <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.28em] text-red-600">Host Workspace</p>
+          <p class="text-xs font-semibold uppercase tracking-[0.28em] text-red-600">{{ isAdmin ? 'Admin Workspace' : 'Host Workspace' }}</p>
           <h2 class="mt-3 text-2xl font-semibold tracking-tight text-zinc-900">{{ form.title || request.event_title || 'Untitled Event' }}</h2>
           <p class="mt-2 text-sm text-zinc-600">Source request from {{ primaryArtistName() }} in {{ request.event_domain_name || 'unassigned domain' }}.</p>
           <div class="mt-5 flex flex-wrap gap-3">
@@ -132,9 +132,22 @@
 
             <div>
               <label class="text-sm font-medium text-zinc-700">Host</label>
-              <div class="mt-2 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-medium text-zinc-800">
-                {{ selectedHostLabel }}
-              </div>
+              <select
+                *ngIf="isAdmin; else readonlyHostLabel"
+                [(ngModel)]="form.hostId"
+                (ngModelChange)="onHostChange()"
+                class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100"
+              >
+                <option [ngValue]="0">Select host</option>
+                <option *ngFor="let host of hosts; trackBy: trackByHostId" [ngValue]="host.id">
+                  {{ host.public_name || host.name || host.city || ('Host #' + host.id) }}
+                </option>
+              </select>
+              <ng-template #readonlyHostLabel>
+                <div class="mt-2 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-medium text-zinc-800">
+                  {{ selectedHostLabel }}
+                </div>
+              </ng-template>
             </div>
 
             <div>
@@ -435,7 +448,7 @@
               No comments yet.
             </div>
             <div *ngIf="request.comments.length > 0" class="mt-4 space-y-3">
-              <div *ngFor="let comment of request.comments; trackBy: trackByComment" class="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+              <div *ngFor="let comment of sortedComments; trackBy: trackByComment" class="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
                 <div class="flex items-start justify-between gap-3">
                   <div>
                     <div class="text-sm font-semibold text-zinc-900">{{ comment.author_name }}</div>

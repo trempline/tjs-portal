@@ -5,6 +5,16 @@ import { Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import { AdminEventOverviewItem, SupabaseService, TjsHost } from '../../services/supabase.service';
 
+type RequestTab = 'PENDING' | 'PUBLISHED' | 'APPROVED' | 'AVAILABLE' | 'SELECTED' | 'new_request' | 'accepted_by_host' | 'host_proposed' | 'artist_proposed' | 'artist_accepted' | 'approved' | 'published' | 'rejected';
+type SortOrder = 'latest' | 'oldest';
+type EnhancedRequestItem = AdminEventOverviewItem & {
+  resolvedEdition: string | null;
+  resolvedEventTypeName: string | null;
+  resolvedHostNames: string[];
+  resolvedCity: string | null;
+  resolvedDepartment: string | null;
+};
+
 @Component({
   selector: 'app-event-requests',
   standalone: true,
@@ -16,12 +26,19 @@ export class EventRequests implements OnInit {
   private supabase = inject(SupabaseService);
   private router = inject(Router);
 
-  activeTab: 'PENDING' | 'APPROVED' | 'AVAILABLE' | 'SELECTED' | 'new_request' | 'accepted_by_host' | 'host_proposed' | 'artist_proposed' | 'artist_accepted' | 'published' | 'rejected' = 'new_request';
+  activeTab: RequestTab = 'new_request';
   isLoading = true;
   error = '';
   searchQuery = '';
+  selectedEventType = '';
+  selectedDomain = '';
+  selectedEdition = '';
+  selectedStatus = '';
+  selectedHost = '';
+  selectedLocation = '';
+  sortOrder: SortOrder = 'latest';
 
-  items: AdminEventOverviewItem[] = [];
+  items: EnhancedRequestItem[] = [];
   myArtistIds = new Set<string>();
   hostOptions: TjsHost[] = [];
 
@@ -55,7 +72,7 @@ export class EventRequests implements OnInit {
       ]);
 
       this.myArtistIds = new Set(artists.map((artist) => artist.id));
-      this.items = overview.filter((item) => item.event_type === 'REQUEST');
+      this.items = this.buildRequestItems(overview);
       this.hostOptions = hostOptions;
     } catch (error) {
       this.error = error instanceof Error ? error.message : 'Failed to load event requests.';
@@ -64,7 +81,7 @@ export class EventRequests implements OnInit {
     }
   }
 
-  setTab(tab: 'PENDING' | 'APPROVED' | 'AVAILABLE' | 'SELECTED' | 'new_request' | 'accepted_by_host' | 'host_proposed' | 'artist_proposed' | 'artist_accepted' | 'published' | 'rejected') {
+  setTab(tab: RequestTab) {
     this.activeTab = tab;
   }
 
@@ -100,7 +117,7 @@ export class EventRequests implements OnInit {
 
   get scopeLabel(): string {
     if (!this.isCommitteeMember) {
-      return 'All platform requests';
+      return '';
     }
 
     return 'My assigned artists';
@@ -120,8 +137,12 @@ export class EventRequests implements OnInit {
       const isAcceptedByCurrentHost = item.accepted_host_profile_ids.includes(currentUserId);
       const matchesActiveTab = this.isHostRequestWorkspace
         ? item.status === this.activeTab
-        : this.activeTab === 'PENDING'
-          ? ['new_request', 'artist_proposed'].includes(item.status)
+        : this.isAdminView
+          ? this.activeTab === 'PUBLISHED'
+            ? item.status === 'published'
+            : item.status !== 'published'
+          : this.activeTab === 'PENDING'
+            ? ['new_request', 'artist_proposed'].includes(item.status)
           : this.activeTab === 'SELECTED'
             ? ['accepted_by_host', 'host_proposed'].includes(item.status)
             : this.activeTab === 'APPROVED'
@@ -140,25 +161,67 @@ export class EventRequests implements OnInit {
         return false;
       }
 
-      if (!query) {
-        return true;
+      if (this.selectedEventType && this.eventTypeNameLabel(item) !== this.selectedEventType) {
+        return false;
       }
 
-      const haystacks = [
-        item.title,
-        item.teaser ?? '',
-        item.event_domain_name ?? '',
-        item.description ?? '',
-        item.artist_names.join(' '),
-        item.creator_name,
-        item.creator_email,
-        item.city ?? '',
-        item.department ?? '',
-        this.requestStatusLabel(item.status),
-      ];
+      if (this.selectedDomain && (item.event_domain_name ?? '') !== this.selectedDomain) {
+        return false;
+      }
 
-      return haystacks.some((value) => value.toLowerCase().includes(query));
+      if (this.selectedEdition && this.editionLabel(item) !== this.selectedEdition) {
+        return false;
+      }
+
+      if (this.selectedStatus && item.status !== this.selectedStatus) {
+        return false;
+      }
+
+      if (this.selectedHost && !item.resolvedHostNames.includes(this.selectedHost)) {
+        return false;
+      }
+
+      if (this.selectedLocation && this.locationLabel(item) !== this.selectedLocation) {
+        return false;
+      }
+
+      return !query || item.title.toLowerCase().includes(query);
+    }).sort((left, right) => {
+      const leftDate = this.sortTimestamp(left);
+      const rightDate = this.sortTimestamp(right);
+      return this.sortOrder === 'latest' ? rightDate - leftDate : leftDate - rightDate;
     });
+  }
+
+  get isAdminView(): boolean {
+    return this.authService.isAdmin && !this.isCommitteeMember && !this.isHostRequestWorkspace;
+  }
+
+  get eventTypeOptions(): string[] {
+    return this.uniqueValues(this.items.map((item) => this.eventTypeNameLabel(item)));
+  }
+
+  get domainOptions(): string[] {
+    return this.uniqueValues(this.items.map((item) => item.event_domain_name ?? ''));
+  }
+
+  get editionOptions(): string[] {
+    return this.uniqueValues(this.items.map((item) => this.editionLabel(item)));
+  }
+
+  get statusOptions(): Array<{ value: string; label: string }> {
+    return this.uniqueValues(this.items.map((item) => item.status)).map((status) => ({
+      value: status,
+      label: this.requestStatusLabel(status),
+    }));
+  }
+
+  get hostFilterOptions(): string[] {
+    return this.uniqueValues(this.items.flatMap((item) => item.resolvedHostNames));
+  }
+
+  get locationOptions(): string[] {
+    return this.uniqueValues(this.items.map((item) => this.locationLabel(item)));
   }
 
   badgeClass(status: string): string {
@@ -227,18 +290,91 @@ export class EventRequests implements OnInit {
     return item.teaser || item.description || 'No teaser';
   }
 
+  hostsSummary(item: EnhancedRequestItem): string {
+    return this.compactSummary(item.resolvedHostNames, 'Unassigned');
+  }
+
+  editionLabel(item: EnhancedRequestItem): string {
+    return item.resolvedEdition || '-';
+  }
+
+  eventTypeNameLabel(item: EnhancedRequestItem): string {
+    return item.resolvedEventTypeName || 'Request';
+  }
+
+  locationLabel(item: EnhancedRequestItem): string {
+    const value = item.resolvedCity || item.resolvedDepartment;
+    return value || '-';
+  }
+
   async openRequest(item: AdminEventOverviewItem) {
-    if (!this.isHostRequestWorkspace && !this.isCommitteeMember) {
+    if (!this.isHostRequestWorkspace && !this.isCommitteeMember && !this.isAdminView) {
       return;
     }
 
     await this.router.navigate([
-      this.isCommitteeMember
+      this.isAdminView || this.isCommitteeMember
         ? '/backoffice/event-requests'
         : this.isHostManagerWorkspace
           ? '/backoffice/host-manager/requests'
           : '/backoffice/host/requests',
       item.id,
     ]);
+  }
+
+  private buildRequestItems(overview: AdminEventOverviewItem[]): EnhancedRequestItem[] {
+    const eventInstancesByRequestId = new Map<string, AdminEventOverviewItem[]>();
+
+    for (const item of overview) {
+      if (item.event_type !== 'EVENT_INSTANCE' || !item.parent_event_id) {
+        continue;
+      }
+
+      const existing = eventInstancesByRequestId.get(item.parent_event_id) ?? [];
+      existing.push(item);
+      eventInstancesByRequestId.set(item.parent_event_id, existing);
+    }
+
+    return overview
+      .filter((item) => item.event_type === 'REQUEST')
+      .map((item) => {
+        const relatedEvents = eventInstancesByRequestId.get(item.id) ?? [];
+        const resolvedEdition = item.edition ?? relatedEvents.find((event) => !!event.edition)?.edition ?? null;
+        const resolvedEventTypeName = item.event_type_name ?? relatedEvents.find((event) => !!event.event_type_name)?.event_type_name ?? null;
+        const resolvedHostNames = Array.from(new Set([
+          ...item.host_names,
+          ...relatedEvents.flatMap((event) => event.host_names),
+        ]));
+        const resolvedCity = item.city ?? relatedEvents.find((event) => !!event.city)?.city ?? null;
+        const resolvedDepartment = item.department ?? relatedEvents.find((event) => !!event.department)?.department ?? null;
+
+        return {
+          ...item,
+          resolvedEdition,
+          resolvedEventTypeName,
+          resolvedHostNames,
+          resolvedCity,
+          resolvedDepartment,
+        };
+      });
+  }
+
+  private compactSummary(values: string[], fallback: string): string {
+    const normalized = values.filter((value) => !!value);
+    if (normalized.length === 0) {
+      return fallback;
+    }
+
+    return normalized.length > 1 ? `${normalized[0]} +${normalized.length - 1}` : normalized[0];
+  }
+
+  private sortTimestamp(item: EnhancedRequestItem): number {
+    const primaryDate = this.primaryRequestDate(item) ?? item.created_at;
+    const parsed = new Date(primaryDate).getTime();
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+
+  private uniqueValues(values: string[]): string[] {
+    return Array.from(new Set(values.filter((value) => !!value && value !== '-'))).sort((left, right) => left.localeCompare(right));
   }
 }

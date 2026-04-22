@@ -118,12 +118,12 @@
               <tr
                 *ngFor="let item of filteredEvents"
                 class="hover:bg-zinc-50 text-xs transition-colors duration-150"
-                [class.cursor-pointer]="isHostManager || isCommitteeMember"
+                [class.cursor-pointer]="isHostManager || isCommitteeMember || supportsOverview"
                 (click)="openEvent(item)">
                 <td class="px-5 py-4 align-top">
                   <div class="font-semibold text-zinc-900">{{ item.title }}</div>
                   <div *ngIf="item.teaser" class="mt-1 max-w-md text-xs text-zinc-500">{{ item.teaser }}</div>
-                  <div *ngIf="isHostManager || isCommitteeMember" class="mt-1 text-xs font-medium text-red-600">Open details</div>
+                  <div *ngIf="isHostManager || isCommitteeMember || supportsOverview" class="mt-1 text-xs font-medium text-red-600">Open details</div>
                 </td>
                 <td class="px-5 py-4 text-zinc-600">{{ item.event_domain_name || '-' }}</td>
         

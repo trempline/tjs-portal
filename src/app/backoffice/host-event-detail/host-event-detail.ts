@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import {
+  ArtistRequestCommentEntry,
   EventEditionOption,
   EventTypeOption,
   HostWorkspaceEventDetail,
@@ -99,14 +100,15 @@ export class HostEventDetail implements OnInit {
     }
 
     try {
-      const [event, eventDomains, editionOptions, eventTypeOptions, privateLocations, publicLocations] = await Promise.all([
-        this.isCommitteeMember
-          ? this.supabase.getCommitteeWorkspaceEventDetail(eventId)
-          : this.supabase.getHostWorkspaceEventDetail(profileId, eventId),
+      const [event, eventDomains, editionOptions, eventTypeOptions, publicLocations] = await Promise.all([
+        this.isAdmin
+          ? this.supabase.getAdminWorkspaceEventDetail(eventId)
+          : this.isCommitteeMember
+            ? this.supabase.getCommitteeWorkspaceEventDetail(eventId)
+            : this.supabase.getHostWorkspaceEventDetail(profileId, eventId),
         this.supabase.listEventDomains(),
         this.supabase.listConcreteEventEditionOptions(),
         this.supabase.listEventTypeOptions(),
-        this.canEditEvent ? this.supabase.getPrivateLocations(profileId) : Promise.resolve([]),
         this.supabase.getPublicLocations(),
       ]);
 
@@ -114,12 +116,16 @@ export class HostEventDetail implements OnInit {
       this.eventDomains = eventDomains;
       this.editionOptions = editionOptions;
       this.eventTypeOptions = eventTypeOptions;
-      this.privateLocations = privateLocations;
       this.publicLocations = publicLocations;
 
       if (!this.event) {
         this.error = 'Event not found.';
       } else {
+        this.privateLocations = this.isAdmin
+          ? await this.supabase.getPrivateLocationsForHost(this.event.host_ids[0] ?? 0)
+          : this.canEditEvent
+            ? await this.supabase.getPrivateLocations(profileId)
+            : [];
         this.resetFormFromEvent();
       }
     } catch (error) {
@@ -141,12 +147,16 @@ export class HostEventDetail implements OnInit {
     return this.authService.isCommitteeMember;
   }
 
+  get isAdmin(): boolean {
+    return this.authService.isAdmin;
+  }
+
   get canEditEvent(): boolean {
     return !this.isCommitteeMember;
   }
 
   get canCommentOnEvent(): boolean {
-    return this.isCommitteeMember && !!this.event?.request_detail?.id;
+    return (this.isCommitteeMember || this.isAdmin) && !!this.event?.request_detail?.id;
   }
 
   get shouldShowHostNotes(): boolean {
@@ -174,6 +184,10 @@ export class HostEventDetail implements OnInit {
 
   get cleanedHostNotes(): string {
     return this.extractFreeformHostNotes(this.event?.host_notes ?? null);
+  }
+
+  get sortedComments(): ArtistRequestCommentEntry[] {
+    return [...(this.event?.request_detail?.comments ?? [])].reverse();
   }
 
   get artistEntries() {
@@ -235,7 +249,9 @@ export class HostEventDetail implements OnInit {
       hostNotes: this.detailForm.hostNotes,
     };
 
-    const error = await this.supabase.updateHostWorkspaceEventDetail(profileId, this.event.id, payload);
+    const error = this.isAdmin
+      ? await this.supabase.updateAdminWorkspaceEventDetail(this.event.id, payload)
+      : await this.supabase.updateHostWorkspaceEventDetail(profileId, this.event.id, payload);
     if (error) {
       this.error = error;
       this.isUpdating = false;
@@ -274,7 +290,9 @@ export class HostEventDetail implements OnInit {
       return;
     }
 
-    const saveError = await this.supabase.updateHostWorkspaceEventImage(profileId, this.event.id, uploadResult.url);
+    const saveError = this.isAdmin
+      ? await this.supabase.updateAdminWorkspaceEventImage(this.event.id, uploadResult.url)
+      : await this.supabase.updateHostWorkspaceEventImage(profileId, this.event.id, uploadResult.url);
     if (saveError) {
       this.error = saveError;
       this.isImageUploading = false;
@@ -379,7 +397,9 @@ export class HostEventDetail implements OnInit {
       locationId: this.resolvePersistedLocationId(this.scheduleForm.locationId),
     };
 
-    const error = await this.supabase.updateHostWorkspaceEventSchedule(profileId, this.event.id, payload);
+    const error = this.isAdmin
+      ? await this.supabase.updateAdminWorkspaceEventSchedule(this.event.id, payload)
+      : await this.supabase.updateHostWorkspaceEventSchedule(profileId, this.event.id, payload);
     if (error) {
       this.error = error;
       this.isUpdating = false;
@@ -437,7 +457,9 @@ export class HostEventDetail implements OnInit {
     this.successMessage = '';
 
     const nextState = !this.isActive;
-    const error = await this.supabase.updateHostWorkspaceEventStatus(profileId, this.event.id, nextState);
+    const error = this.isAdmin
+      ? await this.supabase.updateAdminWorkspaceEventStatus(this.event.id, nextState)
+      : await this.supabase.updateHostWorkspaceEventStatus(profileId, this.event.id, nextState);
     if (error) {
       this.error = error;
       this.isUpdating = false;
@@ -467,7 +489,9 @@ export class HostEventDetail implements OnInit {
     this.successMessage = '';
 
     const nextState = !this.event.is_featured;
-    const error = await this.supabase.updateHostWorkspaceEventFeatured(profileId, this.event.id, nextState);
+    const error = this.isAdmin
+      ? await this.supabase.updateAdminWorkspaceEventFeatured(this.event.id, nextState)
+      : await this.supabase.updateHostWorkspaceEventFeatured(profileId, this.event.id, nextState);
     if (error) {
       this.error = error;
       this.isUpdating = false;
