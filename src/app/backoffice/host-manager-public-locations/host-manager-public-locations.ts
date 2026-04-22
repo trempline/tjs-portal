@@ -65,6 +65,10 @@ export class HostManagerPublicLocations implements OnInit {
   }
 
   get detailRoutePrefix(): string {
+    if (this.authService.isAdmin) {
+      return '/backoffice/locations/public';
+    }
+
     if (this.authService.isCommitteeMember) {
       return '/backoffice/committee/locations/public';
     }
@@ -77,7 +81,7 @@ export class HostManagerPublicLocations implements OnInit {
   }
 
   get canManageLocations(): boolean {
-    return this.authService.isCommitteeMember || this.authService.isHostManager;
+    return this.authService.isAdmin || this.authService.isCommitteeMember || this.authService.isHostManager;
   }
 
   get filteredLocations(): TjsLocation[] {
@@ -352,7 +356,7 @@ export class HostManagerPublicLocations implements OnInit {
   }
 
   private get filterOwnerId(): string | undefined {
-    return this.authService.isCommitteeMember || this.authService.isHostManager
+    return this.authService.isAdmin || this.authService.isCommitteeMember || this.authService.isHostManager
       ? undefined
       : this.currentUserId;
   }

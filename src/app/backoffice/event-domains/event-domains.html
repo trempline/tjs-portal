@@ -1,0 +1,105 @@
+<div class="space-y-6">
+  <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-zinc-900">Domain</h1>
+      <p class="mt-1 text-sm text-zinc-500">Manage event domains used across requests and events.</p>
+    </div>
+    <button
+      type="button"
+      (click)="openCreateModal()"
+      class="rounded-xl bg-zinc-900 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-800"
+    >
+      Add Domain
+    </button>
+  </div>
+
+  <div *ngIf="successMessage" class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+    {{ successMessage }}
+  </div>
+
+  <div *ngIf="error" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+    {{ error }}
+  </div>
+
+  <section class="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+    <div class="border-b border-zinc-200 px-5 py-4">
+      <h2 class="text-lg font-semibold text-zinc-900">All Domains</h2>
+    </div>
+
+    <div *ngIf="isLoading" class="px-5 py-16 text-center text-sm text-zinc-400">Loading domains...</div>
+
+    <div *ngIf="!isLoading && domains.length === 0" class="px-5 py-16 text-center text-sm text-zinc-400">
+      No domains found.
+    </div>
+
+    <div *ngIf="!isLoading && domains.length > 0" class="overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead class="bg-zinc-50 text-zinc-500">
+          <tr>
+            <th class="px-5 py-3 text-left font-semibold">Domain Name</th>
+            <th class="px-5 py-3 text-right font-semibold">Action</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-zinc-100">
+          <tr *ngFor="let item of domains; trackBy: trackById" class="hover:bg-zinc-50">
+            <td class="px-5 py-4 font-semibold text-zinc-900">{{ item.name }}</td>
+            <td class="px-5 py-4">
+              <div class="flex justify-end gap-2">
+                <button
+                  type="button"
+                  (click)="openEditModal(item)"
+                  class="rounded-full border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 transition-colors hover:bg-zinc-50"
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  (click)="delete(item)"
+                  [disabled]="isSaving"
+                  class="rounded-full border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-600 transition-colors hover:bg-red-50 disabled:opacity-60"
+                >
+                  Delete
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<div *ngIf="showModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+  <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" (click)="closeModal()"></div>
+
+  <div class="relative w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
+    <div class="border-b border-zinc-100 px-6 py-4">
+      <h2 class="text-lg font-bold text-zinc-900">{{ editingId === null ? 'Add Domain' : 'Edit Domain' }}</h2>
+    </div>
+
+    <div class="space-y-4 px-6 py-5">
+      <div>
+        <label class="mb-1 block text-sm font-medium text-zinc-700">Domain Name</label>
+        <input
+          [(ngModel)]="form.name"
+          type="text"
+          class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20"
+        />
+      </div>
+    </div>
+
+    <div class="flex justify-end gap-3 border-t border-zinc-100 px-6 py-4">
+      <button type="button" (click)="closeModal()" class="rounded-lg px-4 py-2 text-sm text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900">
+        Cancel
+      </button>
+      <button
+        type="button"
+        (click)="submit()"
+        [disabled]="isSaving"
+        class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-60"
+      >
+        {{ isSaving ? 'Saving...' : 'Save' }}
+      </button>
+    </div>
+  </div>
+</div>

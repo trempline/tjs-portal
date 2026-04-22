@@ -57,7 +57,7 @@
     </div>
 
     <div class="mt-6 grid gap-5 lg:grid-cols-2">
-      <div *ngIf="isHostManagerWorkspace" class="space-y-2">
+      <div *ngIf="canSelectHost" class="space-y-2">
         <label class="text-sm font-medium text-zinc-700">Host</label>
         <select
           [ngModel]="currentHostId"
@@ -245,7 +245,7 @@
         <thead class="bg-zinc-50">
           <tr>
             <th class="px-5 py-3 text-left font-semibold text-zinc-600">Location</th>
-            <th *ngIf="isHostManagerWorkspace" class="px-5 py-3 text-left font-semibold text-zinc-600">Host</th>
+            <th *ngIf="canSelectHost" class="px-5 py-3 text-left font-semibold text-zinc-600">Host</th>
             <th class="px-5 py-3 text-left font-semibold text-zinc-600">Type</th>
             <th class="px-5 py-3 text-left font-semibold text-zinc-600">City</th>
             <th class="px-5 py-3 text-left font-semibold text-zinc-600">Capacity</th>
@@ -270,7 +270,7 @@
                 </div>
               </div>
             </td>
-            <td *ngIf="isHostManagerWorkspace" class="px-5 py-4 text-zinc-700">{{ hostNameForLocation(location) }}</td>
+            <td *ngIf="canSelectHost" class="px-5 py-4 text-zinc-700">{{ hostNameForLocation(location) }}</td>
             <td class="px-5 py-4 text-zinc-700">{{ location.location_type?.name || '-' }}</td>
             <td class="px-5 py-4 text-zinc-700">{{ location.city || '-' }}</td>
             <td class="px-5 py-4 text-zinc-700">{{ location.capacity || '-' }}</td>

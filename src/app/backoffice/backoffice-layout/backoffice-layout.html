@@ -93,16 +93,42 @@
             </a>
           </li>
           <li>
-            <a
-              routerLink="/backoffice/committee/locations/public"
-              routerLinkActive="bg-zinc-700 text-white"
-              class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+            <button
+              type="button"
+              (click)="toggleSubmenu('admin-locations')"
+              class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+              [class.bg-zinc-700]="isExpanded('admin-locations')"
+              [class.text-white]="isExpanded('admin-locations')"
             >
               <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/>
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                <circle cx="12" cy="10" r="3"/>
               </svg>
-              <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Public Locations</span>
-            </a>
+              <span *ngIf="!sidebarCollapsed" class="flex-1 text-left text-sm font-medium">Locations</span>
+              <svg *ngIf="!sidebarCollapsed" class="h-4 w-4 transition-transform duration-200" [class.rotate-180]="isExpanded('admin-locations')" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+            <ul *ngIf="isExpanded('admin-locations') && !sidebarCollapsed" class="ml-8 mt-1 space-y-1">
+              <li>
+                <a
+                  routerLink="/backoffice/locations/public"
+                  routerLinkActive="font-semibold text-red-400"
+                  class="block rounded-lg px-3 py-2 text-sm transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+                >
+                  Public Locations
+                </a>
+              </li>
+              <li>
+                <a
+                  routerLink="/backoffice/locations/private"
+                  routerLinkActive="font-semibold text-red-400"
+                  class="block rounded-lg px-3 py-2 text-sm transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+                >
+                  Private Locations
+                </a>
+              </li>
+            </ul>
           </li>
           <li>
             <a
@@ -146,6 +172,53 @@
               </svg>
               <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Membership</span>
             </a>
+          </li>
+          <li>
+            <button
+              type="button"
+              (click)="toggleSubmenu('admin-configuration')"
+              class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+              [class.bg-zinc-700]="isExpanded('admin-configuration')"
+              [class.text-white]="isExpanded('admin-configuration')"
+            >
+              <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 15.5A3.5 3.5 0 1 0 12 8.5a3.5 3.5 0 0 0 0 7z"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01A1.65 1.65 0 0 0 10.5 3.1V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+              </svg>
+              <span *ngIf="!sidebarCollapsed" class="flex-1 text-left text-sm font-medium">Configuration</span>
+              <svg *ngIf="!sidebarCollapsed" class="h-4 w-4 transition-transform duration-200" [class.rotate-180]="isExpanded('admin-configuration')" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+            <ul *ngIf="isExpanded('admin-configuration') && !sidebarCollapsed" class="ml-8 mt-1 space-y-1">
+              <li>
+                <a
+                  routerLink="/backoffice/configuration/member-tiers"
+                  routerLinkActive="font-semibold text-red-400"
+                  class="block rounded-lg px-3 py-2 text-sm transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+                >
+                  Member Tier
+                </a>
+              </li>
+              <li>
+                <a
+                  routerLink="/backoffice/configuration/domains"
+                  routerLinkActive="font-semibold text-red-400"
+                  class="block rounded-lg px-3 py-2 text-sm transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+                >
+                  Domain
+                </a>
+              </li>
+              <li>
+                <a
+                  routerLink="/backoffice/configuration/event-types"
+                  routerLinkActive="font-semibold text-red-400"
+                  class="block rounded-lg px-3 py-2 text-sm transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+                >
+                  Event Type
+                </a>
+              </li>
+            </ul>
           </li>
           <li><div class="mx-3 my-2 border-t border-zinc-700"></div></li>
           <li>

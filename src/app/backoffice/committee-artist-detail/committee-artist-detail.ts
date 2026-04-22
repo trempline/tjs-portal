@@ -147,8 +147,14 @@ export class CommitteeArtistDetail implements OnInit {
     return this.route.snapshot.routeConfig?.path === 'host-manager/artists/tjs/:id';
   }
 
+  get isAdminWorkspace(): boolean {
+    return this.authService.isAdmin;
+  }
+
   get canEditTjsArtist(): boolean {
-    return this.authService.hasRole('Committee Member') && !!this.artist?.is_tjs_artist && !this.isPagOnlyProfile;
+    return (this.authService.hasRole('Committee Member') || this.isAdminWorkspace)
+      && !!this.artist?.is_tjs_artist
+      && !this.isPagOnlyProfile;
   }
 
   get backLink(): string {
@@ -186,6 +192,12 @@ export class CommitteeArtistDetail implements OnInit {
 
     if (this.isHostManagerWorkspace) {
       return 'Host manager workspace view of the artist profile, requests, availability, media, and upcoming events.';
+    }
+
+    if (this.isAdminWorkspace) {
+      return this.isPagOnlyProfile
+        ? 'Admin workspace view of the legacy PAG artist profile.'
+        : (this.isInvitedArtistProfile ? 'Admin workspace view of the invited artist profile.' : 'Admin workspace view of the full artist profile.');
     }
 
     return this.isPagOnlyProfile

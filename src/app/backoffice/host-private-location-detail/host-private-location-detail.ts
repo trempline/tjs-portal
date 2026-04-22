@@ -43,8 +43,8 @@ export class HostPrivateLocationDetail implements OnInit {
     }
 
     const [location, bookings] = await Promise.all([
-      this.supabase.getPrivateLocationById(locationId, this.currentUserId),
-      this.supabase.getHostPrivateLocationBookings(this.currentUserId, locationId),
+      this.supabase.getPrivateLocationById(locationId, this.authService.isAdmin ? undefined : this.currentUserId),
+      this.supabase.getHostPrivateLocationBookings(this.authService.isAdmin ? undefined : this.currentUserId, locationId),
     ]);
 
     if (!location) {
@@ -63,6 +63,10 @@ export class HostPrivateLocationDetail implements OnInit {
   }
 
   get backRoute(): string {
+    if (this.authService.isAdmin) {
+      return '/backoffice/locations/private';
+    }
+
     return this.authService.isHostManager
       ? '/backoffice/host-manager/locations/private'
       : '/backoffice/host/locations/my';

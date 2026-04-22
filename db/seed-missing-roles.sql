@@ -12,7 +12,8 @@ INSERT INTO tjs_roles (name, description, permissions) VALUES
     ('Committee Member', 'Can invite TJS and Invited artists, access dashboard',   '{"artists": "invite", "dashboard": true, "events": "read"}'),
     ('Artist',           'Can update profile and propose events',                  '{"profile": "write", "events": "create"}'),
     ('Artist Invited',   'Artist invited by TJS artist for events',                '{"profile": "read", "events": "view"}'),
-    ('Member',           'Paid member, can book events',                           '{"bookings": "create", "events": "view"}')
+    ('Member',           'Paid member, can book events',                           '{"bookings": "create", "events": "view"}'),
+    ('Public Member',    'Public member with manually recorded monthly payments',  '{"membership": "public_monthly"}')
 ON CONFLICT (name) DO NOTHING;
 
 -- Verify:

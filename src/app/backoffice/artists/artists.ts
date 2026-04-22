@@ -40,6 +40,9 @@ export class Artists implements OnInit {
   showAssignmentModal = false;
   selectedArtistForAssignment: TjsArtist | null = null;
   selectedCommitteeMemberId = '';
+  showActivationPasswordModal = false;
+  activatedArtistName = '';
+  generatedTemporaryPassword = '';
 
   showCreateArtistModal = false;
   inviteArtistForm = {
@@ -179,7 +182,7 @@ export class Artists implements OnInit {
   }
 
   async openArtistDetail(artist: TjsArtist) {
-    if ((!this.isCommittee && !this.isHostManagerWorkspace) || !this.canOpenArtistDetail(artist)) {
+    if ((!this.isCommittee && !this.isHostManagerWorkspace && !this.isAdmin) || !this.canOpenArtistDetail(artist)) {
       return;
     }
 
@@ -213,6 +216,10 @@ export class Artists implements OnInit {
   canOpenArtistDetail(artist: TjsArtist): boolean {
     if (!artist.profile_id) {
       return false;
+    }
+
+    if (this.isAdmin) {
+      return true;
     }
 
     if (this.isCommittee && this.activeTab === 'invited') {
@@ -492,8 +499,74 @@ export class Artists implements OnInit {
 
   canReassignArtist(artist: TjsArtist): boolean {
     return this.canManageArtists
-      && this.activeTab === 'tjs'
-      && artist.is_tjs_artist;
+      && this.isAdmin
+      && (
+        (this.activeTab === 'tjs' && artist.is_tjs_artist)
+        || (this.activeTab === 'invited' && artist.is_invited_artist)
+      );
+  }
+
+  canActivateInvitedArtistAccount(artist: TjsArtist): boolean {
+    return this.isAdmin
+      && this.activeTab === 'invited'
+      && artist.is_invited_artist
+      && artist.activation_status !== 'active'
+      && !!artist.profile?.email;
+  }
+
+  canResetInvitedArtistPassword(artist: TjsArtist): boolean {
+    return this.isAdmin
+      && this.activeTab === 'invited'
+      && artist.is_invited_artist
+      && !!artist.profile?.email;
+  }
+
+  async activateInvitedArtistAccount(artist: TjsArtist) {
+    if (!this.canActivateInvitedArtistAccount(artist) || !artist.profile?.email) return;
+
+    this.isSaving = true;
+    this.error = '';
+
+    const { temporaryPassword, error } = await this.supabase.activateInvitedArtistAccount(artist.id);
+    if (error || !temporaryPassword) {
+      this.error = error ?? 'The invited artist account could not be activated.';
+      this.isSaving = false;
+      return;
+    }
+
+    this.activatedArtistName = this.displayName(artist);
+    this.generatedTemporaryPassword = temporaryPassword;
+    this.showActivationPasswordModal = true;
+    this.successMessage = `${this.activatedArtistName} account is now activated.`;
+    await this.loadData();
+    this.isSaving = false;
+    setTimeout(() => (this.successMessage = ''), 5000);
+  }
+
+  async resetInvitedArtistPassword(artist: TjsArtist) {
+    if (!this.canResetInvitedArtistPassword(artist) || !artist.profile?.email) return;
+
+    this.isSaving = true;
+    this.error = '';
+
+    const redirectTo = this.supabase.getInviteRedirectUrl();
+    const error = await this.supabase.sendPasswordResetEmail(artist.profile.email, redirectTo);
+
+    if (error) {
+      this.error = error;
+      this.isSaving = false;
+      return;
+    }
+
+    this.successMessage = `Password reset email sent to ${artist.profile.email}.`;
+    this.isSaving = false;
+    setTimeout(() => (this.successMessage = ''), 5000);
+  }
+
+  closeActivationPasswordModal() {
+    this.showActivationPasswordModal = false;
+    this.activatedArtistName = '';
+    this.generatedTemporaryPassword = '';
   }
 
   committeeMemberOptionLabel(member: TjsArtistUserSummary): string {

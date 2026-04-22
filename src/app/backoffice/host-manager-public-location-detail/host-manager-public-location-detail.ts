@@ -44,7 +44,7 @@ export class HostManagerPublicLocationDetail implements OnInit {
 
     const [location, bookings] = await Promise.all([
       this.supabase.getPublicLocationById(locationId, this.filterOwnerId),
-      this.supabase.getHostPrivateLocationBookings(this.currentUserId, locationId),
+      this.supabase.getHostPrivateLocationBookings(this.authService.isAdmin ? undefined : this.currentUserId, locationId),
     ]);
     if (!location) {
       this.error = 'Public location not found.';
@@ -62,6 +62,10 @@ export class HostManagerPublicLocationDetail implements OnInit {
   }
 
   get backRoute(): string {
+    if (this.authService.isAdmin) {
+      return '/backoffice/locations/public';
+    }
+
     if (this.authService.isCommitteeMember) {
       return '/backoffice/committee/locations/public';
     }
@@ -74,7 +78,7 @@ export class HostManagerPublicLocationDetail implements OnInit {
   }
 
   get canManageLocations(): boolean {
-    return this.authService.isCommitteeMember || this.authService.isHostManager;
+    return this.authService.isAdmin || this.authService.isCommitteeMember || this.authService.isHostManager;
   }
 
   get shouldHideBookingDetails(): boolean {
@@ -172,7 +176,7 @@ export class HostManagerPublicLocationDetail implements OnInit {
   }
 
   private get filterOwnerId(): string | undefined {
-    return this.authService.isCommitteeMember || this.authService.isHostManager
+    return this.authService.isAdmin || this.authService.isCommitteeMember || this.authService.isHostManager
       ? undefined
       : this.currentUserId;
   }

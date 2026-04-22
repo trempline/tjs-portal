@@ -19,6 +19,10 @@ import { MyHosts } from './backoffice/my-hosts/my-hosts';
 import { CommitteeMembers } from './backoffice/committee-members/committee-members';
 import { CommitteeDashboard } from './backoffice/committee-dashboard/committee-dashboard.component';
 import { Membership } from './backoffice/membership/membership';
+import { MembershipDetail } from './backoffice/membership-detail/membership-detail';
+import { MemberTiers } from './backoffice/member-tiers/member-tiers';
+import { EventDomains } from './backoffice/event-domains/event-domains';
+import { EventTypes } from './backoffice/event-types/event-types';
 import { AccountSettings } from './backoffice/account-settings/account-settings';
 import { AuthCallback } from './auth-callback/auth-callback';
 import { TestHostCreationComponent } from './test-host-creation/test-host-creation.component';
@@ -128,8 +132,12 @@ export const routes: Routes = [
             { path: 'artists/invited', component: Artists },
             { path: 'artists/non-tjs', component: NonTjsArtists, canActivate: [roleGuard(['Committee Member'])] },
             { path: 'artists/non-tjs/:id', component: CommitteeArtistDetail, canActivate: [roleGuard(['Committee Member'])] },
-            { path: 'artists/:id', component: CommitteeArtistDetail, canActivate: [roleGuard(['Committee Member'])] },
+            { path: 'artists/:id', component: CommitteeArtistDetail, canActivate: [roleGuard(['Admin', 'Committee Member'])] },
             { path: 'hosts', component: Hosts, canActivate: [roleGuard(['Admin'])] },
+            { path: 'locations/public', component: HostManagerPublicLocations, canActivate: [roleGuard(['Admin'])] },
+            { path: 'locations/public/:id', component: HostManagerPublicLocationDetail, canActivate: [roleGuard(['Admin'])] },
+            { path: 'locations/private', component: HostPrivateLocations, canActivate: [roleGuard(['Admin'])] },
+            { path: 'locations/private/:id', component: HostPrivateLocationDetail, canActivate: [roleGuard(['Admin'])] },
             { path: 'my-hosts', component: MyHosts },
             { path: 'host/dashboard', component: ArtistWorkspacePage, canActivate: [roleGuard(['Host', 'Host+'])], data: { title: 'Dashboard', description: 'This host dashboard page is intentionally blank for now.' } },
             { path: 'host/events', component: HostEvents, canActivate: [roleGuard(['Host', 'Host+'])] },
@@ -149,6 +157,10 @@ export const routes: Routes = [
             { path: 'events', component: Events },
             { path: 'events/:id', component: HostEventDetail, canActivate: [roleGuard(['Admin', 'Committee Member'])] },
             { path: 'membership', component: Membership, canActivate: [roleGuard(['Admin'])] },
+            { path: 'membership/:id', component: MembershipDetail, canActivate: [roleGuard(['Admin'])] },
+            { path: 'configuration/member-tiers', component: MemberTiers, canActivate: [roleGuard(['Admin'])] },
+            { path: 'configuration/domains', component: EventDomains, canActivate: [roleGuard(['Admin'])] },
+            { path: 'configuration/event-types', component: EventTypes, canActivate: [roleGuard(['Admin'])] },
             { path: 'user-management', component: UserManagement, canActivate: [roleGuard(['Admin'])] },
             { path: 'committee-members', component: CommitteeMembers, canActivate: [roleGuard(['Admin'])] },
             { path: 'committee-dashboard', component: CommitteeDashboard, canActivate: [roleGuard(['Committee Member'])] },

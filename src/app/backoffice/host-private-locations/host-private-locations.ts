@@ -68,23 +68,43 @@ export class HostPrivateLocations implements OnInit {
   }
 
   get detailRoutePrefix(): string {
+    if (this.authService.isAdmin) {
+      return '/backoffice/locations/private';
+    }
+
     return this.authService.isHostManager
       ? '/backoffice/host-manager/locations/private'
       : '/backoffice/host/locations/my';
   }
 
   get pageTitle(): string {
+    if (this.authService.isAdmin) {
+      return 'Private Locations';
+    }
+
     return this.authService.isHostManager ? 'Private Locations' : 'My Locations';
   }
 
   get pageDescription(): string {
+    if (this.authService.isAdmin) {
+      return 'Manage all private locations, assign them to hosts, and update their venue details from the admin workspace.';
+    }
+
     return this.authService.isHostManager
       ? 'Manage private locations across your assigned hosts from this workspace.'
       : 'Manage your private host locations from this workspace.';
   }
 
+  get canSelectHost(): boolean {
+    return this.authService.isAdmin || this.authService.isHostManager;
+  }
+
   get isHostManagerWorkspace(): boolean {
     return this.authService.isHostManager;
+  }
+
+  get isAdminWorkspace(): boolean {
+    return this.authService.isAdmin;
   }
 
   get filteredLocations(): TjsPrivateLocation[] {
@@ -111,8 +131,8 @@ export class HostPrivateLocations implements OnInit {
 
     try {
       const [hosts, locations, amenityOptions, specOptions, typeOptions] = await Promise.all([
-        this.supabase.getAccessibleHosts(this.currentUserId),
-        this.supabase.getPrivateLocations(this.currentUserId),
+        this.isAdminWorkspace ? this.supabase.getHosts() : this.supabase.getAccessibleHosts(this.currentUserId),
+        this.isAdminWorkspace ? this.supabase.getAllPrivateLocations() : this.supabase.getPrivateLocations(this.currentUserId),
         this.supabase.listLocationAmenities(),
         this.supabase.listLocationSpecs(),
         this.supabase.listLocationTypes(),
@@ -194,7 +214,7 @@ export class HostPrivateLocations implements OnInit {
     }
 
     const payload: SaveTjsPrivateLocationInput = {
-      id_host: this.editingLocation?.id_host ?? this.currentHostId,
+      id_host: this.currentHostId ?? this.editingLocation?.id_host ?? null,
       name: this.form.name,
       address: this.form.address,
       lat: this.parseOptionalNumber(this.form.lat),

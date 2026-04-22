@@ -1,0 +1,253 @@
+<div class="space-y-6">
+  <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+    <div>
+      <a routerLink="/backoffice/membership" class="text-sm font-medium text-red-600 hover:text-red-700">&larr; Back to Membership</a>
+      <h1 class="mt-2 text-2xl font-bold text-zinc-900">
+        {{ member ? (member.full_name || member.email) : 'Public Member Detail' }}
+      </h1>
+      <p class="mt-1 text-sm text-zinc-500">View payment history, manage activation, and record or delete payments.</p>
+    </div>
+
+    <div *ngIf="member" class="flex flex-wrap gap-2">
+      <button
+        *ngIf="canActivateMemberAccount(member)"
+        type="button"
+        (click)="activateMemberAccount()"
+        [disabled]="isSaving"
+        class="rounded-xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 disabled:opacity-60"
+      >
+        Activate Account
+      </button>
+      <button
+        type="button"
+        (click)="resetMemberPassword()"
+        [disabled]="isSaving"
+        class="rounded-xl border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50 disabled:opacity-60"
+      >
+        {{ member.account_status === 'active' ? 'Reset Password' : 'Set Password' }}
+      </button>
+      <button
+        type="button"
+        (click)="openPaymentModal()"
+        [disabled]="!member"
+        class="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-60"
+      >
+        Record Payment
+      </button>
+    </div>
+  </div>
+
+  <div *ngIf="successMessage" class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+    {{ successMessage }}
+  </div>
+
+  <div *ngIf="error" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+    {{ error }}
+  </div>
+
+  <div *ngIf="isLoading" class="rounded-2xl border border-zinc-200 bg-white px-5 py-16 text-center text-sm text-zinc-400 shadow-sm">
+    Loading public member details...
+  </div>
+
+  <ng-container *ngIf="!isLoading && member">
+    <div class="grid gap-4 md:grid-cols-4">
+      <div class="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-wide text-zinc-400">Email</p>
+        <p class="mt-2 text-sm font-semibold text-zinc-900">{{ member.email }}</p>
+      </div>
+      <div class="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-wide text-zinc-400">Activation</p>
+        <div class="mt-2">
+          <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold" [ngClass]="accountStatusClass(member)">
+            {{ accountStatusLabel(member) }}
+          </span>
+        </div>
+      </div>
+      <div class="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-wide text-zinc-400">Subscription</p>
+        <div class="mt-2">
+          <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold" [ngClass]="membershipStatusClass(member)">
+            {{ membershipStatusLabel(member) }}
+          </span>
+        </div>
+      </div>
+      <div class="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-wide text-zinc-400">Paid Until</p>
+        <p class="mt-2 text-sm font-semibold text-zinc-900">
+          {{ member.member_until ? (member.member_until | date:'dd/MM/yyyy') : 'Not paid yet' }}
+        </p>
+      </div>
+    </div>
+
+    <section class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+      <div class="flex items-center justify-between gap-3">
+        <div>
+          <h2 class="text-lg font-semibold text-zinc-900">Payment History</h2>
+          <p class="text-sm text-zinc-500">All payments recorded for this public member.</p>
+        </div>
+        <p class="text-sm text-zinc-500">{{ memberPayments.length }} record(s)</p>
+      </div>
+
+      <div *ngIf="memberPayments.length === 0" class="py-12 text-center text-sm text-zinc-400">
+        No payment records recorded for this member yet.
+      </div>
+
+      <div *ngIf="memberPayments.length > 0" class="mt-4 overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead class="bg-zinc-50 text-zinc-500">
+            <tr>
+              <th class="px-4 py-3 text-left font-semibold">Payment Date</th>
+              <th class="px-4 py-3 text-left font-semibold">Amount</th>
+              <th class="px-4 py-3 text-left font-semibold">Tier</th>
+              <th class="px-4 py-3 text-left font-semibold">Paid Until</th>
+              <th class="px-4 py-3 text-left font-semibold">Recorded By</th>
+              <th class="px-4 py-3 text-left font-semibold">Created</th>
+              <th class="px-4 py-3 text-right font-semibold">Action</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-zinc-100">
+            <tr *ngFor="let payment of memberPayments; trackBy: trackById" class="hover:bg-zinc-50">
+              <td class="px-4 py-3 text-zinc-800">{{ payment.payment_date | date:'dd/MM/yyyy' }}</td>
+              <td class="px-4 py-3 text-zinc-800">{{ payment.amount ?? 0 }} {{ payment.currency || 'EUR' }}</td>
+              <td class="px-4 py-3">
+                <span class="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                  {{ payment.tier || 'TJS Member' }}
+                </span>
+              </td>
+              <td class="px-4 py-3 text-zinc-800">{{ payment.expires_at | date:'dd/MM/yyyy' }}</td>
+              <td class="px-4 py-3 text-zinc-800">{{ payment.recorded_by_name || 'System' }}</td>
+              <td class="px-4 py-3 text-zinc-500">{{ payment.created_at | date:'dd/MM/yyyy, HH:mm' }}</td>
+              <td class="px-4 py-3 text-right">
+                <button
+                  type="button"
+                  (click)="deletePayment(payment)"
+                  [disabled]="isSaving"
+                  class="inline-flex items-center rounded-full border border-red-200 bg-white px-2.5 py-1 text-xs font-semibold text-red-600 transition-colors hover:bg-red-50 disabled:opacity-60"
+                >
+                  Delete
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </ng-container>
+</div>
+
+<div *ngIf="showPasswordModal && member" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+  <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" (click)="closePasswordModal()"></div>
+
+  <div class="relative w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
+    <div class="border-b border-zinc-100 px-6 py-4">
+      <h2 class="text-lg font-bold text-zinc-900">{{ passwordModalTitle }}</h2>
+      <p class="mt-1 text-sm text-zinc-500">{{ member.full_name || member.email }}</p>
+    </div>
+
+    <div class="space-y-4 px-6 py-5">
+      <div class="rounded-xl border border-amber-200 bg-amber-50 p-4">
+        <p class="text-sm font-medium text-amber-800">
+          Share this temporary password securely with the member. They should change it after signing in.
+        </p>
+      </div>
+
+      <div>
+        <p class="mb-1 text-sm font-medium text-zinc-700">Temporary Password</p>
+        <div class="rounded-lg border border-zinc-300 bg-zinc-50 px-3 py-3 font-mono text-sm text-zinc-900">
+          {{ generatedTemporaryPassword }}
+        </div>
+      </div>
+    </div>
+
+    <div class="flex justify-end border-t border-zinc-100 px-6 py-4">
+      <button type="button" (click)="closePasswordModal()" class="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-zinc-800">
+        Close
+      </button>
+    </div>
+  </div>
+</div>
+
+<div *ngIf="showPaymentModal && member" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+  <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" (click)="closePaymentModal()"></div>
+
+  <div class="relative w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
+    <div class="border-b border-zinc-100 px-6 py-4">
+      <h2 class="text-lg font-bold text-zinc-900">Record Payment</h2>
+      <p class="mt-1 text-sm text-zinc-500">{{ member.full_name || member.email }}</p>
+    </div>
+
+    <div class="space-y-4 px-6 py-5">
+      <div class="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+        <p class="text-xs font-semibold uppercase tracking-wide text-zinc-400">Current Subscription Status</p>
+        <div class="mt-3">
+          <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold" [ngClass]="membershipStatusClass(member)">
+            {{ membershipStatusLabel(member) }}
+          </span>
+        </div>
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-zinc-700">Amount</label>
+        <input
+          [(ngModel)]="paymentForm.amount"
+          type="number"
+          step="0.01"
+          min="0"
+          class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20"
+        />
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-zinc-700">Tier</label>
+        <select
+          [(ngModel)]="paymentForm.tier"
+          class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20"
+        >
+          <option *ngFor="let tier of membershipTierOptions" [ngValue]="tier">{{ tier }}</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-zinc-700">Payment Date</label>
+        <input
+          [(ngModel)]="paymentForm.paymentDate"
+          type="date"
+          class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20"
+        />
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium text-zinc-700">Number of Days</label>
+        <input
+          [(ngModel)]="paymentForm.durationDays"
+          type="number"
+          min="1"
+          step="1"
+          class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20"
+        />
+      </div>
+
+      <div class="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+        <p class="text-xs font-semibold uppercase tracking-wide text-zinc-400">Calculated Expiry</p>
+        <p class="mt-2 text-lg font-semibold text-zinc-900">
+          {{ paymentExpiryPreview ? (paymentExpiryPreview | date:'dd MMM yyyy') : 'Select payment date and days' }}
+        </p>
+        <p class="mt-1 text-xs text-zinc-500">If the member is already active, the new duration extends from the current expiry date.</p>
+      </div>
+    </div>
+
+    <div class="flex justify-end gap-3 border-t border-zinc-100 px-6 py-4">
+      <button type="button" (click)="closePaymentModal()" class="rounded-lg px-4 py-2 text-sm text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900">
+        Cancel
+      </button>
+      <button
+        type="button"
+        (click)="submitPayment()"
+        [disabled]="isSaving"
+        class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-60"
+      >
+        {{ isSaving ? 'Saving...' : 'Save payment' }}
+      </button>
+    </div>
+  </div>
+</div>

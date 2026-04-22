@@ -63,6 +63,7 @@ export interface MembershipPaymentRecord {
   expires_at: string;
   is_active: boolean;
   amount: number | null;
+  tier: string | null;
   currency: string | null;
   notes: string | null;
   recorded_by: string | null;
@@ -262,6 +263,13 @@ export interface SysHostType {
 export interface LocationLookupOption {
   id: number;
   name: string;
+}
+
+export interface MemberTier {
+  id: number;
+  name: string;
+  description: string | null;
+  created_at: string;
 }
 
 export interface TjsLocationImage {
@@ -699,6 +707,13 @@ export interface InviteArtistInput {
   role_name: 'Artist' | 'Artist Invited';
 }
 
+export interface CreatePublicMemberInput {
+  email: string;
+  full_name: string;
+  phone?: string | null;
+  assigned_by: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -1003,6 +1018,112 @@ export class SupabaseService {
     }
 
     return (data ?? []) as EventTypeOption[];
+  }
+
+  async createEventDomain(name: string): Promise<{ item: { id: number; name: string } | null; error: string | null }> {
+    const normalizedName = name.trim();
+    if (!normalizedName) {
+      return { item: null, error: 'Domain name is required.' };
+    }
+
+    const { data, error } = await this.adminSupabase
+      .from('sys_event_domain')
+      .insert({ name: normalizedName })
+      .select('id, name')
+      .single();
+
+    if (error) {
+      console.error('createEventDomain error:', error.message);
+      return { item: null, error: error.message };
+    }
+
+    return { item: data as { id: number; name: string }, error: null };
+  }
+
+  async updateEventDomain(id: number, name: string): Promise<string | null> {
+    const normalizedName = name.trim();
+    if (!normalizedName) {
+      return 'Domain name is required.';
+    }
+
+    const { error } = await this.adminSupabase
+      .from('sys_event_domain')
+      .update({ name: normalizedName })
+      .eq('id', id);
+
+    if (error) {
+      console.error('updateEventDomain error:', error.message);
+      return error.message;
+    }
+
+    return null;
+  }
+
+  async deleteEventDomain(id: number): Promise<string | null> {
+    const { error } = await this.adminSupabase
+      .from('sys_event_domain')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('deleteEventDomain error:', error.message);
+      return error.message;
+    }
+
+    return null;
+  }
+
+  async createEventType(name: string): Promise<{ item: EventTypeOption | null; error: string | null }> {
+    const normalizedName = name.trim();
+    if (!normalizedName) {
+      return { item: null, error: 'Event type name is required.' };
+    }
+
+    const { data, error } = await this.adminSupabase
+      .from('sys_event_type')
+      .insert({ name: normalizedName })
+      .select('id, name')
+      .single();
+
+    if (error) {
+      console.error('createEventType error:', error.message);
+      return { item: null, error: error.message };
+    }
+
+    return { item: data as EventTypeOption, error: null };
+  }
+
+  async updateEventType(id: number, name: string): Promise<string | null> {
+    const normalizedName = name.trim();
+    if (!normalizedName) {
+      return 'Event type name is required.';
+    }
+
+    const { error } = await this.adminSupabase
+      .from('sys_event_type')
+      .update({ name: normalizedName })
+      .eq('id', id);
+
+    if (error) {
+      console.error('updateEventType error:', error.message);
+      return error.message;
+    }
+
+    return null;
+  }
+
+  async deleteEventType(id: number): Promise<string | null> {
+    const { error } = await this.adminSupabase
+      .from('sys_event_type')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('deleteEventType error:', error.message);
+      return error.message;
+    }
+
+    return null;
   }
 
   private isMissingSchemaError(error: { code?: string | null; message?: string | null } | null | undefined): boolean {
@@ -5341,7 +5462,7 @@ export class SupabaseService {
   async listMembershipPayments(limit: number = 20): Promise<MembershipPaymentRecord[]> {
     const { data, error } = await this.adminSupabase
       .from('tjs_membership_payments')
-      .select('id, profile_id, payment_date, expires_at, is_active, amount, currency, notes, recorded_by, created_at, updated_at')
+      .select('id, profile_id, payment_date, expires_at, is_active, amount, tier, currency, notes, recorded_by, created_at, updated_at')
       .order('payment_date', { ascending: false })
       .limit(limit);
 
@@ -5381,6 +5502,7 @@ export class SupabaseService {
       expires_at: row.expires_at,
       is_active: !!row.is_active,
       amount: row.amount ?? null,
+      tier: row.tier ?? null,
       currency: row.currency ?? null,
       notes: row.notes ?? null,
       recorded_by: row.recorded_by ?? null,
@@ -5395,14 +5517,19 @@ export class SupabaseService {
   async recordMembershipPayment(
     userId: string,
     paymentDate: string,
-    recordedBy: string
+    recordedBy: string,
+    options?: {
+      amount?: number | null;
+      tier?: string | null;
+      currency?: string | null;
+      durationDays?: number | null;
+    }
   ): Promise<{ expiryDate: string | null; error: string | null }> {
     const normalizedPaymentDate = paymentDate.trim();
     if (!normalizedPaymentDate) {
       return { expiryDate: null, error: 'Payment date is required.' };
     }
 
-    const expiryDate = this.addTwelveMonths(normalizedPaymentDate);
     const { data: existingProfile, error: existingProfileError } = await this.adminSupabase
       .from('tjs_profiles')
       .select('id, full_name, email, is_member, member_until')
@@ -5414,6 +5541,20 @@ export class SupabaseService {
       return { expiryDate: null, error: existingProfileError?.message ?? 'User profile not found.' };
     }
 
+    const userRoles = await this.getUserRoles(userId);
+    const isPublicMember = userRoles.some((role) => role.name === 'Public Member');
+    const durationDays = options?.durationDays ?? null;
+    const membershipBaseDate = isPublicMember
+      ? this.resolveMembershipExtensionBaseDate(normalizedPaymentDate, existingProfile.member_until ?? null)
+      : normalizedPaymentDate;
+    const expiryDate = isPublicMember
+      ? (
+        typeof durationDays === 'number' && Number.isInteger(durationDays) && durationDays > 0
+          ? this.addDays(membershipBaseDate, durationDays)
+          : this.addOneMonth(membershipBaseDate)
+      )
+      : this.addTwelveMonths(normalizedPaymentDate);
+
     const previousState = this.membershipStateFromProfile(existingProfile as Pick<TjsProfile, 'is_member' | 'member_until'>);
 
     const { error: paymentError } = await this.adminSupabase
@@ -5423,6 +5564,9 @@ export class SupabaseService {
         payment_date: normalizedPaymentDate,
         expires_at: expiryDate,
         is_active: true,
+        amount: options?.amount ?? null,
+        tier: options?.tier?.trim() || 'TJS Member',
+        currency: options?.currency?.trim() || 'EUR',
         recorded_by: recordedBy,
       });
 
@@ -5461,6 +5605,43 @@ export class SupabaseService {
     await this.sendMembershipNotification(userId, recordedBy, subject, body);
 
     return { expiryDate, error: null };
+  }
+
+  async deleteMembershipPayment(
+    paymentId: string,
+    actorUserId: string,
+  ): Promise<{ error: string | null }> {
+    const { data: payment, error: paymentError } = await this.adminSupabase
+      .from('tjs_membership_payments')
+      .select('id, profile_id')
+      .eq('id', paymentId)
+      .maybeSingle();
+
+    if (paymentError) {
+      console.error('deleteMembershipPayment lookup error:', paymentError.message);
+      return { error: paymentError.message };
+    }
+
+    if (!payment?.profile_id) {
+      return { error: 'Payment record not found.' };
+    }
+
+    const { error: deleteError } = await this.adminSupabase
+      .from('tjs_membership_payments')
+      .delete()
+      .eq('id', paymentId);
+
+    if (deleteError) {
+      console.error('deleteMembershipPayment delete error:', deleteError.message);
+      return { error: deleteError.message };
+    }
+
+    const recalculateError = await this.recalculateMembershipProfile(payment.profile_id, actorUserId);
+    if (recalculateError) {
+      return { error: recalculateError };
+    }
+
+    return { error: null };
   }
 
   async syncExpiredMemberships(actorUserId?: string): Promise<{ expiredCount: number; error: string | null }> {
@@ -5597,6 +5778,70 @@ export class SupabaseService {
     return null;
   }
 
+  async activateInvitedArtistAccount(
+    artistId: string,
+  ): Promise<{ temporaryPassword: string | null; error: string | null }> {
+    const artistResult = await this.adminSupabase
+      .from('tjs_artists')
+      .select('id, profile_id, artist_name, activation_status, profile:tjs_profiles(email, full_name)')
+      .eq('id', artistId)
+      .maybeSingle();
+
+    if (artistResult.error) {
+      console.error('activateInvitedArtistAccount artist lookup error:', artistResult.error.message);
+      return { temporaryPassword: null, error: artistResult.error.message };
+    }
+
+    const artist = artistResult.data as any;
+    if (!artist?.id || !artist?.profile_id) {
+      return { temporaryPassword: null, error: 'This invited artist does not have a linked account yet.' };
+    }
+
+    const email = (artist.profile?.email as string | null | undefined)?.trim().toLowerCase() ?? '';
+    if (!email) {
+      return { temporaryPassword: null, error: 'This invited artist does not have a valid email address.' };
+    }
+
+    if ((artist.activation_status as string | null) === 'inactive') {
+      const reactivationError = await this.reactivateUser(artist.profile_id as string);
+      if (reactivationError) {
+        return { temporaryPassword: null, error: reactivationError };
+      }
+    }
+
+    const temporaryPassword = this.generateTemporaryPassword();
+    const { error: authError } = await this.adminSupabase.auth.admin.updateUserById(artist.profile_id as string, {
+      password: temporaryPassword,
+      email_confirm: true,
+      ban_duration: 'none',
+      user_metadata: {
+        full_name: (artist.profile?.full_name as string | null | undefined)
+          ?? (artist.artist_name as string | null | undefined)
+          ?? undefined,
+      },
+    });
+
+    if (authError) {
+      console.error('activateInvitedArtistAccount auth update error:', authError.message);
+      return { temporaryPassword: null, error: authError.message };
+    }
+
+    const { error: updateError } = await this.adminSupabase
+      .from('tjs_artists')
+      .update({
+        activation_status: 'active',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', artistId);
+
+    if (updateError) {
+      console.error('activateInvitedArtistAccount artist update error:', updateError.message);
+      return { temporaryPassword: null, error: updateError.message };
+    }
+
+    return { temporaryPassword, error: null };
+  }
+
   /** Update the currently-signed-in user's password. */
   async updateCurrentUserPassword(newPassword: string): Promise<string | null> {
     const { error } = await this.supabase.auth.updateUser({ password: newPassword });
@@ -5627,6 +5872,45 @@ export class SupabaseService {
   }
 
   // Location management
+
+  async listMemberTiers(): Promise<MemberTier[]> {
+    const { data, error } = await this.adminSupabase
+      .from('sys_member_tiers')
+      .select('id, name, description, created_at')
+      .order('name', { ascending: true });
+
+    if (error) {
+      if (!this.isMissingSchemaError(error)) {
+        console.error('listMemberTiers error:', error.message);
+      }
+      return [];
+    }
+
+    return (data ?? []) as MemberTier[];
+  }
+
+  async createMemberTier(input: { name: string; description?: string | null }): Promise<{ tier: MemberTier | null; error: string | null }> {
+    const name = input.name.trim();
+    if (!name) {
+      return { tier: null, error: 'Tier name is required.' };
+    }
+
+    const { data, error } = await this.adminSupabase
+      .from('sys_member_tiers')
+      .insert({
+        name,
+        description: input.description?.trim() || null,
+      })
+      .select('id, name, description, created_at')
+      .single();
+
+    if (error) {
+      console.error('createMemberTier error:', error.message);
+      return { tier: null, error: error.message };
+    }
+
+    return { tier: data as MemberTier, error: null };
+  }
 
   async listLocationAmenities(): Promise<LocationLookupOption[]> {
     const { data, error } = await this.adminSupabase
@@ -5756,6 +6040,28 @@ export class SupabaseService {
     if (error) {
       if (!this.isMissingSchemaError(error)) {
         console.error('getPrivateLocations error:', error.message);
+      }
+      return [];
+    }
+
+    return this.enrichPrivateLocationsWithTypes(((data ?? []) as any[]).map((row) => this.mapPrivateLocationRow(row)));
+  }
+
+  async getAllPrivateLocations(): Promise<TjsPrivateLocation[]> {
+    const { data, error } = await this.adminSupabase
+      .from('tjs_private_locations')
+      .select(`
+        *,
+        images:tjs_private_location_images(id, image_url, sort_order),
+        amenity_links:tjs_private_location_amenities(amenity:sys_location_amenity(id, name)),
+        spec_links:tjs_private_location_specs(spec:sys_location_specs(id, name)),
+        type_links:tjs_private_location_types(location_type:sys_location_types(id, name))
+      `)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      if (!this.isMissingSchemaError(error)) {
+        console.error('getAllPrivateLocations error:', error.message);
       }
       return [];
     }
@@ -6050,23 +6356,44 @@ export class SupabaseService {
     };
   }
 
-  async getHostPrivateLocationBookings(profileId: string, locationId: string): Promise<HostPrivateLocationBookingItem[]> {
-    const [events, hosts] = await Promise.all([
-      this.getHostWorkspaceEvents(profileId),
-      this.getAccessibleHosts(profileId),
-    ]);
+  async getHostPrivateLocationBookings(profileId: string | undefined, locationId: string): Promise<HostPrivateLocationBookingItem[]> {
+    const [scopedEvents, hostIds] = profileId
+      ? await Promise.all([
+          this.getHostWorkspaceEvents(profileId),
+          this.getAccessibleHosts(profileId).then((hosts) => hosts.map((host) => host.id)),
+        ])
+      : await Promise.all([
+          this.getAdminEventOverview().then((items) =>
+            items
+              .filter((item) => item.event_type === 'EVENT_INSTANCE')
+              .map((item) => ({
+                id: item.id,
+                title: item.title,
+                status: item.status,
+                artist_names: item.artist_names,
+                instruments: [] as string[],
+                primary_upcoming_date: this.pickPrimaryUpcomingDate(item.selected_dates),
+                selected_dates: item.selected_dates,
+              }))
+          ),
+          Promise.resolve([] as number[]),
+        ]);
 
-    if (events.length === 0 || hosts.length === 0) {
+    if (scopedEvents.length === 0) {
       return [];
     }
 
-    const eventIds = events.map((event) => event.id);
-    const hostIds = hosts.map((host) => host.id);
-    const assignmentResult = await this.adminSupabase
+    const eventIds = scopedEvents.map((event) => event.id);
+    let assignmentQuery = this.adminSupabase
       .from('tjs_event_hosts')
       .select('event_id, host_id, notes, selected_dates, location_id')
-      .in('event_id', eventIds)
-      .in('host_id', hostIds);
+      .in('event_id', eventIds);
+
+    if (hostIds.length > 0) {
+      assignmentQuery = assignmentQuery.in('host_id', hostIds);
+    }
+
+    const assignmentResult = await assignmentQuery;
 
     if (assignmentResult.error) {
       if (this.isMissingSchemaError(assignmentResult.error)) {
@@ -6110,7 +6437,7 @@ export class SupabaseService {
         .filter((value): value is string => !!value),
     );
 
-    const eventsById = new Map(events.map((event) => [event.id, event]));
+    const eventsById = new Map(scopedEvents.map((event) => [event.id, event]));
 
     return ((assignmentResult.data ?? []) as Array<{
       event_id?: string | null;
@@ -7812,6 +8139,109 @@ export class SupabaseService {
     return { artist: mappedArtists[0] ?? null, error: null };
   }
 
+  async createPublicMember(input: CreatePublicMemberInput): Promise<{ user: TjsUserWithRoles | null; error: string | null }> {
+    const email = input.email.trim().toLowerCase();
+    const fullName = input.full_name.trim();
+    if (!email || !fullName) {
+      return { user: null, error: 'Email and full name are required.' };
+    }
+
+    const { userId, error: inviteError } = await this.inviteUser(
+      email,
+      fullName,
+      this.getInviteRedirectUrl(),
+    );
+
+    if (inviteError || !userId) {
+      return { user: null, error: inviteError ?? 'Failed to create public member.' };
+    }
+
+    const profileError = await this.upsertProfile({
+      id: userId,
+      email,
+      full_name: fullName,
+      phone: input.phone?.trim() || null,
+      is_member: false,
+      member_since: null,
+      member_until: null,
+    });
+
+    if (profileError) {
+      return { user: null, error: profileError };
+    }
+
+    const publicMemberRoleId = await this.getRoleIdByName('Public Member');
+    if (!publicMemberRoleId) {
+      return { user: null, error: 'Public Member role not found.' };
+    }
+
+    const roleError = await this.assignRole(userId, publicMemberRoleId, input.assigned_by);
+    if (roleError) {
+      return { user: null, error: roleError };
+    }
+
+    const users = await this.listAllUsersWithRoles();
+    return {
+      user: users.find((user) => user.id === userId) ?? null,
+      error: null,
+    };
+  }
+
+  async activatePublicMemberAccount(
+    userId: string,
+    fullName?: string | null,
+  ): Promise<{ temporaryPassword: string | null; error: string | null }> {
+    const users = await this.listAllUsersWithRoles();
+    const user = users.find((candidate) => candidate.id === userId) ?? null;
+    if (!user) {
+      return { temporaryPassword: null, error: 'Public member account not found.' };
+    }
+
+    if (user.account_status === 'inactive') {
+      const reactivationError = await this.reactivateUser(userId);
+      if (reactivationError) {
+        return { temporaryPassword: null, error: reactivationError };
+      }
+    }
+
+    const temporaryPassword = this.generateTemporaryPassword();
+    const { error } = await this.adminSupabase.auth.admin.updateUserById(userId, {
+      password: temporaryPassword,
+      email_confirm: true,
+      ban_duration: 'none',
+      user_metadata: {
+        full_name: fullName?.trim() || undefined,
+      },
+    });
+
+    if (error) {
+      console.error('activatePublicMemberAccount error:', error.message);
+      return { temporaryPassword: null, error: error.message };
+    }
+
+    return { temporaryPassword, error: null };
+  }
+
+  async resetManagedUserPassword(
+    userId: string,
+    fullName?: string | null,
+  ): Promise<{ temporaryPassword: string | null; error: string | null }> {
+    const temporaryPassword = this.generateTemporaryPassword();
+    const { error } = await this.adminSupabase.auth.admin.updateUserById(userId, {
+      password: temporaryPassword,
+      user_metadata: {
+        full_name: fullName?.trim() || undefined,
+      },
+    });
+
+    if (error) {
+      console.error('resetManagedUserPassword error:', error.message);
+      return { temporaryPassword: null, error: error.message };
+    }
+
+    return { temporaryPassword, error: null };
+  }
+
   /** Assign or reassign a Committee Member to an artist profile. */
   async assignCommitteeMemberToArtist(
     artistId: string,
@@ -8256,6 +8686,78 @@ export class SupabaseService {
     return date.toISOString().slice(0, 10);
   }
 
+  private addOneMonth(paymentDate: string): string {
+    const date = this.parseDateOnly(paymentDate);
+    date.setMonth(date.getMonth() + 1);
+    return date.toISOString().slice(0, 10);
+  }
+
+  private addDays(paymentDate: string, days: number): string {
+    const date = this.parseDateOnly(paymentDate);
+    date.setDate(date.getDate() + days);
+    return date.toISOString().slice(0, 10);
+  }
+
+  private resolveMembershipExtensionBaseDate(paymentDate: string, currentExpiryDate: string | null): string {
+    if (!currentExpiryDate) {
+      return paymentDate;
+    }
+
+    return this.parseDateOnly(currentExpiryDate).getTime() > this.parseDateOnly(paymentDate).getTime()
+      ? currentExpiryDate
+      : paymentDate;
+  }
+
+  private async recalculateMembershipProfile(userId: string, actorUserId: string): Promise<string | null> {
+    const { data: remainingPayments, error: paymentsError } = await this.adminSupabase
+      .from('tjs_membership_payments')
+      .select('payment_date, expires_at')
+      .eq('profile_id', userId)
+      .order('payment_date', { ascending: true });
+
+    if (paymentsError) {
+      console.error('recalculateMembershipProfile payments error:', paymentsError.message);
+      return paymentsError.message;
+    }
+
+    const payments = (remainingPayments ?? []) as Array<{ payment_date: string; expires_at: string }>;
+    const latestExpiry = payments.reduce<string | null>((latest, payment) => {
+      if (!latest) {
+        return payment.expires_at;
+      }
+
+      return this.parseDateOnly(payment.expires_at).getTime() > this.parseDateOnly(latest).getTime()
+        ? payment.expires_at
+        : latest;
+    }, null);
+
+    const memberSince = payments.length > 0 ? payments[0].payment_date : null;
+    const shouldBeActive = latestExpiry !== null
+      && this.parseDateOnly(latestExpiry).getTime() >= this.parseDateOnly(this.todayDateString()).getTime();
+
+    const { error: profileError } = await this.adminSupabase
+      .from('tjs_profiles')
+      .update({
+        is_member: shouldBeActive,
+        member_since: shouldBeActive ? memberSince : null,
+        member_until: latestExpiry,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', userId);
+
+    if (profileError) {
+      console.error('recalculateMembershipProfile profile error:', profileError.message);
+      return profileError.message;
+    }
+
+    const roleError = await this.syncMemberRoleState(userId, shouldBeActive, actorUserId);
+    if (roleError) {
+      return roleError;
+    }
+
+    return null;
+  }
+
   private todayDateString(): string {
     return new Date().toISOString().slice(0, 10);
   }
@@ -8303,6 +8805,14 @@ export class SupabaseService {
     row: any,
     authUsersById: Map<string, User>
   ): 'pending' | 'active' | 'inactive' {
+    if (row.activation_status === 'inactive') {
+      return 'inactive';
+    }
+
+    if (row.activation_status === 'active') {
+      return 'active';
+    }
+
     const profileId = row.profile_id as string | null;
     if (profileId) {
       const authUser = authUsersById.get(profileId);
@@ -8316,6 +8826,20 @@ export class SupabaseService {
     }
 
     return 'pending';
+  }
+
+  private generateTemporaryPassword(length = 16): string {
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*';
+    const cryptoApi = globalThis.crypto;
+    if (!cryptoApi?.getRandomValues) {
+      const fallback = Array.from({ length }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('');
+      return `Tjs!${fallback}`;
+    }
+
+    const randomValues = new Uint32Array(length);
+    cryptoApi.getRandomValues(randomValues);
+    const generated = Array.from(randomValues, (value) => alphabet[value % alphabet.length]).join('');
+    return `Tjs!${generated}`;
   }
 
   private deriveAccountStatus(authUser: User | undefined): 'active' | 'pending' | 'inactive' {

@@ -1,377 +1,228 @@
 <div class="space-y-6">
   <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
     <div>
-      <h1 class="text-2xl font-bold text-zinc-800">Unified Admin Dashboard</h1>
+      <h1 class="text-2xl font-bold text-zinc-800">Admin Dashboard</h1>
       <p class="mt-1 text-sm text-zinc-500">
-        Complete overview of all concert requests and all event instances across TJS, regardless of status or creator.
+        Platform counts, request flow, event activity, and membership health in one view.
       </p>
     </div>
-    <div class="w-full lg:w-80">
-      <input
-        [(ngModel)]="searchQuery"
-        type="text"
-        placeholder="Search title, creator, host, city, status..."
-        class="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 shadow-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20"
-      />
-    </div>
+    <a
+      routerLink="/backoffice/membership"
+      class="inline-flex items-center rounded-full border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-zinc-50"
+    >
+      Open membership management
+    </a>
   </div>
 
-  <div *ngIf="error" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+  <div *ngIf="error" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
     {{ error }}
   </div>
 
-  <div *ngIf="!isLoading && usingDummyData" class="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-    Showing sample requests and event instances because no live admin overview data was found yet.
+  <div *ngIf="isLoading" class="rounded-2xl border border-zinc-200 bg-white px-4 py-10 text-center text-sm text-zinc-500">
+    Loading dashboard...
   </div>
 
-  <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-    <div *ngFor="let stat of stats" class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-      <div class="flex items-center gap-4">
-        <div [class]="stat.color + ' flex h-12 w-12 items-center justify-center rounded-xl text-white'">
-          <svg *ngIf="stat.icon === 'request'" class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-            <polyline points="14 2 14 8 20 8"/>
-          </svg>
-          <svg *ngIf="stat.icon === 'events'" class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-            <line x1="16" y1="2" x2="16" y2="6"/>
-            <line x1="8" y1="2" x2="8" y2="6"/>
-            <line x1="3" y1="10" x2="21" y2="10"/>
-          </svg>
-          <svg *ngIf="stat.icon === 'open'" class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 3v18"/>
-            <path d="M3 12h18"/>
-          </svg>
-          <svg *ngIf="stat.icon === 'active'" class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
-          </svg>
-        </div>
-        <div>
-          <p class="text-2xl font-bold text-zinc-900">{{ stat.value }}</p>
-          <p class="text-sm text-zinc-500">{{ stat.label }}</p>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <section class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-    <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-      <div>
-        <h2 class="text-lg font-semibold text-zinc-900">Membership Access Snapshot</h2>
-        <p class="text-sm text-zinc-500">Live member status across the user base, with blockers surfaced for admin follow-up.</p>
-      </div>
+  <ng-container *ngIf="!isLoading">
+    <section class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <a
-        routerLink="/backoffice/membership"
-        class="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs font-semibold text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-white"
+        *ngFor="let stat of statCards"
+        [routerLink]="stat.route"
+        class="rounded-2xl border bg-white p-5 shadow-sm transition-transform duration-200 hover:-translate-y-0.5"
       >
-        Open membership management
+        <div class="inline-flex rounded-full border px-3 py-1 text-xs font-semibold" [class]="stat.tone">
+          {{ stat.label }}
+        </div>
+        <p class="mt-4 text-4xl font-bold text-zinc-900">{{ stat.value }}</p>
+        <p class="mt-2 text-sm text-zinc-500">{{ stat.hint }}</p>
       </a>
-    </div>
+    </section>
 
-    <div class="mt-5 grid gap-4 lg:grid-cols-[1.2fr_1.6fr]">
-      <div class="grid grid-cols-2 gap-3">
-        <div class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-          <p class="text-xs font-semibold uppercase tracking-wide text-emerald-700">Active</p>
-          <p class="mt-2 text-3xl font-bold text-zinc-900">{{ membershipSummary.active }}</p>
-        </div>
-        <div class="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-          <p class="text-xs font-semibold uppercase tracking-wide text-amber-700">Expired</p>
-          <p class="mt-2 text-3xl font-bold text-zinc-900">{{ membershipSummary.expired }}</p>
-        </div>
-        <div class="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
-          <p class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Non-Member</p>
-          <p class="mt-2 text-3xl font-bold text-zinc-900">{{ membershipSummary.nonMember }}</p>
-        </div>
-        <div class="rounded-2xl border border-red-200 bg-red-50 p-4">
-          <p class="text-xs font-semibold uppercase tracking-wide text-red-700">Workspace Locked</p>
-          <p class="mt-2 text-3xl font-bold text-zinc-900">{{ membershipSummary.blocked }}</p>
-        </div>
-      </div>
-
-      <div class="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
-        <div class="flex items-center justify-between gap-3">
+    <div class="grid gap-5 xl:grid-cols-[1.5fr_1fr]">
+      <section class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <div class="flex items-start justify-between gap-4">
           <div>
-            <h3 class="text-sm font-semibold text-zinc-900">Users Needing Action</h3>
-            <p class="text-xs text-zinc-500">Artists and hosts blocked until a valid membership is recorded.</p>
+            <h2 class="text-lg font-semibold text-zinc-900">Upcoming Events</h2>
+            <p class="text-sm text-zinc-500">Next scheduled event instances linked to their admin detail pages.</p>
           </div>
-        </div>
-
-        <div *ngIf="membershipAttentionUsers.length === 0" class="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-          No membership blockers at the moment.
-        </div>
-
-        <div *ngIf="membershipAttentionUsers.length > 0" class="mt-4 space-y-3">
-          <div *ngFor="let user of membershipAttentionUsers" class="flex items-center justify-between gap-4 rounded-xl border border-zinc-200 bg-white px-4 py-3">
-            <div>
-              <p class="font-semibold text-zinc-900">{{ user.full_name || user.email }}</p>
-              <p class="mt-1 text-xs text-zinc-500">{{ user.email }}</p>
-            </div>
-            <div class="flex items-center gap-2">
-              <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold" [ngClass]="membershipStatusClass(user)">
-                {{ membershipStatusLabel(user) }}
-              </span>
-              <span class="inline-flex rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700">
-                Blocked
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <div class="grid gap-5 xl:grid-cols-[1.2fr_2.4fr]">
-    <section class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-      <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h2 class="text-lg font-semibold text-zinc-900">Request Overview</h2>
-          <p class="text-sm text-zinc-500">Interactive view of request flow, upcoming artists, and this month's live schedule.</p>
-        </div>
-        <button
-          *ngIf="selectedRequestStatus !== 'ALL'"
-          type="button"
-          (click)="setRequestStatusFilter('ALL')"
-          class="inline-flex items-center justify-center rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 transition-colors hover:bg-red-100"
-        >
-          Clear request filter
-        </button>
-      </div>
-
-      <div *ngIf="isLoading" class="py-10 text-center text-sm text-zinc-400">Loading overview...</div>
-
-      <div *ngIf="!isLoading" class="mt-5 space-y-5">
-        <div class="grid gap-4 sm:grid-cols-2">
-          <button
-            type="button"
-            (click)="focusUpcomingEvents()"
-            class="rounded-2xl border border-zinc-200 bg-gradient-to-br from-zinc-900 via-zinc-800 to-red-900 p-4 text-left text-white shadow-sm transition-transform duration-200 hover:-translate-y-0.5"
+          <a
+            routerLink="/backoffice/events"
+            class="inline-flex rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs font-semibold text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-white"
           >
-            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-white/70">Upcoming This Month</p>
-            <div class="mt-4 flex items-end justify-between gap-3">
-              <div>
-                <p class="text-3xl font-bold">{{ upcomingEventsThisMonthCount }}</p>
-                <p class="mt-1 text-sm text-white/70">{{ currentMonthLabel }}</p>
-              </div>
-              <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10">
-                <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                  <line x1="16" y1="2" x2="16" y2="6"/>
-                  <line x1="8" y1="2" x2="8" y2="6"/>
-                  <line x1="3" y1="10" x2="21" y2="10"/>
-                </svg>
-              </div>
-            </div>
-            <p class="mt-4 text-xs text-white/70">Open the events tab to review this month's confirmed and in-progress dates.</p>
-          </button>
-
-          <div class="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
-            <div class="flex items-start justify-between gap-3">
-              <div>
-                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400">Next Upcoming Artist</p>
-                <ng-container *ngIf="nextUpcomingEvent as upcomingEvent; else noUpcomingArtist">
-                  <h3 class="mt-3 text-lg font-semibold text-zinc-900">{{ upcomingEvent.primaryArtist || 'Artist assignment pending' }}</h3>
-                  <p class="mt-1 text-sm text-zinc-500">{{ upcomingEvent.item.title }}</p>
-                </ng-container>
-              </div>
-              <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-zinc-500 shadow-sm">
-                <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M9 18V5l12-2v13"/>
-                  <circle cx="6" cy="18" r="3"/>
-                  <circle cx="18" cy="16" r="3"/>
-                </svg>
-              </div>
-            </div>
-
-            <ng-container *ngIf="nextUpcomingEvent as upcomingEvent">
-              <div class="mt-4 grid grid-cols-2 gap-3 text-xs text-zinc-500">
-                <div class="rounded-xl border border-zinc-200 bg-white px-3 py-2">
-                  <p class="font-semibold uppercase tracking-wide text-zinc-400">Date</p>
-                  <p class="mt-1 text-sm font-semibold text-zinc-800">{{ upcomingEvent.date | date:'dd MMM yyyy' }}</p>
-                </div>
-                <div class="rounded-xl border border-zinc-200 bg-white px-3 py-2">
-                  <p class="font-semibold uppercase tracking-wide text-zinc-400">City</p>
-                  <p class="mt-1 text-sm font-semibold text-zinc-800">{{ upcomingEvent.item.city || 'TBC' }}</p>
-                </div>
-                <div class="rounded-xl border border-zinc-200 bg-white px-3 py-2">
-                  <p class="font-semibold uppercase tracking-wide text-zinc-400">Host</p>
-                  <p class="mt-1 text-sm font-semibold text-zinc-800">{{ upcomingEvent.hostName || 'Host assignment pending' }}</p>
-                </div>
-                <div class="rounded-xl border border-zinc-200 bg-white px-3 py-2">
-                  <p class="font-semibold uppercase tracking-wide text-zinc-400">Artists</p>
-                  <p class="mt-1 text-sm font-semibold text-zinc-800">{{ upcomingEvent.artistCount || 0 }}</p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                (click)="focusUpcomingEvents()"
-                class="mt-4 inline-flex items-center rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-zinc-100"
-              >
-                Review upcoming events
-              </button>
-            </ng-container>
-
-            <ng-template #noUpcomingArtist>
-              <h3 class="mt-3 text-lg font-semibold text-zinc-900">No upcoming event</h3>
-              <p class="mt-1 text-sm text-zinc-500">Create or approve an event instance to feature the next artist here.</p>
-            </ng-template>
-          </div>
+            View all events
+          </a>
         </div>
 
-        <div class="rounded-2xl border border-zinc-200 bg-white p-4">
-          <div class="flex items-center justify-between gap-3">
+        <div *ngIf="upcomingEvents.length === 0" class="mt-5 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-6 text-sm text-zinc-500">
+          No upcoming events are scheduled.
+        </div>
+
+        <div *ngIf="upcomingEvents.length > 0" class="mt-5 space-y-3">
+          <a
+            *ngFor="let item of upcomingEvents"
+            [routerLink]="['/backoffice/events', item.id]"
+            class="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-4 transition-colors hover:border-zinc-300 hover:bg-white md:flex-row md:items-center md:justify-between"
+          >
             <div>
-              <h3 class="text-sm font-semibold text-zinc-900">Request Status Chart</h3>
-              <p class="text-xs text-zinc-500">Pending, approved, and available requests. Click a row to filter the table.</p>
+              <p class="font-semibold text-zinc-900">{{ item.title }}</p>
+              <p class="mt-1 text-sm text-zinc-500">
+                {{ item.city || 'Location TBC' }}<span *ngIf="item.hostName"> • {{ item.hostName }}</span>
+              </p>
             </div>
-            <div class="rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-600">
-              {{ trackedRequestCount }} tracked
+            <div class="text-sm font-semibold text-zinc-700">{{ item.date | date:'dd MMM yyyy' }}</div>
+          </a>
+        </div>
+      </section>
+
+      <section class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <div>
+          <h2 class="text-lg font-semibold text-zinc-900">Locations</h2>
+          <p class="text-sm text-zinc-500">Public and private venue inventory across the platform.</p>
+        </div>
+
+        <div class="mt-5 rounded-3xl bg-zinc-900 p-5 text-white">
+          <p class="text-xs uppercase tracking-[0.2em] text-white/60">Total Locations</p>
+          <p class="mt-3 text-4xl font-bold">{{ totalLocations }}</p>
+          <div class="mt-5 grid grid-cols-2 gap-3">
+            <div class="rounded-2xl bg-white/10 p-4">
+              <p class="text-xs uppercase tracking-wide text-white/60">Public</p>
+              <p class="mt-2 text-2xl font-semibold">{{ publicLocationCount }}</p>
             </div>
-          </div>
-
-          <div class="mt-4 space-y-3">
-            <button
-              *ngFor="let metric of requestStatusMetrics"
-              type="button"
-              (click)="setRequestStatusFilter(metric.status)"
-              class="w-full rounded-2xl border px-4 py-3 text-left transition-all duration-200"
-              [ngClass]="selectedRequestStatus === metric.status ? 'border-red-200 bg-red-50 shadow-sm' : 'border-zinc-200 bg-zinc-50 hover:border-zinc-300 hover:bg-white'"
-            >
-              <div class="flex items-start justify-between gap-4">
-                <div class="min-w-0">
-                  <div class="flex items-center gap-2">
-                    <span class="h-2.5 w-2.5 rounded-full" [ngClass]="metric.dotClass"></span>
-                    <span class="text-sm font-semibold text-zinc-900">{{ metric.label }}</span>
-                    <span class="text-xs text-zinc-400">{{ metric.share }}%</span>
-                  </div>
-                  <p class="mt-1 text-xs text-zinc-500">{{ metric.description }}</p>
-                </div>
-                <div class="text-right">
-                  <p class="text-2xl font-bold text-zinc-900">{{ metric.count }}</p>
-                  <p class="text-xs uppercase tracking-wide text-zinc-400">requests</p>
-                </div>
-              </div>
-              <div class="mt-3 h-2 rounded-full bg-white">
-                <div class="h-2 rounded-full transition-all duration-300" [ngClass]="metric.barClass" [style.width.%]="metric.barWidth"></div>
-              </div>
-            </button>
-          </div>
-
-          <div class="mt-4 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
-            <span *ngIf="selectedRequestStatus === 'ALL'">Click a status row to filter the table to matching requests.</span>
-            <ng-container *ngIf="selectedRequestStatus !== 'ALL'">
-              <span class="rounded-full border border-red-200 bg-red-50 px-2.5 py-1 font-semibold text-red-700">
-                Showing {{ requestStatusLabel(selectedRequestStatus) }} requests
-              </span>
-              <button
-                type="button"
-                (click)="setRequestStatusFilter('ALL')"
-                class="rounded-full border border-zinc-200 bg-white px-2.5 py-1 font-semibold text-zinc-600 transition-colors hover:border-zinc-300 hover:bg-zinc-100"
-              >
-                Reset
-              </button>
-            </ng-container>
+            <div class="rounded-2xl bg-white/10 p-4">
+              <p class="text-xs uppercase tracking-wide text-white/60">Private</p>
+              <p class="mt-2 text-2xl font-semibold">{{ privateLocationCount }}</p>
+            </div>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
+    </div>
 
-    <section class="rounded-2xl border border-zinc-200 bg-white shadow-sm overflow-hidden">
-      <div class="border-b border-zinc-200 px-5 py-4">
-        <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+    <div class="grid gap-5 xl:grid-cols-2">
+      <section class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <div class="flex items-start justify-between gap-4">
           <div>
-            <h2 class="text-lg font-semibold text-zinc-900">All Requests And Events</h2>
-            <p class="text-sm text-zinc-500">Single admin view across TJS.</p>
+            <h2 class="text-lg font-semibold text-zinc-900">Events Per Month</h2>
+            <p class="text-sm text-zinc-500">Scheduled event instances counted by month over the last six months.</p>
           </div>
+          <a
+            routerLink="/backoffice/events"
+            class="inline-flex rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs font-semibold text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-white"
+          >
+            Events
+          </a>
+        </div>
 
-          <div class="flex gap-2 rounded-xl bg-zinc-100 p-1">
-            <button
-              (click)="setTab('all')"
-              [ngClass]="activeTab === 'all' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500'"
-              class="rounded-lg px-3 py-1.5 text-sm font-medium transition-colors"
-            >
-              All ({{ tabCounts.all }})
-            </button>
-            <button
-              (click)="setTab('requests')"
-              [ngClass]="activeTab === 'requests' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500'"
-              class="rounded-lg px-3 py-1.5 text-sm font-medium transition-colors"
-            >
-              Requests ({{ tabCounts.requests }})
-            </button>
-            <button
-              (click)="setTab('events')"
-              [ngClass]="activeTab === 'events' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500'"
-              class="rounded-lg px-3 py-1.5 text-sm font-medium transition-colors"
-            >
-              Events ({{ tabCounts.events }})
-            </button>
+        <div class="mt-6 grid grid-cols-6 gap-3">
+          <div *ngFor="let point of eventMonthlySeries" class="flex flex-col items-center gap-3">
+            <div class="flex h-36 w-full items-end justify-center rounded-2xl bg-zinc-50 px-2 py-3">
+              <div class="w-full rounded-t-xl bg-rose-500" [style.height.%]="point.height"></div>
+            </div>
+            <div class="text-center">
+              <p class="text-lg font-semibold text-zinc-900">{{ point.value }}</p>
+              <p class="text-xs uppercase tracking-wide text-zinc-400">{{ point.label }}</p>
+            </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      <div *ngIf="isLoading" class="px-5 py-16 text-center text-sm text-zinc-400">Loading requests and events...</div>
+      <section class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <h2 class="text-lg font-semibold text-zinc-900">Artist Requests Per Month</h2>
+            <p class="text-sm text-zinc-500">Requests created each month, split by accepted progression and rejection.</p>
+          </div>
+          <a
+            routerLink="/backoffice/event-requests"
+            class="inline-flex rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs font-semibold text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-white"
+          >
+            Requests
+          </a>
+        </div>
 
-      <div *ngIf="!isLoading && filteredItems.length === 0" class="px-5 py-16 text-center text-sm text-zinc-400">
-        No matching requests or events found.
-      </div>
+        <div class="mt-4 flex items-center gap-4 text-xs text-zinc-500">
+          <div class="flex items-center gap-2">
+            <span class="h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
+            <span>Accepted</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="h-2.5 w-2.5 rounded-full bg-red-500"></span>
+            <span>Rejected</span>
+          </div>
+        </div>
 
-      <div *ngIf="!isLoading && filteredItems.length > 0" class="max-h-[34rem] overflow-auto">
-        <table class="min-w-full text-sm">
-          <thead class="bg-zinc-50 text-zinc-500">
-            <tr>
-              <th class="px-5 py-3 text-left font-semibold">Type</th>
-              <th class="px-5 py-3 text-left font-semibold">Title</th>
-              <th class="px-5 py-3 text-left font-semibold">Status</th>
-              <th class="px-5 py-3 text-left font-semibold">Creator</th>
-              <th class="px-5 py-3 text-left font-semibold">Hosts</th>
-              <th class="px-5 py-3 text-left font-semibold">Location</th>
-              <th class="px-5 py-3 text-left font-semibold">Primary Date</th>
-              <th class="px-5 py-3 text-left font-semibold">Created</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-zinc-100">
-            <tr *ngFor="let item of filteredItems" class="hover:bg-zinc-50">
-              <td class="px-5 py-4">
-                <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
-                  [ngClass]="item.event_type === 'REQUEST' ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-red-50 text-red-700 border border-red-200'">
-                  {{ typeLabel(item) }}
-                </span>
-              </td>
-              <td class="px-5 py-4 align-top">
-                <div class="font-semibold text-zinc-900">{{ item.title }}</div>
-                <div class="mt-1 text-xs text-zinc-500">
-                  {{ item.origin_website }}<span *ngIf="item.parent_event_id"> • Linked to request</span>
-                </div>
-              </td>
-              <td class="px-5 py-4">
-                <div class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold" [ngClass]="badgeClass(item.status)">
-                  {{ displayStatus(item) }}
-                </div>
-                <div *ngIf="item.host_statuses.length > 0" class="mt-2 text-xs text-zinc-500">
-                  Host: {{ displayHostStatuses(item).join(', ') }}
-                </div>
-              </td>
-              <td class="px-5 py-4">
-                <div class="font-medium text-zinc-800">{{ item.creator_name }}</div>
-                <div class="text-xs text-zinc-500">{{ item.creator_email || 'No email' }}</div>
-              </td>
-              <td class="px-5 py-4 text-zinc-600">
-                {{ item.host_names.length > 0 ? item.host_names.join(', ') : 'Unassigned' }}
-              </td>
-              <td class="px-5 py-4 text-zinc-600">
-                {{ item.city || item.department || 'Unknown' }}
-              </td>
-              <td class="px-5 py-4 text-zinc-600">
-                {{ primaryDate(item) ? (primaryDate(item) | date:'dd/MM/yyyy') : 'Not scheduled' }}
-              </td>
-              <td class="px-5 py-4 text-zinc-600">
-                {{ item.created_at | date:'dd/MM/yyyy' }}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
-  </div>
+        <div class="mt-6 grid grid-cols-6 gap-3">
+          <div *ngFor="let point of requestOutcomeSeries" class="flex flex-col items-center gap-3">
+            <div class="flex h-36 w-full items-end justify-center gap-2 rounded-2xl bg-zinc-50 px-2 py-3">
+              <div class="w-full rounded-t-xl bg-emerald-500" [style.height.%]="point.acceptedHeight"></div>
+              <div class="w-full rounded-t-xl bg-red-500" [style.height.%]="point.rejectedHeight"></div>
+            </div>
+            <div class="text-center">
+              <p class="text-sm font-semibold text-zinc-900">{{ point.accepted }} / {{ point.rejected }}</p>
+              <p class="text-xs uppercase tracking-wide text-zinc-400">{{ point.label }}</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="grid gap-5 xl:grid-cols-[1.4fr_1fr]">
+      <section class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <h2 class="text-lg font-semibold text-zinc-900">Memberships</h2>
+            <p class="text-sm text-zinc-500">Month-on-month renewals plus current member health.</p>
+          </div>
+          <a
+            routerLink="/backoffice/membership"
+            class="inline-flex rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs font-semibold text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-white"
+          >
+            Memberships
+          </a>
+        </div>
+
+        <div class="mt-5 grid gap-4 sm:grid-cols-2">
+          <div class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+            <p class="text-xs font-semibold uppercase tracking-wide text-emerald-700">Total Members</p>
+            <p class="mt-2 text-3xl font-bold text-zinc-900">{{ totalMembers }}</p>
+          </div>
+          <div class="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+            <p class="text-xs font-semibold uppercase tracking-wide text-amber-700">Expiring This Month</p>
+            <p class="mt-2 text-3xl font-bold text-zinc-900">{{ expiringThisMonthCount }}</p>
+          </div>
+        </div>
+
+        <div class="mt-6 grid grid-cols-6 gap-3">
+          <div *ngFor="let point of membershipSeries" class="flex flex-col items-center gap-3">
+            <div class="flex h-36 w-full items-end justify-center rounded-2xl bg-zinc-50 px-2 py-3">
+              <div class="w-full rounded-t-xl bg-zinc-900" [style.height.%]="point.height"></div>
+            </div>
+            <div class="text-center">
+              <p class="text-lg font-semibold text-zinc-900">{{ point.value }}</p>
+              <p class="text-xs uppercase tracking-wide text-zinc-400">{{ point.label }}</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <div>
+          <h2 class="text-lg font-semibold text-zinc-900">Expiring This Month</h2>
+          <p class="text-sm text-zinc-500">Members to follow up with before access lapses.</p>
+        </div>
+
+        <div *ngIf="expiringThisMonth.length === 0" class="mt-5 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-6 text-sm text-zinc-500">
+          No memberships expire this month.
+        </div>
+
+        <div *ngIf="expiringThisMonth.length > 0" class="mt-5 space-y-3">
+          <div *ngFor="let member of expiringThisMonth" class="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-4">
+            <p class="font-semibold text-zinc-900">{{ member.name }}</p>
+            <p class="mt-1 text-sm text-zinc-500">{{ member.email }}</p>
+            <p class="mt-3 text-xs font-semibold uppercase tracking-wide text-amber-700">
+              Expires {{ member.memberUntil | date:'dd MMM yyyy' }}
+            </p>
+          </div>
+        </div>
+      </section>
+    </div>
+  </ng-container>
 </div>
