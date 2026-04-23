@@ -133,7 +133,7 @@
             <div>
               <label class="text-sm font-medium text-zinc-700">Host</label>
               <select
-                *ngIf="isAdmin; else readonlyHostLabel"
+                *ngIf="canChooseHost; else readonlyHostLabel"
                 [(ngModel)]="form.hostId"
                 (ngModelChange)="onHostChange()"
                 class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100"
@@ -164,6 +164,17 @@
                 <option [ngValue]="null">Select event type</option>
                 <option *ngFor="let eventType of eventTypeOptions; trackBy: trackByEventTypeId" [ngValue]="eventType.id">{{ eventType.name }}</option>
               </select>
+            </div>
+
+            <div class="md:col-span-2">
+              <label class="text-sm font-medium text-zinc-700">Access</label>
+              <label class="mt-2 flex items-start gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-700">
+                <input [(ngModel)]="form.isOpenToMembers" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-zinc-300 text-red-600 focus:ring-red-500" />
+                <span>
+                  <span class="block font-medium text-zinc-900">Member Only</span>
+                  <span class="block text-xs text-zinc-500">Hide this event from the public events pages and keep it reserved for members.</span>
+                </span>
+              </label>
             </div>
 
             <div class="md:col-span-2">

@@ -22,6 +22,7 @@ interface HostEventDetailForm {
   teaser: string;
   description: string;
   callToActionUrl: string;
+  isMemberOnly: boolean;
   hostNotes: string;
 }
 
@@ -35,6 +36,13 @@ interface HostEventScheduleForm {
   entries: HostEventScheduleEntryForm[];
   showTime: string;
   locationId: string | null;
+}
+
+interface StandaloneEventCommentEntry {
+  author_name: string;
+  author_role: string | null;
+  body: string;
+  created_at: string | null;
 }
 
 @Component({
@@ -74,6 +82,7 @@ export class HostEventDetail implements OnInit {
     teaser: '',
     description: '',
     callToActionUrl: '',
+    isMemberOnly: false,
     hostNotes: '',
   };
   scheduleForm: HostEventScheduleForm = {
@@ -156,7 +165,17 @@ export class HostEventDetail implements OnInit {
   }
 
   get canCommentOnEvent(): boolean {
-    return (this.isCommitteeMember || this.isAdmin) && !!this.event?.request_detail?.id;
+    return !!this.event && (this.isCommitteeMember || this.isAdmin || this.authService.isHostManager);
+  }
+
+  get canViewCommentsSection(): boolean {
+    return !!this.event && (
+      this.isCommitteeMember
+      || this.isAdmin
+      || this.authService.isHostManager
+      || (this.event.request_detail?.comments?.length ?? 0) > 0
+      || this.standaloneCommentLines.length > 0
+    );
   }
 
   get shouldShowHostNotes(): boolean {
@@ -169,6 +188,10 @@ export class HostEventDetail implements OnInit {
 
   get detailTitle(): string {
     return this.event?.request_detail?.event_title || this.event?.title || 'Event Detail';
+  }
+
+  get primaryHostName(): string {
+    return this.event?.host_names?.[0] || 'Unassigned host';
   }
 
   get detailTeaser(): string {
@@ -190,16 +213,75 @@ export class HostEventDetail implements OnInit {
     return [...(this.event?.request_detail?.comments ?? [])].reverse();
   }
 
+  get standaloneCommentLines(): string[] {
+    return (this.event?.host_notes ?? '')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) =>
+        !!line
+        && !line.startsWith('Event Domain:')
+        && !line.startsWith('Edition:')
+        && !line.startsWith('Event Type:')
+        && !line.startsWith('Show Time:')
+        && !line.startsWith('Event Image:')
+        && !line.startsWith('Call to Action URL:')
+        && !line.startsWith('Additional Instruments:')
+        && !line.startsWith('Media:')
+        && !line.startsWith('[COMMENT]')
+        && !line.startsWith('[SCHEDULE]')
+        && !line.startsWith('- ')
+      );
+  }
+
+  get standaloneComments(): StandaloneEventCommentEntry[] {
+    const parsedComments = (this.event?.host_notes ?? '')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.startsWith('[COMMENT]'))
+      .map((line) => this.parseStandaloneComment(line))
+      .filter((entry): entry is StandaloneEventCommentEntry => !!entry);
+
+    const legacyComments = this.standaloneCommentLines.map((line) => ({
+      author_name: 'Host Workspace',
+      author_role: null,
+      body: line,
+      created_at: null,
+    }));
+
+    return [...parsedComments, ...legacyComments].sort((left, right) => {
+      const leftTime = left.created_at ? new Date(left.created_at).getTime() : 0;
+      const rightTime = right.created_at ? new Date(right.created_at).getTime() : 0;
+      return rightTime - leftTime;
+    });
+  }
+
   get artistEntries() {
-    return this.event?.request_detail?.artists ?? [];
+    if (this.event?.request_detail?.artists?.length) {
+      return this.event.request_detail.artists;
+    }
+
+    return (this.event?.artist_names ?? []).map((name, index) => ({
+      display_name: name,
+      invited_email: '',
+      artist_id: null,
+      invited_artist_id: null,
+      is_primary: index === 0,
+      instruments: index === 0 ? this.event?.instruments ?? [] : [],
+    }));
   }
 
   get mediaEntries() {
-    return this.event?.request_detail?.media ?? [];
+    if (this.event?.request_detail?.media?.length) {
+      return this.event.request_detail.media;
+    }
+
+    return this.extractMediaEntriesFromNotes(this.event?.host_notes ?? '');
   }
 
   get eventImageUrl(): string | null {
-    return this.event?.request_detail?.image_url ?? null;
+    return this.event?.request_detail?.image_url
+      ?? this.extractNoteValue(this.event?.host_notes ?? '', 'Event Image:')
+      ?? null;
   }
 
   locationLabel(location: TjsLocation): string {
@@ -538,10 +620,11 @@ export class HostEventDetail implements OnInit {
 
   async submitComment() {
     const profileId = this.authService.currentProfile?.id ?? this.authService.currentUser?.id ?? '';
-    const requestId = this.event?.request_detail?.id ?? '';
     const body = this.commentDraft.trim();
+    const eventId = this.event?.id ?? '';
+    const requestId = this.event?.request_detail?.id ?? '';
 
-    if (!this.canCommentOnEvent || !profileId || !requestId || !body) {
+    if (!this.canCommentOnEvent || !profileId || !eventId || !body) {
       return;
     }
 
@@ -549,7 +632,14 @@ export class HostEventDetail implements OnInit {
     this.error = '';
     this.successMessage = '';
 
-    const error = await this.supabase.addArtistWorkspaceRequestComment(requestId, profileId, body);
+    const standaloneCommentLine = this.buildStandaloneCommentLine(body);
+    const error = requestId
+      ? await this.supabase.addArtistWorkspaceRequestComment(requestId, profileId, body)
+      : this.isAdmin
+        ? await this.supabase.appendAdminWorkspaceEventComment(eventId, standaloneCommentLine)
+        : this.authService.isHostManager
+          ? await this.supabase.appendHostWorkspaceEventComment(profileId, eventId, standaloneCommentLine)
+          : 'Comments can only be added to request-backed events from this workspace.';
     if (error) {
       this.error = error;
       this.isSubmittingComment = false;
@@ -576,6 +666,7 @@ export class HostEventDetail implements OnInit {
       teaser: this.event.request_detail?.teaser || this.event.description || '',
       description: this.event.request_detail?.description || this.event.description || '',
       callToActionUrl: this.event.call_to_action_url || '',
+      isMemberOnly: !!this.event.is_member_only,
       hostNotes: this.extractFreeformHostNotes(this.event.host_notes),
     };
     this.resetScheduleFormFromEvent();
@@ -678,9 +769,85 @@ export class HostEventDetail implements OnInit {
         return !!trimmed
           && !trimmed.startsWith('Edition:')
           && !trimmed.startsWith('Event Type:')
-          && !trimmed.startsWith('Show Time:');
+          && !trimmed.startsWith('Show Time:')
+          && !trimmed.startsWith('Event Image:')
+          && !trimmed.startsWith('Call to Action URL:')
+          && !trimmed.startsWith('[COMMENT]')
+          && !trimmed.startsWith('[SCHEDULE]');
       })
       .join('\n')
       .trim();
+  }
+
+  private parseStandaloneComment(line: string): StandaloneEventCommentEntry | null {
+    const rawValue = line.replace('[COMMENT]', '').trim();
+    const [createdAt = '', authorName = '', authorRole = '', encodedBody = ''] = rawValue.split('|');
+    if (!encodedBody) {
+      return null;
+    }
+
+    try {
+      return {
+        author_name: decodeURIComponent(authorName) || 'Unknown user',
+        author_role: decodeURIComponent(authorRole) || null,
+        body: decodeURIComponent(encodedBody),
+        created_at: createdAt || null,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  private buildStandaloneCommentLine(body: string): string {
+    const timestamp = new Date().toISOString();
+    const authorName = this.authService.currentProfile?.full_name || this.authService.currentProfile?.email || 'Unknown user';
+    const authorRole = this.authService.isAdmin
+      ? 'Admin'
+      : this.isCommitteeMember
+        ? 'Committee Member'
+        : this.authService.isHostManager
+          ? 'Host Manager'
+          : 'Host';
+
+    return `[COMMENT] ${timestamp}|${encodeURIComponent(authorName)}|${encodeURIComponent(authorRole)}|${encodeURIComponent(body)}`;
+  }
+
+  private extractNoteValue(notes: string | null | undefined, prefix: string): string | null {
+    if (!notes) {
+      return null;
+    }
+
+    return notes
+      .split('\n')
+      .map((line) => line.trim())
+      .find((line) => line.startsWith(prefix))
+      ?.replace(prefix, '')
+      .trim() ?? null;
+  }
+
+  private extractMediaEntriesFromNotes(notes: string | null | undefined) {
+    const lines = (notes ?? '')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const headerIndex = lines.findIndex((line) => line === 'Media:');
+    if (headerIndex < 0) {
+      return [];
+    }
+
+    return lines
+      .slice(headerIndex + 1)
+      .filter((line) => line.startsWith('- '))
+      .map((line) => line.replace(/^- /, '').trim())
+      .map((line) => {
+        const [mediaType, name, url, imageUrl] = line.split('|').map((item) => item.trim());
+        return {
+          media_type: mediaType || 'Video',
+          image_url: imageUrl && imageUrl !== 'No image' ? imageUrl : null,
+          name: name || 'Untitled media',
+          description: '',
+          url: url && url !== 'No link' ? url : '',
+        };
+      });
   }
 }

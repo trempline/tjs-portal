@@ -116,6 +116,10 @@ export class Events implements OnInit {
     return this.authService.isHostManager;
   }
 
+  get canCreateEvents(): boolean {
+    return this.isHostManager;
+  }
+
   get scopeLabel(): string {
     if (this.isHostManager) {
       return 'My host events';
@@ -164,6 +168,7 @@ export class Events implements OnInit {
         item.description ?? '',
         item.artist_names.join(' '),
         item.host_names.join(' '),
+        item.is_member_only ? 'member only yes true' : 'member only no false',
         this.locationSummary(item),
         this.displayStatus(item),
         this.displayHostStatuses(item).join(' '),
@@ -293,6 +298,16 @@ export class Events implements OnInit {
     await this.router.navigate([
       this.isHostManager ? '/backoffice/host-manager/events' : '/backoffice/events',
       item.id,
+    ]);
+  }
+
+  async goToCreateEvent() {
+    if (!this.canCreateEvents) {
+      return;
+    }
+
+    await this.router.navigate([
+      this.isHostManager ? '/backoffice/host-manager/events/new' : '/backoffice/host/events/new',
     ]);
   }
 

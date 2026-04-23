@@ -312,6 +312,17 @@ export class EventRequests implements OnInit {
       return;
     }
 
+    if (this.isHostRequestWorkspace && this.canCreateEventFromRequest(item)) {
+      await this.router.navigate([
+        this.isHostManagerWorkspace
+          ? '/backoffice/host-manager/requests'
+          : '/backoffice/host/requests',
+        item.id,
+        'create-event',
+      ]);
+      return;
+    }
+
     await this.router.navigate([
       this.isAdminView || this.isCommitteeMember
         ? '/backoffice/event-requests'
@@ -320,6 +331,12 @@ export class EventRequests implements OnInit {
           : '/backoffice/host/requests',
       item.id,
     ]);
+  }
+
+  canCreateEventFromRequest(item: AdminEventOverviewItem): boolean {
+    return item.event_type === 'REQUEST'
+      && !['published', 'rejected'].includes(item.status)
+      && ['accepted_by_host', 'host_proposed', 'artist_accepted', 'approved'].includes(item.status);
   }
 
   private buildRequestItems(overview: AdminEventOverviewItem[]): EnhancedRequestItem[] {

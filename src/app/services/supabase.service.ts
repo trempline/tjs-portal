@@ -100,6 +100,7 @@ export interface AdminEventOverviewItem {
   created_at: string;
   updated_at: string;
   is_featured?: boolean;
+  is_member_only?: boolean;
   proposed_dates: string[] | null;
   department: string | null;
   city: string | null;
@@ -174,7 +175,9 @@ export interface PublicWebsiteEventItem {
   event_type_name: string | null;
   artist_names: string[];
   primary_date: string | null;
+  last_date: string | null;
   schedule_lines: string[];
+  is_member_only: boolean;
 }
 
 export interface PublicEventDetail {
@@ -190,6 +193,7 @@ export interface PublicEventDetail {
   instruments: string[];
   artist_names: string[];
   schedule_lines: string[];
+  is_member_only: boolean;
   media: Array<{
     id?: string;
     media_type: string;
@@ -215,6 +219,7 @@ export interface UpdateHostWorkspaceEventDetailPayload {
   teaser: string;
   description: string;
   callToActionUrl: string;
+  isMemberOnly: boolean;
   hostNotes: string;
 }
 
@@ -452,6 +457,25 @@ export interface CreateHostEventFromRequestPayload {
   locationId: string | null;
   isActive: boolean;
   isOpenToMembers: boolean;
+  notes: string;
+}
+
+export interface CreateStandaloneHostEventPayload {
+  hostId: number;
+  title: string;
+  eventDomainId: number | null;
+  teaser: string;
+  description: string;
+  imageUrl: string | null;
+  editionId: number | null;
+  eventTypeId: number | null;
+  entries: Array<{ mode: 'day_show' | 'period'; startDate: string; endDate: string; showTime: string; locationId: string | null; locationLabel: string }>;
+  callToActionUrl: string;
+  isPublished: boolean;
+  isMemberOnly: boolean;
+  artistIds: string[];
+  additionalInstruments: string[];
+  mediaEntries: ArtistRequestMediaEntry[];
   notes: string;
 }
 
@@ -3374,7 +3398,7 @@ export class SupabaseService {
         title: event.title,
         description: event.description ?? null,
         teaser: requestMeta?.teaser ?? null,
-        event_domain_name: requestMeta?.event_domain_name ?? null,
+        event_domain_name: requestMeta?.event_domain_name ?? this.extractNoteValue(notes, 'Event Domain:') ?? null,
         edition: this.extractNoteValue(notes, 'Edition:'),
         event_type_name: this.extractNoteValue(notes, 'Event Type:'),
         event_type: event.event_type,
@@ -3387,6 +3411,7 @@ export class SupabaseService {
         created_by: event.created_by ?? null,
         created_at: event.created_at,
         updated_at: event.updated_at,
+        is_member_only: Array.isArray(event.visibility_scope) && event.visibility_scope.includes('MEMBER_ONLY'),
         proposed_dates: event.proposed_dates ?? null,
         department: event.department ?? null,
         city: event.city ?? null,
@@ -3615,7 +3640,7 @@ export class SupabaseService {
       return {
         ...event,
         event_domain_id: requestMeta?.event_domain_id ?? null,
-        event_domain_name: requestMeta?.event_domain_name ?? event.event_domain_name,
+        event_domain_name: requestMeta?.event_domain_name ?? this.extractNoteValue(notes, 'Event Domain:') ?? event.event_domain_name,
         edition: this.extractNoteValue(notes, 'Edition:'),
         event_type_name: this.extractNoteValue(notes, 'Event Type:'),
         instruments,
@@ -3803,6 +3828,7 @@ export class SupabaseService {
         status,
         event_type,
         parent_event_id,
+        visibility_scope,
         created_at
       `)
       .eq('event_type', 'EVENT_INSTANCE')
@@ -4025,18 +4051,25 @@ export class SupabaseService {
             : [],
         );
         const scheduleLines = this.extractEventScheduleLines(notes, scheduleEntries);
+        const sortedScheduleEntries = [...scheduleEntries].sort((left, right) => {
+          const leftDate = left.end_date || left.start_date || '9999-12-31';
+          const rightDate = right.end_date || right.start_date || '9999-12-31';
+          return leftDate.localeCompare(rightDate);
+        });
 
         return {
           id: eventId,
           title: (event.title as string | null | undefined)?.trim() || 'Untitled event',
           teaser: requestDetail?.teaser || '',
-          image_url: requestDetail?.image_url ?? null,
+          image_url: requestDetail?.image_url ?? this.extractNoteValue(notes, 'Event Image:') ?? null,
           event_domain_name: requestDetail?.event_domain_name ?? null,
           instruments,
           event_type_name: this.extractNoteValue(notes, 'Event Type:'),
           artist_names: artistNames,
           primary_date: scheduleEntries[0]?.start_date ?? null,
+          last_date: sortedScheduleEntries.at(-1)?.end_date || sortedScheduleEntries.at(-1)?.start_date || null,
           schedule_lines: scheduleLines,
+          is_member_only: this.isEventMemberOnly(event.visibility_scope),
         } satisfies PublicWebsiteEventItem;
       })
       .sort((a, b) => {
@@ -4053,7 +4086,7 @@ export class SupabaseService {
   async getPublicEventDetail(eventId: string): Promise<PublicEventDetail | null> {
     const eventsResult = await this.adminSupabase
       .from('tjs_events')
-      .select('id, title, status, event_type, parent_event_id')
+      .select('id, title, status, event_type, parent_event_id, visibility_scope')
       .eq('id', eventId)
       .eq('event_type', 'EVENT_INSTANCE')
       .eq('status', 'APPROVED')
@@ -4179,7 +4212,7 @@ export class SupabaseService {
       title: event.title?.trim() || 'Untitled event',
       teaser: requestDetail?.teaser || '',
       description: requestDetail?.description || '',
-      image_url: requestDetail?.image_url ?? null,
+      image_url: requestDetail?.image_url ?? this.extractNoteValue(notes, 'Event Image:') ?? null,
       event_domain_name: requestDetail?.event_domain?.name ?? null,
       edition,
       event_type_name: this.extractNoteValue(notes, 'Event Type:'),
@@ -4187,14 +4220,17 @@ export class SupabaseService {
       instruments,
       artist_names: artistNames,
       schedule_lines: scheduleLines,
-      media: ((requestMediaResult.data ?? []) as any[]).map((m) => ({
-        id: m.id,
-        media_type: m.media_type,
-        image_url: m.image_url,
-        name: m.name,
-        description: m.description,
-        url: m.url,
-      })),
+      is_member_only: this.isEventMemberOnly(event.visibility_scope),
+      media: ((requestMediaResult.data ?? []) as any[]).length > 0
+        ? ((requestMediaResult.data ?? []) as any[]).map((m) => ({
+            id: m.id,
+            media_type: m.media_type,
+            image_url: m.image_url,
+            name: m.name,
+            description: m.description,
+            url: m.url,
+          }))
+        : this.extractMediaEntriesFromNotes(notes),
       artists: eventArtists.map((a) => {
         const profileId = a.artist?.profile_id;
         const profile = profileId ? profilesById.get(profileId) : null;
@@ -4812,6 +4848,7 @@ export class SupabaseService {
       callToActionUrl: payload.callToActionUrl.trim() || null,
       hostNotes: payload.hostNotes,
     });
+    const visibilityScope = this.buildEventVisibilityScope(payload.isMemberOnly);
     const timestamp = new Date().toISOString();
 
     if (eventResult.data.parent_event_id) {
@@ -4838,6 +4875,7 @@ export class SupabaseService {
       .update({
         title: payload.title.trim() || null,
         description: payload.teaser.trim() || payload.description.trim() || null,
+        visibility_scope: visibilityScope,
         updated_at: timestamp,
       })
       .eq('id', eventId);
@@ -4918,6 +4956,7 @@ export class SupabaseService {
       callToActionUrl: payload.callToActionUrl.trim() || null,
       hostNotes: payload.hostNotes,
     });
+    const visibilityScope = this.buildEventVisibilityScope(payload.isMemberOnly);
     const timestamp = new Date().toISOString();
 
     if (eventResult.data.parent_event_id) {
@@ -4944,6 +4983,7 @@ export class SupabaseService {
       .update({
         title: payload.title.trim() || null,
         description: payload.teaser.trim() || payload.description.trim() || null,
+        visibility_scope: visibilityScope,
         updated_at: timestamp,
       })
       .eq('id', eventId);
@@ -4973,6 +5013,89 @@ export class SupabaseService {
     }
 
     return null;
+  }
+
+  async appendHostWorkspaceEventComment(profileId: string, eventId: string, commentBody: string): Promise<string | null> {
+    const hosts = await this.getAccessibleHosts(profileId);
+    const hostIds = hosts.map((host) => host.id);
+
+    if (hostIds.length === 0) {
+      return 'You do not have access to this event.';
+    }
+
+    const hostAssignmentResult = await this.adminSupabase
+      .from('tjs_event_hosts')
+      .select('host_id, notes')
+      .eq('event_id', eventId)
+      .in('host_id', hostIds)
+      .maybeSingle();
+
+    if (hostAssignmentResult.error) {
+      return hostAssignmentResult.error.message;
+    }
+
+    if (!hostAssignmentResult.data?.host_id) {
+      return 'You do not have access to this event.';
+    }
+
+    const existingNotes = (hostAssignmentResult.data.notes as string | null | undefined) ?? '';
+    const freeformNotes = this.extractFreeformHostNotes(existingNotes);
+    const nextHostNotes = [freeformNotes, commentBody.trim()].filter(Boolean).join('\n');
+    const notes = this.mergeStructuredHostNotes(existingNotes, {
+      eventDomain: this.extractNoteValue(existingNotes, 'Event Domain:'),
+      edition: this.extractNoteValue(existingNotes, 'Edition:'),
+      eventType: this.extractNoteValue(existingNotes, 'Event Type:'),
+      showTime: this.extractNoteValue(existingNotes, 'Show Time:'),
+      eventImageUrl: this.extractNoteValue(existingNotes, 'Event Image:'),
+      callToActionUrl: this.extractNoteValue(existingNotes, 'Call to Action URL:'),
+      hostNotes: nextHostNotes,
+    });
+
+    const { error } = await this.adminSupabase
+      .from('tjs_event_hosts')
+      .update({ notes: notes || null })
+      .eq('event_id', eventId)
+      .eq('host_id', hostAssignmentResult.data.host_id as number);
+
+    return error ? error.message : null;
+  }
+
+  async appendAdminWorkspaceEventComment(eventId: string, commentBody: string): Promise<string | null> {
+    const hostAssignmentResult = await this.adminSupabase
+      .from('tjs_event_hosts')
+      .select('host_id, notes')
+      .eq('event_id', eventId)
+      .limit(1)
+      .maybeSingle();
+
+    if (hostAssignmentResult.error) {
+      return hostAssignmentResult.error.message;
+    }
+
+    if (!hostAssignmentResult.data?.host_id) {
+      return 'The event is missing an assigned host.';
+    }
+
+    const existingNotes = (hostAssignmentResult.data.notes as string | null | undefined) ?? '';
+    const freeformNotes = this.extractFreeformHostNotes(existingNotes);
+    const nextHostNotes = [freeformNotes, commentBody.trim()].filter(Boolean).join('\n');
+    const notes = this.mergeStructuredHostNotes(existingNotes, {
+      eventDomain: this.extractNoteValue(existingNotes, 'Event Domain:'),
+      edition: this.extractNoteValue(existingNotes, 'Edition:'),
+      eventType: this.extractNoteValue(existingNotes, 'Event Type:'),
+      showTime: this.extractNoteValue(existingNotes, 'Show Time:'),
+      eventImageUrl: this.extractNoteValue(existingNotes, 'Event Image:'),
+      callToActionUrl: this.extractNoteValue(existingNotes, 'Call to Action URL:'),
+      hostNotes: nextHostNotes,
+    });
+
+    const { error } = await this.adminSupabase
+      .from('tjs_event_hosts')
+      .update({ notes: notes || null })
+      .eq('event_id', eventId)
+      .eq('host_id', hostAssignmentResult.data.host_id as number);
+
+    return error ? error.message : null;
   }
 
   async updateHostWorkspaceEventImage(profileId: string, eventId: string, imageUrl: string | null): Promise<string | null> {
@@ -5015,7 +5138,33 @@ export class SupabaseService {
     }
 
     if (!eventResult.data?.parent_event_id) {
-      return 'Request image could not be updated for this event.';
+      const hostAssignmentResultWithNotes = await this.adminSupabase
+        .from('tjs_event_hosts')
+        .select('host_id, notes')
+        .eq('event_id', eventId)
+        .in('host_id', hostIds)
+        .maybeSingle();
+
+      if (hostAssignmentResultWithNotes.error || !hostAssignmentResultWithNotes.data?.host_id) {
+        return hostAssignmentResultWithNotes.error?.message ?? 'You do not have access to this event.';
+      }
+
+      const notes = this.mergeStructuredHostNotes((hostAssignmentResultWithNotes.data.notes as string | null | undefined) ?? '', {
+        edition: this.extractNoteValue((hostAssignmentResultWithNotes.data.notes as string | null | undefined) ?? '', 'Edition:'),
+        eventType: this.extractNoteValue((hostAssignmentResultWithNotes.data.notes as string | null | undefined) ?? '', 'Event Type:'),
+        showTime: this.extractNoteValue((hostAssignmentResultWithNotes.data.notes as string | null | undefined) ?? '', 'Show Time:'),
+        eventImageUrl: imageUrl,
+        callToActionUrl: this.extractNoteValue((hostAssignmentResultWithNotes.data.notes as string | null | undefined) ?? '', 'Call to Action URL:'),
+        hostNotes: null,
+      });
+
+      const { error: hostNotesError } = await this.adminSupabase
+        .from('tjs_event_hosts')
+        .update({ notes: notes || null })
+        .eq('event_id', eventId)
+        .eq('host_id', hostAssignmentResultWithNotes.data.host_id as number);
+
+      return hostNotesError ? hostNotesError.message : null;
     }
 
     const { error } = await this.adminSupabase
@@ -5051,7 +5200,34 @@ export class SupabaseService {
     }
 
     if (!eventResult.data?.parent_event_id) {
-      return 'Request image could not be updated for this event.';
+      const hostAssignmentResult = await this.adminSupabase
+        .from('tjs_event_hosts')
+        .select('host_id, notes')
+        .eq('event_id', eventId)
+        .limit(1)
+        .maybeSingle();
+
+      if (hostAssignmentResult.error || !hostAssignmentResult.data?.host_id) {
+        return hostAssignmentResult.error?.message ?? 'The event is missing an assigned host.';
+      }
+
+      const existingNotes = (hostAssignmentResult.data.notes as string | null | undefined) ?? '';
+      const notes = this.mergeStructuredHostNotes(existingNotes, {
+        edition: this.extractNoteValue(existingNotes, 'Edition:'),
+        eventType: this.extractNoteValue(existingNotes, 'Event Type:'),
+        showTime: this.extractNoteValue(existingNotes, 'Show Time:'),
+        eventImageUrl: imageUrl,
+        callToActionUrl: this.extractNoteValue(existingNotes, 'Call to Action URL:'),
+        hostNotes: null,
+      });
+
+      const { error: hostNotesError } = await this.adminSupabase
+        .from('tjs_event_hosts')
+        .update({ notes: notes || null })
+        .eq('event_id', eventId)
+        .eq('host_id', hostAssignmentResult.data.host_id as number);
+
+      return hostNotesError ? hostNotesError.message : null;
     }
 
     const { error } = await this.adminSupabase
@@ -5512,6 +5688,57 @@ export class SupabaseService {
       user_email: profilesById.get(row.profile_id)?.email ?? null,
       recorded_by_name: row.recorded_by ? (profilesById.get(row.recorded_by)?.full_name ?? null) : null,
     }));
+  }
+
+  async getLatestMembershipPaymentForProfile(profileId: string): Promise<MembershipPaymentRecord | null> {
+    const { data, error } = await this.adminSupabase
+      .from('tjs_membership_payments')
+      .select('id, profile_id, payment_date, expires_at, is_active, amount, tier, currency, notes, recorded_by, created_at, updated_at')
+      .eq('profile_id', profileId)
+      .order('payment_date', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error || !data) {
+      if (error) {
+        console.error('getLatestMembershipPaymentForProfile error:', error.message);
+      }
+      return null;
+    }
+
+    const lookupIds = [data.profile_id, data.recorded_by].filter((value): value is string => !!value);
+    const profileLookupResult = lookupIds.length > 0
+      ? await this.adminSupabase
+          .from('tjs_profiles')
+          .select('id, full_name, email')
+          .in('id', lookupIds)
+      : { data: [] as any[] };
+
+    const profilesById = new Map<string, { full_name: string | null; email: string | null }>();
+    for (const profile of ((profileLookupResult.data ?? []) as any[])) {
+      profilesById.set(profile.id, {
+        full_name: profile.full_name ?? null,
+        email: profile.email ?? null,
+      });
+    }
+
+    return {
+      id: data.id,
+      profile_id: data.profile_id,
+      payment_date: data.payment_date,
+      expires_at: data.expires_at,
+      is_active: !!data.is_active,
+      amount: data.amount ?? null,
+      tier: data.tier ?? null,
+      currency: data.currency ?? null,
+      notes: data.notes ?? null,
+      recorded_by: data.recorded_by ?? null,
+      created_at: data.created_at,
+      updated_at: data.updated_at,
+      user_name: profilesById.get(data.profile_id)?.full_name ?? null,
+      user_email: profilesById.get(data.profile_id)?.email ?? null,
+      recorded_by_name: data.recorded_by ? (profilesById.get(data.recorded_by)?.full_name ?? null) : null,
+    };
   }
 
   async recordMembershipPayment(
@@ -7051,6 +7278,14 @@ export class SupabaseService {
 
   // ── Host Members ──────────────────────────────────────────────────────
 
+  private buildEventVisibilityScope(isMemberOnly: boolean): string[] {
+    return isMemberOnly ? ['TJS', 'MEMBER_ONLY'] : ['TJS'];
+  }
+
+  private isEventMemberOnly(visibilityScope: unknown): boolean {
+    return Array.isArray(visibilityScope) && visibilityScope.includes('MEMBER_ONLY');
+  }
+
   /** Fetch members assigned to a host. */
   async getHostMembers(hostId: number): Promise<TjsHostMember[]> {
     const { data, error } = await this.adminSupabase
@@ -7443,7 +7678,7 @@ export class SupabaseService {
         event_type: 'EVENT_INSTANCE',
         status: payload.isActive ? 'APPROVED' : 'SELECTED',
         origin_website: 'TJS',
-        visibility_scope: ['TJS'],
+        visibility_scope: this.buildEventVisibilityScope(payload.isOpenToMembers),
         parent_event_id: requestId,
         created_by: createdBy,
         source: 'TJS',
@@ -7539,6 +7774,164 @@ export class SupabaseService {
       createdBy,
       `[EVENT_CREATED]\nEvent created from request.\nEvent ID: ${insertedEvent.id}`
     );
+
+    return { eventId: insertedEvent.id, error: null };
+  }
+
+  async createStandaloneHostEvent(
+    createdBy: string,
+    payload: CreateStandaloneHostEventPayload,
+  ): Promise<{ eventId: string | null; error: string | null }> {
+    const timestamp = new Date().toISOString();
+    const accessibleHosts = await this.getAccessibleHosts(createdBy);
+    const allowedHostIds = new Set(accessibleHosts.map((host) => host.id));
+
+    if (!allowedHostIds.has(payload.hostId)) {
+      return { eventId: null, error: 'You do not have access to the selected host.' };
+    }
+
+    const [editionOptions, eventTypeOptions] = await Promise.all([
+      this.listConcreteEventEditionOptions(),
+      this.listEventTypeOptions(),
+    ]);
+    const eventDomains = await this.listEventDomains();
+
+    const selectedEdition = editionOptions.find((item) => item.id === payload.editionId) ?? null;
+    const selectedEventType = eventTypeOptions.find((item) => item.id === payload.eventTypeId) ?? null;
+    const selectedEventDomain = eventDomains.find((item) => item.id === payload.eventDomainId) ?? null;
+    const selectedHost = accessibleHosts.find((host) => host.id === payload.hostId) ?? null;
+    const automaticComment = `Host Manager Comment: Event created on behalf of ${selectedHost?.public_name || selectedHost?.name || `Host #${payload.hostId}`}.`;
+    const mergedHostNotes = [payload.notes.trim(), automaticComment].filter(Boolean).join('\n');
+
+    const privateLocations = await this.getPrivateLocationsForHost(payload.hostId);
+    let persistedLocationId: string | null = null;
+    for (const [index, entry] of payload.entries.entries()) {
+      if (!entry.locationId) {
+        return {
+          eventId: null,
+          error: `Schedule entry ${index + 1} requires a location.`,
+        };
+      }
+
+      const publicLocation = await this.getPublicLocationById(entry.locationId);
+      if (publicLocation) {
+        if (index === 0) {
+          persistedLocationId = entry.locationId;
+        }
+        continue;
+      }
+
+      const privateLocation = privateLocations.find((location) => location.id === entry.locationId) ?? null;
+      if (!privateLocation) {
+        return {
+          eventId: null,
+          error: 'The selected location could not be found. Choose a valid public or private location and try again.',
+        };
+      }
+    }
+
+    const { data: insertedEvent, error: insertEventError } = await this.adminSupabase
+      .from('tjs_events')
+      .insert({
+        title: payload.title.trim() || 'Untitled Event',
+        description: payload.teaser.trim() || payload.description.trim() || null,
+        event_type: 'EVENT_INSTANCE',
+        status: payload.isPublished ? 'APPROVED' : 'SELECTED',
+        origin_website: 'TJS',
+        visibility_scope: this.buildEventVisibilityScope(payload.isMemberOnly),
+        parent_event_id: null,
+        created_by: createdBy,
+        source: 'TJS',
+        created_at: timestamp,
+        updated_at: timestamp,
+      })
+      .select('id')
+      .single();
+
+    if (insertEventError || !insertedEvent?.id) {
+      if (insertEventError && this.isMissingSchemaError(insertEventError)) {
+        return {
+          eventId: null,
+          error: 'Host event tables are missing in the database. Run db/023_host_event_tables.sql and try again.',
+        };
+      }
+
+      return { eventId: null, error: insertEventError?.message ?? 'Event could not be created.' };
+    }
+
+    const baseEventNotes = this.mergeStructuredHostNotes('', {
+      eventDomain: selectedEventDomain?.name ?? null,
+      edition: selectedEdition?.label ?? selectedEdition?.name ?? null,
+      eventType: selectedEventType?.name ?? null,
+      showTime: payload.entries[0]?.showTime?.trim() || null,
+      eventImageUrl: payload.imageUrl,
+      callToActionUrl: payload.callToActionUrl.trim() || null,
+      hostNotes: mergedHostNotes || null,
+      scheduleEntries: payload.entries,
+    });
+    const extraLines: string[] = [];
+    if (payload.additionalInstruments.length > 0) {
+      extraLines.push(`Additional Instruments: ${payload.additionalInstruments.join(', ')}`);
+    }
+    const mediaLines = payload.mediaEntries
+      .filter((item) => item.name.trim() || item.url.trim() || item.image_url)
+      .map((item) => `- ${item.media_type} | ${item.name.trim() || 'Untitled media'} | ${item.url.trim() || 'No link'} | ${item.image_url || 'No image'}`);
+    if (mediaLines.length > 0) {
+      extraLines.push('Media:');
+      extraLines.push(...mediaLines);
+    }
+    const eventNotes = [baseEventNotes, ...extraLines].filter(Boolean).join('\n');
+
+    const selectedDates = payload.entries.flatMap((entry) =>
+      entry.mode === 'period'
+        ? [entry.startDate, entry.endDate].filter(Boolean)
+        : [entry.startDate].filter(Boolean)
+    );
+
+    const { error: hostAssignmentError } = await this.adminSupabase
+      .from('tjs_event_hosts')
+      .insert({
+        event_id: insertedEvent.id,
+        host_id: payload.hostId,
+        selected_dates: selectedDates,
+        location_id: persistedLocationId,
+        host_status: 'CONFIRMED',
+        selected_at: timestamp,
+        notes: eventNotes || null,
+      });
+
+    if (hostAssignmentError) {
+      if (this.isMissingSchemaError(hostAssignmentError)) {
+        return {
+          eventId: null,
+          error: 'Host event tables are missing in the database. Run db/023_host_event_tables.sql and try again.',
+        };
+      }
+
+      return { eventId: null, error: hostAssignmentError.message };
+    }
+
+    const { error: artistInsertError } = await this.adminSupabase
+      .from('tjs_event_artists')
+      .upsert(
+        payload.artistIds.map((artistId, index) => ({
+          event_id: insertedEvent.id,
+          artist_id: artistId,
+          role: index === 0 ? 'PRIMARY' : 'INVITED',
+        })),
+        { onConflict: 'event_id,artist_id,role' }
+      );
+
+    if (artistInsertError) {
+      if (this.isMissingSchemaError(artistInsertError)) {
+        return {
+          eventId: null,
+          error: 'Host event tables are missing in the database. Run db/023_host_event_tables.sql and try again.',
+        };
+      }
+
+      return { eventId: null, error: artistInsertError.message };
+    }
 
     return { eventId: insertedEvent.id, error: null };
   }
@@ -8921,6 +9314,38 @@ export class SupabaseService {
     return label || null;
   }
 
+  private extractMediaEntriesFromNotes(notes: string | null | undefined): Array<{
+    media_type: string;
+    image_url: string | null;
+    name: string;
+    description: string;
+    url: string;
+  }> {
+    const lines = (notes ?? '')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const headerIndex = lines.findIndex((line) => line === 'Media:');
+    if (headerIndex < 0) {
+      return [];
+    }
+
+    return lines
+      .slice(headerIndex + 1)
+      .filter((line) => line.startsWith('- '))
+      .map((line) => line.replace(/^- /, '').trim())
+      .map((line) => {
+        const [mediaType, name, url, imageUrl] = line.split('|').map((item) => item.trim());
+        return {
+          media_type: mediaType || 'Video',
+          image_url: imageUrl && imageUrl !== 'No image' ? imageUrl : null,
+          name: name || 'Untitled media',
+          description: '',
+          url: url && url !== 'No link' ? url : '',
+        };
+      });
+  }
+
   private normalizeLocationComparisonValue(value: string | null | undefined): string | null {
     const normalized = value?.trim().toLowerCase() ?? '';
     return normalized || null;
@@ -8956,23 +9381,50 @@ export class SupabaseService {
     const locationLabel = this.extractPrimaryScheduleLocationLabel(notes) || 'Location TBA';
 
     return fallbackEntries.map((entry) => {
+      const entryShowTime = ('show_time' in entry && entry.show_time) ? entry.show_time : showTime;
+      const entryLocationLabel = ('location_label' in entry && entry.location_label) ? entry.location_label : locationLabel;
       const dateLabel = entry.mode === 'period'
         ? `${entry.start_date} - ${entry.end_date || 'TBD'}`
         : entry.start_date;
 
-      return `${dateLabel} : ${showTime} | ${locationLabel}`;
+      return `${dateLabel} : ${entryShowTime || 'Time TBA'} | ${entryLocationLabel || 'Location TBA'}`;
     });
+  }
+
+  private extractFreeformHostNotes(notes: string | null | undefined): string {
+    return (notes ?? '')
+      .split('\n')
+      .map((line) => line.trimEnd())
+      .filter((line) => {
+        const trimmed = line.trim();
+        return !!trimmed
+          && !trimmed.startsWith('Event Domain:')
+          && !trimmed.startsWith('Edition:')
+          && !trimmed.startsWith('Event Type:')
+          && !trimmed.startsWith('Show Time:')
+          && !trimmed.startsWith('Event Image:')
+          && !trimmed.startsWith('Call to Action URL:')
+          && !trimmed.startsWith('Additional Instruments:')
+          && !trimmed.startsWith('Media:')
+          && !trimmed.startsWith('[COMMENT]')
+          && !trimmed.startsWith('[SCHEDULE]')
+          && !trimmed.startsWith('- ');
+      })
+      .join('\n')
+      .trim();
   }
 
   private mergeStructuredHostNotes(
     existingNotes: string | null | undefined,
     values: {
+      eventDomain?: string | null;
       edition: string | null;
       eventType: string | null;
       showTime: string | null;
+      eventImageUrl?: string | null;
       callToActionUrl?: string | null;
       hostNotes: string | null;
-      scheduleEntries?: Array<{ mode: 'day_show' | 'period'; startDate: string; endDate: string }> | null;
+      scheduleEntries?: Array<{ mode: 'day_show' | 'period'; startDate: string; endDate: string; showTime?: string; locationLabel?: string }> | null;
     },
   ): string {
     const filteredLines = (existingNotes ?? '')
@@ -8980,20 +9432,25 @@ export class SupabaseService {
       .map((line) => line.trim())
       .filter((line) => !!line)
       .filter((line) =>
-        !line.startsWith('Edition:')
+        !line.startsWith('Event Domain:')
+        && !line.startsWith('Edition:')
         && !line.startsWith('Event Type:')
         && !line.startsWith('Show Time:')
+        && !line.startsWith('Event Image:')
         && !line.startsWith('Call to Action URL:')
+        && !line.startsWith('[COMMENT]')
         && (values.scheduleEntries === undefined || !line.startsWith('[SCHEDULE]'))
       );
 
     const structuredLines = [
+      values.eventDomain ? `Event Domain: ${values.eventDomain}` : null,
       values.edition ? `Edition: ${values.edition}` : null,
       values.eventType ? `Event Type: ${values.eventType}` : null,
       values.showTime ? `Show Time: ${values.showTime}` : null,
+      values.eventImageUrl ? `Event Image: ${values.eventImageUrl}` : null,
       values.callToActionUrl ? `Call to Action URL: ${values.callToActionUrl}` : null,
       ...((values.scheduleEntries ?? []).map((entry) =>
-        `[SCHEDULE] ${entry.mode}|${entry.startDate}|${entry.endDate || ''}`
+        `[SCHEDULE] ${entry.mode}|${entry.startDate}|${entry.endDate || ''}|${entry.showTime || ''}|${entry.locationLabel || ''}`
       )),
     ].filter((line): line is string => !!line);
 
@@ -9011,14 +9468,14 @@ export class SupabaseService {
   private extractScheduleEntries(
     notes: string | null | undefined,
     fallbackDates: string[] | null | undefined,
-  ): Array<{ mode: 'day_show' | 'period'; start_date: string; end_date: string }> {
+  ): Array<{ mode: 'day_show' | 'period'; start_date: string; end_date: string; show_time?: string; location_label?: string }> {
     const noteEntries = (notes ?? '')
       .split('\n')
       .map((line) => line.trim())
       .filter((line) => line.startsWith('[SCHEDULE]'))
       .map((line) => line.replace('[SCHEDULE]', '').trim())
       .map((line) => {
-        const [mode, startDate, endDate] = line.split('|').map((part) => part.trim());
+        const [mode, startDate, endDate, showTime, locationLabel] = line.split('|').map((part) => part.trim());
         if (!startDate) {
           return null;
         }
@@ -9027,9 +9484,11 @@ export class SupabaseService {
           mode: mode === 'period' ? 'period' as const : 'day_show' as const,
           start_date: startDate,
           end_date: mode === 'period' ? (endDate || '') : '',
+          show_time: showTime || '',
+          location_label: locationLabel || '',
         };
       })
-      .filter((entry): entry is { mode: 'day_show' | 'period'; start_date: string; end_date: string } => !!entry);
+      .filter((entry) => entry !== null) as Array<{ mode: 'day_show' | 'period'; start_date: string; end_date: string; show_time?: string; location_label?: string }>;
 
     if (noteEntries.length > 0) {
       return noteEntries;
@@ -9045,6 +9504,8 @@ export class SupabaseService {
         mode: 'period',
         start_date: dates[0],
         end_date: dates[1] ?? '',
+        show_time: '',
+        location_label: '',
       }];
     }
 
@@ -9052,6 +9513,8 @@ export class SupabaseService {
       mode: 'day_show',
       start_date: dates[0],
       end_date: '',
+      show_time: '',
+      location_label: '',
     }];
   }
 

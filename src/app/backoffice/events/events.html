@@ -28,6 +28,14 @@
           />
         </div>
         <button
+          *ngIf="canCreateEvents"
+          type="button"
+          (click)="goToCreateEvent()"
+          class="inline-flex items-center justify-center rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700"
+        >
+          Create Event
+        </button>
+        <button
           *ngIf="isCommitteeMember"
           type="button"
           (click)="togglePlatformScope()"
@@ -108,6 +116,7 @@
                 <th class="px-5 py-3 text-left font-semibold text-zinc-600">Event Type</th>
                 <th class="px-5 py-3 text-left font-semibold text-zinc-600">Artists</th>
                 <th class="px-5 py-3 text-left font-semibold text-zinc-600">Hosts</th>
+                <th class="px-5 py-3 text-left font-semibold text-zinc-600">Member Only</th>
                 <th class="px-5 py-3 text-left font-semibold text-zinc-600">Location</th>
                 <th class="px-5 py-3 text-left font-semibold text-zinc-600">Date</th>
                 <th *ngIf="!isCommitteeMember" class="px-5 py-3 text-left font-semibold text-zinc-600">Status</th>
@@ -130,6 +139,11 @@
                 <td class="px-5 py-4 text-zinc-600">{{ eventTypeNameLabel(item) }}</td>
                 <td class="px-5 py-4 text-zinc-600">{{ artistsSummary(item) }}</td>
                 <td class="px-5 py-4 text-zinc-700">{{ hostsSummary(item) }}</td>
+                <td class="px-5 py-4 text-zinc-600">
+                  <span class="inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold" [ngClass]="item.is_member_only ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-zinc-200 bg-zinc-50 text-zinc-600'">
+                    {{ item.is_member_only ? 'True' : 'False' }}
+                  </span>
+                </td>
                 <td class="px-5 py-4 text-zinc-600">{{ locationSummary(item) }}</td>
                 <td class="px-5 py-4 text-zinc-600">
                   {{ startDateSummary(item) === 'Not scheduled' ? 'Not scheduled' : (startDateSummary(item).split(' +')[0] | date:'dd/MM/yyyy') }}<span *ngIf="startDateSummary(item).includes(' +')"> {{ startDateSummary(item).substring(startDateSummary(item).indexOf(' +')) }}</span>

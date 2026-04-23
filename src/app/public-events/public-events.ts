@@ -1,24 +1,29 @@
 import { NgFor, NgIf } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { Router } from '@angular/router';
+import { AuthService } from '../services/auth.service';
 import { SharedModule } from '../shared/shared-module';
 import { PublicWebsiteEventItem, SupabaseService } from '../services/supabase.service';
 
 @Component({
   selector: 'app-public-events',
   standalone: true,
-  imports: [SharedModule, NgIf, NgFor, FormsModule, RouterLink],
+  imports: [SharedModule, NgIf, NgFor, FormsModule],
   templateUrl: './public-events.html',
 })
 export class PublicEvents implements OnInit {
   private supabase = inject(SupabaseService);
+  private authService = inject(AuthService);
+  private router = inject(Router);
 
   isLoading = true;
   error = '';
   items: PublicWebsiteEventItem[] = [];
   filteredItems: PublicWebsiteEventItem[] = [];
   expandedEventId: string | null = null;
+  showMemberOnlyPopup = false;
+  lockedEventTitle = '';
 
   showFilters = false;
   showSort = false;
@@ -29,6 +34,7 @@ export class PublicEvents implements OnInit {
   selectedArtist = '';
   selectedEventType = '';
   selectedLocation = '';
+  selectedMembersOnly = false;
   sortBy = 'date-asc';
 
   domains: string[] = [];
@@ -38,6 +44,7 @@ export class PublicEvents implements OnInit {
   locations: string[] = [];
 
   async ngOnInit() {
+    await this.authService.waitForAuthReady();
     this.isLoading = true;
     this.error = '';
 
@@ -97,24 +104,48 @@ export class PublicEvents implements OnInit {
       filtered = filtered.filter(item => this.extractLocations(item).includes(this.selectedLocation));
     }
 
+    if (this.selectedMembersOnly) {
+      filtered = filtered.filter(item => item.is_member_only);
+    }
+
     filtered = this.sortEvents(filtered);
     this.filteredItems = filtered;
   }
 
   sortEvents(events: PublicWebsiteEventItem[]): PublicWebsiteEventItem[] {
     const sorted = [...events];
+    const compareByUpcomingStatus = (left: PublicWebsiteEventItem, right: PublicWebsiteEventItem) => {
+      const leftIsPast = this.isPastEvent(left);
+      const rightIsPast = this.isPastEvent(right);
+
+      if (leftIsPast === rightIsPast) {
+        return 0;
+      }
+
+      return leftIsPast ? 1 : -1;
+    };
 
     switch (this.sortBy) {
       case 'title-asc':
-        return sorted.sort((a, b) => a.title.localeCompare(b.title));
+        return sorted.sort((a, b) =>
+          compareByUpcomingStatus(a, b) || a.title.localeCompare(b.title)
+        );
       case 'title-desc':
-        return sorted.sort((a, b) => b.title.localeCompare(a.title));
+        return sorted.sort((a, b) =>
+          compareByUpcomingStatus(a, b) || b.title.localeCompare(a.title)
+        );
       case 'date-asc':
-        return sorted.sort((a, b) => (a.primary_date || '9999-12-31').localeCompare(b.primary_date || '9999-12-31'));
+        return sorted.sort((a, b) =>
+          compareByUpcomingStatus(a, b)
+          || (a.primary_date || '9999-12-31').localeCompare(b.primary_date || '9999-12-31')
+        );
       case 'date-desc':
-        return sorted.sort((a, b) => (b.primary_date || '0000-00-00').localeCompare(a.primary_date || '0000-00-00'));
+        return sorted.sort((a, b) =>
+          compareByUpcomingStatus(a, b)
+          || (b.primary_date || '0000-00-00').localeCompare(a.primary_date || '0000-00-00')
+        );
       default:
-        return sorted;
+        return sorted.sort(compareByUpcomingStatus);
     }
   }
 
@@ -137,6 +168,7 @@ export class PublicEvents implements OnInit {
     this.selectedArtist = '';
     this.selectedEventType = '';
     this.selectedLocation = '';
+    this.selectedMembersOnly = false;
     this.sortBy = 'date-asc';
     this.applyFilters();
   }
@@ -223,5 +255,49 @@ export class PublicEvents implements OnInit {
 
   toggleExpanded(item: PublicWebsiteEventItem) {
     this.expandedEventId = this.expandedEventId === item.id ? null : item.id;
+  }
+
+  get canAccessMemberOnlyEvents(): boolean {
+    return this.authService.hasValidMembership
+      || this.authService.isAdmin
+      || this.authService.isCommitteeMember
+      || this.authService.isHostManager
+      || this.authService.hasAnyRole(['Host', 'Host+'])
+      || this.authService.isArtist;
+  }
+
+  isPastEvent(item: PublicWebsiteEventItem): boolean {
+    const comparisonDate = item.last_date || item.primary_date;
+    if (!comparisonDate) {
+      return false;
+    }
+
+    return new Date(`${comparisonDate}T23:59:59`).getTime() < new Date().getTime();
+  }
+
+  isLockedMemberOnlyEvent(item: PublicWebsiteEventItem): boolean {
+    return item.is_member_only && !this.canAccessMemberOnlyEvents;
+  }
+
+  async openEvent(item: PublicWebsiteEventItem) {
+    if (this.isLockedMemberOnlyEvent(item)) {
+      this.lockedEventTitle = item.title;
+      this.showMemberOnlyPopup = true;
+      return;
+    }
+
+    await this.router.navigate(['/events', item.id]);
+  }
+
+  closeMemberOnlyPopup() {
+    this.showMemberOnlyPopup = false;
+    this.lockedEventTitle = '';
+  }
+
+  async goToMemberLogin() {
+    this.closeMemberOnlyPopup();
+    await this.router.navigate(['/member-login'], {
+      queryParams: { returnUrl: this.router.url || '/events' },
+    });
   }
 }

@@ -8,6 +8,7 @@ import { ArtistLogin } from './artist-login/artist-login';
 import { CommitteeLogin } from './committee-login/committee-login';
 import { HostManagerLogin } from './host-manager-login/host-manager-login';
 import { HostLogin } from './host-login/host-login';
+import { MemberLogin } from './member-login/member-login';
 import { BackofficeLayout } from './backoffice/backoffice-layout/backoffice-layout';
 import { Dashboard } from './backoffice/dashboard/dashboard';
 import { EventRequests } from './backoffice/event-requests/event-requests';
@@ -45,6 +46,7 @@ import { HostEventDetail } from './backoffice/host-event-detail/host-event-detai
 import { ArtistEvents } from './backoffice/artist-events/artist-events';
 import { ArtistEventDetail } from './backoffice/artist-event-detail/artist-event-detail';
 import { HostArtists } from './backoffice/host-artists/host-artists';
+import { HostNewEvent } from './backoffice/host-new-event/host-new-event';
 import { ArtistProfile } from './backoffice/artist-profile/artist-profile';
 import { ArtistInstruments } from './backoffice/artist-instruments/artist-instruments';
 import { ArtistRequirements } from './backoffice/artist-requirements/artist-requirements';
@@ -101,6 +103,10 @@ export const routes: Routes = [
         component: HostLogin,
     },
     {
+        path: 'member-login',
+        component: MemberLogin,
+    },
+    {
         // Handles Supabase email invite / password-reset magic links
         path: 'auth/callback',
         component: AuthCallback,
@@ -141,6 +147,7 @@ export const routes: Routes = [
             { path: 'my-hosts', component: MyHosts },
             { path: 'host/dashboard', component: ArtistWorkspacePage, canActivate: [roleGuard(['Host', 'Host+'])], data: { title: 'Dashboard', description: 'This host dashboard page is intentionally blank for now.' } },
             { path: 'host/events', component: HostEvents, canActivate: [roleGuard(['Host', 'Host+'])] },
+            { path: 'host/events/new', component: HostNewEvent, canActivate: [roleGuard(['Host', 'Host+'])] },
             { path: 'host/events/:id', component: HostEventDetail, canActivate: [roleGuard(['Host', 'Host+'])] },
             { path: 'host/requests', component: EventRequests, canActivate: [roleGuard(['Host', 'Host+'])] },
             { path: 'host/requests/:id', component: HostArtistRequestDetail, canActivate: [roleGuard(['Host', 'Host+'])] },
@@ -185,6 +192,7 @@ export const routes: Routes = [
             { path: 'host-manager/hosts', component: HostManagerHosts, canActivate: [roleGuard(['Host Manager'])] },
             { path: 'host-manager/hosts/:id', component: HostManagerHostDetail, canActivate: [roleGuard(['Host Manager'])] },
             { path: 'host-manager/events', component: Events, canActivate: [roleGuard(['Host Manager'])], data: { title: 'Events', description: 'View events assigned to your managed hosts.' } },
+            { path: 'host-manager/events/new', component: HostNewEvent, canActivate: [roleGuard(['Host Manager'])] },
             { path: 'host-manager/events/:id', component: HostEventDetail, canActivate: [roleGuard(['Host Manager'])] },
             { path: 'host-manager/requests', component: EventRequests, canActivate: [roleGuard(['Host Manager'])] },
             { path: 'host-manager/requests/:id', component: HostArtistRequestDetail, canActivate: [roleGuard(['Host Manager'])] },

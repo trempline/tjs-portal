@@ -1,0 +1,121 @@
+<app-header></app-header>
+
+<main class="flex min-h-screen items-center justify-center bg-zinc-100 px-4 py-16">
+  <div class="w-full max-w-md">
+    <div class="overflow-hidden rounded-2xl bg-white shadow-lg">
+      <div class="bg-zinc-900 px-8 py-8 text-center">
+        <img src="assets/images/logo/logo.png" alt="TJS Logo" class="mx-auto mb-4 h-16" />
+        <h1 class="text-2xl font-bold text-white">Member Login</h1>
+        <p class="mt-1 text-sm text-zinc-300">Access your TJS membership profile and members-only events.</p>
+      </div>
+
+      <div class="px-8 py-8">
+        <div *ngIf="showForgotPassword">
+          <h2 class="mb-1 text-lg font-semibold text-zinc-800">Reset password</h2>
+          <p class="mb-5 text-sm text-zinc-500">Enter your member email to receive a reset link.</p>
+
+          <div *ngIf="forgotError" class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {{ forgotError }}
+          </div>
+          <div *ngIf="forgotMessage" class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            {{ forgotMessage }}
+          </div>
+
+          <div class="mb-5">
+            <label for="forgotEmail" class="mb-1.5 block text-sm font-medium text-zinc-700">Email</label>
+            <input
+              id="forgotEmail"
+              name="forgotEmail"
+              type="email"
+              [(ngModel)]="forgotEmail"
+              placeholder="member@example.com"
+              class="w-full rounded-lg border border-zinc-300 bg-zinc-50 px-4 py-2.5 text-sm text-zinc-900 outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-200"
+            />
+          </div>
+
+          <button
+            type="button"
+            (click)="onForgotPassword()"
+            [disabled]="forgotLoading"
+            class="flex w-full items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <span>{{ forgotLoading ? 'Sending...' : 'Send reset link' }}</span>
+          </button>
+
+          <div class="mt-5 text-center">
+            <button type="button" (click)="toggleForgotPassword()" class="text-sm text-zinc-500 transition-colors hover:text-red-600">
+              Back to login
+            </button>
+          </div>
+        </div>
+
+        <form *ngIf="!showForgotPassword" (ngSubmit)="onSubmit()" novalidate>
+          <div *ngIf="errorMessage" class="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {{ errorMessage }}
+          </div>
+
+          <div class="mb-5">
+            <label for="email" class="mb-1.5 block text-sm font-medium text-zinc-700">Email</label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              [(ngModel)]="credentials.email"
+              placeholder="member@example.com"
+              autocomplete="email"
+              class="w-full rounded-lg border border-zinc-300 bg-zinc-50 px-4 py-2.5 text-sm text-zinc-900 outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-200"
+            />
+          </div>
+
+          <div class="mb-6">
+            <label for="password" class="mb-1.5 block text-sm font-medium text-zinc-700">Password</label>
+            <div class="relative">
+              <input
+                id="password"
+                name="password"
+                [type]="showPassword ? 'text' : 'password'"
+                [(ngModel)]="credentials.password"
+                placeholder="••••••••"
+                autocomplete="current-password"
+                class="w-full rounded-lg border border-zinc-300 bg-zinc-50 px-4 py-2.5 pr-12 text-sm text-zinc-900 outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-200"
+              />
+              <button
+                type="button"
+                (click)="togglePasswordVisibility()"
+                class="absolute inset-y-0 right-0 flex items-center pr-3 text-zinc-400 transition hover:text-zinc-600"
+              >
+                {{ showPassword ? 'Hide' : 'Show' }}
+              </button>
+            </div>
+          </div>
+
+          <div class="mb-4 text-right">
+            <button type="button" (click)="toggleForgotPassword()" class="text-sm text-zinc-500 transition-colors hover:text-red-600">
+              Forgot password?
+            </button>
+          </div>
+
+          <button
+            type="submit"
+            [disabled]="isLoading"
+            class="flex w-full items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <span>{{ isLoading ? 'Signing in...' : 'Sign in' }}</span>
+          </button>
+        </form>
+
+        <div class="mt-6 text-center">
+          <a routerLink="/" class="text-sm text-zinc-500 transition-colors hover:text-red-600">
+            Back to site
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <p class="mt-6 text-center text-xs text-zinc-400">
+      This login is reserved for TJS public members.
+    </p>
+  </div>
+</main>
+
+<app-footer></app-footer>

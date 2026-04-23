@@ -293,6 +293,7 @@
                 <td class="px-5 py-4 align-top">
                   <div class="font-semibold text-zinc-900">{{ item.title }} 
                      <p class="max-w-md text-xs font-regular text-zinc-600">{{ teaserText(item) }}</p>
+                     <p *ngIf="isHostRequestWorkspace && canCreateEventFromRequest(item)" class="mt-1 text-xs font-medium text-red-600">Open event editor</p>
                   </div>
                 </td>
                 <td class="px-5 py-4 text-zinc-600">{{ item.event_domain_name || 'No domain' }}</td>

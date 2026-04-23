@@ -116,11 +116,11 @@ export class HostCreateEvent implements OnInit {
     try {
       const [request, hosts, eventDomains, editionOptions, eventTypeOptions, privateLocations, publicLocations, instrumentCatalog] = await Promise.all([
         this.supabase.getArtistWorkspaceRequestDetail(requestId),
-        this.isAdmin ? this.supabase.getHosts() : this.supabase.getMyHosts(profileId),
+        this.isAdmin ? this.supabase.getHosts() : this.supabase.getAccessibleHosts(profileId),
         this.supabase.listEventDomains(),
         this.supabase.listConcreteEventEditionOptions(),
         this.supabase.listEventTypeOptions(),
-        this.isAdmin && !Number.isNaN(requestedHostId)
+        (this.isAdmin || this.authService.isHostManager) && !Number.isNaN(requestedHostId)
           ? this.supabase.getPrivateLocationsForHost(requestedHostId)
           : this.supabase.getPrivateLocations(profileId),
         this.supabase.getPublicLocations(),
@@ -147,7 +147,7 @@ export class HostCreateEvent implements OnInit {
       if (this.isAdmin && !Number.isNaN(requestedHostId) && this.hosts.some((host) => host.id === requestedHostId)) {
         this.form.hostId = requestedHostId;
       }
-      if (this.isAdmin) {
+      if (this.canChooseHost) {
         await this.onHostChange();
       }
       await this.loadPublishedEventSchedule(profileId);
@@ -185,7 +185,7 @@ export class HostCreateEvent implements OnInit {
   }
 
   async onHostChange() {
-    if (!this.isAdmin) {
+    if (!this.canChooseHost) {
       return;
     }
 
@@ -255,6 +255,10 @@ export class HostCreateEvent implements OnInit {
 
   get isAdmin(): boolean {
     return this.authService.isAdmin;
+  }
+
+  get canChooseHost(): boolean {
+    return this.isAdmin || this.authService.isHostManager;
   }
 
   get eventStatusLabel(): string {

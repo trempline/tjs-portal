@@ -123,6 +123,10 @@ export class AuthService {
     return this.hasAnyRole(['Artist', 'Artist Invited']);
   }
 
+  get isPublicMember(): boolean {
+    return this.hasAnyRole(['Public Member', 'Member']);
+  }
+
   get isInvitedArtist(): boolean {
     return this.hasRole('Artist Invited') && !this.hasRole('Artist');
   }
@@ -182,6 +186,8 @@ export class AuthService {
   async signOut(): Promise<void> {
     const logoutRoute = this.isCommitteeMember
       ? '/committee-login'
+      : this.isPublicMember
+        ? '/member-login'
       : this.isHostManager
         ? '/host-manager-login'
         : this.hasAnyRole(['Host', 'Host+'])
