@@ -31,6 +31,8 @@ import { PublicEvents } from './public-events/public-events';
 import { PublicEventDetailComponent } from './public-event-detail/public-event-detail';
 import { PublicArtists } from './public-artists/public-artists';
 import { PublicArtistDetail } from './public-artist-detail/public-artist-detail';
+import { PublicLocations } from './public-locations/public-locations';
+import { PublicLocationDetail } from './public-location-detail/public-location-detail';
 import { HostManagerHosts } from './backoffice/host-manager-hosts/host-manager-hosts';
 import { HostManagerHostDetail } from './backoffice/host-manager-host-detail/host-manager-host-detail';
 import { HostManagerDashboard } from './backoffice/host-manager-dashboard/host-manager-dashboard';
@@ -87,6 +89,14 @@ export const routes: Routes = [
     {
         path: 'artists/:id',
         component: PublicArtistDetail,
+    },
+    {
+        path: 'locations',
+        component: PublicLocations,
+    },
+    {
+        path: 'locations/:id',
+        component: PublicLocationDetail,
     },
     {
         path: 'events/:id',

@@ -1,0 +1,298 @@
+<app-header></app-header>
+
+<div class="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(220,38,38,0.12),_transparent_28%),linear-gradient(180deg,#fafaf9_0%,#ffffff_40%,#f4f4f5_100%)]">
+  <div *ngIf="isLoading" class="flex min-h-[70vh] items-center justify-center px-4">
+    <div class="flex flex-col items-center gap-4">
+      <div class="h-14 w-14 animate-spin rounded-full border-4 border-zinc-200 border-t-red-600"></div>
+      <p class="text-sm font-medium uppercase tracking-[0.16em] text-zinc-500">Loading location</p>
+    </div>
+  </div>
+
+  <div *ngIf="error && !isLoading" class="mx-auto max-w-3xl px-4 py-24">
+    <div class="overflow-hidden rounded-[2rem] border border-red-200 bg-white shadow-[0_30px_80px_-40px_rgba(220,38,38,0.45)]">
+      <div class="bg-gradient-to-r from-red-600 to-rose-500 px-8 py-6 text-white">
+        <div class="text-xs font-semibold uppercase tracking-[0.28em] text-white/80">Location Detail</div>
+        <h1 class="mt-3 text-3xl font-bold">This location is unavailable</h1>
+      </div>
+      <div class="px-8 py-8">
+        <p class="text-base leading-7 text-zinc-700">{{ error }}</p>
+        <button
+          type="button"
+          (click)="goBack()"
+          class="mt-8 inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-zinc-950 px-6 py-3 text-sm font-semibold text-white transition hover:border-zinc-950 hover:bg-zinc-800">
+          <span>Back to Locations</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <ng-container *ngIf="location && !isLoading">
+    <div *ngIf="selectedImageUrl" class="fixed inset-0 z-[80] flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm" (click)="closeGalleryImage()">
+      <button
+        type="button"
+        (click)="closeGalleryImage(); $event.stopPropagation()"
+        class="absolute right-4 top-4 inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white transition hover:bg-white/20"
+        aria-label="Close gallery image">
+        <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 6 6 18"></path>
+          <path d="m6 6 12 12"></path>
+        </svg>
+      </button>
+      <img
+        [src]="selectedImageUrl"
+        [alt]="location.name"
+        class="max-h-[86vh] max-w-[92vw] rounded-2xl object-contain shadow-2xl"
+        (click)="$event.stopPropagation()" />
+    </div>
+
+    <section class="relative overflow-hidden border-b border-zinc-200 bg-zinc-950 text-white">
+      <div class="absolute inset-0">
+        <img
+          *ngIf="location.image_url"
+          [src]="location.image_url"
+          [alt]="location.name"
+          class="h-full w-full object-cover opacity-30" />
+        <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(239,68,68,0.4),_transparent_35%),linear-gradient(120deg,rgba(9,9,11,0.94),rgba(39,39,42,0.8),rgba(127,29,29,0.72))]"></div>
+      </div>
+
+      <div class="relative mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-16">
+        <button
+          type="button"
+          (click)="goBack()"
+          class="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-5 py-2.5 text-sm font-semibold text-white backdrop-blur-md transition hover:bg-white/15">
+          <span>Back to Locations</span>
+        </button>
+
+        <div class="mt-10 grid gap-8 lg:grid-cols-[minmax(0,1.2fr)_320px] lg:items-end">
+          <div class="max-w-4xl">
+            <div class="flex flex-wrap items-center gap-3">
+              <span class="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/90 backdrop-blur-sm">
+                {{ heroEyebrow }}
+              </span>
+              <span class="rounded-full border border-white/15 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/90 backdrop-blur-sm" [class.bg-white]="!location.is_private" [class.text-zinc-950]="!location.is_private" [class.bg-white/10]="location.is_private">
+                {{ locationLabel() }}
+              </span>
+              <span *ngIf="location.city" class="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/90 backdrop-blur-sm">
+                {{ location.city }}
+              </span>
+            </div>
+
+            <h1 class="mt-6 text-4xl font-black tracking-tight text-white sm:text-5xl lg:text-6xl">
+              {{ location.name }}
+            </h1>
+
+            <p class="mt-5 max-w-3xl text-lg leading-8 text-white/85 sm:text-xl">
+              {{ location.description }}
+            </p>
+          </div>
+
+          <div class="rounded-[2rem] border border-white/12 bg-white/10 p-6 shadow-[0_30px_70px_-35px_rgba(0,0,0,0.8)] backdrop-blur-xl">
+            <div class="space-y-4">
+              <div class="rounded-2xl border border-white/10 bg-black/15 p-4">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/55">Visibility</div>
+                <div class="mt-2 text-lg font-bold text-white">{{ locationLabel() }}</div>
+              </div>
+              <div *ngIf="location.is_private && location.host_name" class="rounded-2xl border border-white/10 bg-black/15 p-4">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/55">Host Name</div>
+                <div class="mt-2 text-lg font-bold text-white">{{ location.host_name }}</div>
+              </div>
+              <div class="rounded-2xl border border-white/10 bg-black/15 p-4">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/55">Upcoming Events</div>
+                <div class="mt-2 text-lg font-bold text-white">{{ location.upcoming_events.length }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
+      <div class="space-y-8">
+        <div class="grid gap-8 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <div class="space-y-8">
+            <section class="overflow-hidden rounded-[2rem] border border-zinc-200 bg-white shadow-[0_20px_60px_-35px_rgba(15,23,42,0.28)]">
+              <div class="border-b border-zinc-100 px-7 py-5">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.28em] text-red-600">Description</div>
+                <h2 class="mt-3 text-2xl font-bold tracking-tight text-zinc-950">About this location</h2>
+              </div>
+              <div class="px-7 py-6">
+                <div *ngIf="location.long_description; else noDescription" class="whitespace-pre-line text-[15px] leading-8 text-zinc-700">
+                  {{ location.long_description }}
+                </div>
+                <ng-template #noDescription>
+                  <div class="rounded-[1.5rem] border border-dashed border-zinc-300 bg-zinc-50 px-6 py-12 text-center">
+                    <div class="text-lg font-semibold text-zinc-900">No description available yet</div>
+                    <p class="mt-3 text-sm leading-7 text-zinc-500">Location details will appear here once published.</p>
+                  </div>
+                </ng-template>
+              </div>
+            </section>
+
+            <section *ngIf="location.image_urls.length > 0" class="overflow-hidden rounded-[2rem] border border-zinc-200 bg-white shadow-[0_20px_60px_-35px_rgba(15,23,42,0.28)]">
+              <div class="border-b border-zinc-100 px-7 py-5">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.28em] text-red-600">Gallery</div>
+                <h2 class="mt-3 text-2xl font-bold tracking-tight text-zinc-950">Location photos</h2>
+              </div>
+              <div class="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3">
+                <button
+                  *ngFor="let imageUrl of location.image_urls"
+                  type="button"
+                  (click)="openGalleryImage(imageUrl)"
+                  class="group relative overflow-hidden rounded-[1.5rem] bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">
+                  <img
+                    [src]="imageUrl"
+                    [alt]="location.name"
+                    class="aspect-[16/10] w-full object-cover transition duration-500 group-hover:scale-105" />
+                  <span class="absolute inset-0 flex items-center justify-center bg-black/0 text-sm font-semibold text-white opacity-0 transition group-hover:bg-black/35 group-hover:opacity-100">
+                    Zoom
+                  </span>
+                </button>
+              </div>
+            </section>
+          </div>
+
+          <aside class="space-y-6 xl:sticky xl:top-8 xl:self-start">
+            <section class="overflow-hidden rounded-[2rem] border border-zinc-200 bg-white shadow-[0_20px_60px_-35px_rgba(15,23,42,0.28)]">
+              <div class="border-b border-zinc-100 px-6 py-5">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.28em] text-red-600">Location</div>
+              </div>
+              <div class="space-y-4 p-6">
+                <div class="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                  <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500">Address</div>
+                  <div class="mt-2 text-base font-bold leading-7 text-zinc-950">{{ addressLabel() }}</div>
+                </div>
+                <div *ngIf="location.location_type_name" class="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                  <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500">Location Type</div>
+                  <div class="mt-2 text-base font-bold text-zinc-950">{{ location.location_type_name }}</div>
+                </div>
+                <div *ngIf="location.capacity" class="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                  <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500">Capacity</div>
+                  <div class="mt-2 text-base font-bold text-zinc-950">{{ location.capacity }}</div>
+                </div>
+                <div *ngIf="location.is_private && location.host_name" class="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                  <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500">Host Name</div>
+                  <div class="mt-2 text-base font-bold text-zinc-950">{{ location.host_name }}</div>
+                </div>
+              </div>
+            </section>
+
+            <section *ngIf="location.amenities.length > 0" class="overflow-hidden rounded-[2rem] border border-zinc-200 bg-white shadow-[0_20px_60px_-35px_rgba(15,23,42,0.28)]">
+              <div class="border-b border-zinc-100 px-6 py-5">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.28em] text-red-600">Amenities</div>
+              </div>
+              <div class="px-6 py-6">
+                <div class="flex flex-wrap gap-3">
+                  <span
+                    *ngFor="let amenity of location.amenities"
+                    class="inline-flex items-center rounded-full border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 shadow-sm">
+                    {{ amenity }}
+                  </span>
+                </div>
+              </div>
+            </section>
+
+            <section *ngIf="location.specs.length > 0" class="overflow-hidden rounded-[2rem] border border-zinc-200 bg-white shadow-[0_20px_60px_-35px_rgba(15,23,42,0.28)]">
+              <div class="border-b border-zinc-100 px-6 py-5">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.28em] text-red-600">Specifications</div>
+              </div>
+              <div class="px-6 py-6">
+                <div class="flex flex-wrap gap-3">
+                  <span
+                    *ngFor="let spec of location.specs"
+                    class="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-50 px-4 py-2 text-sm font-semibold text-zinc-700 shadow-sm">
+                    {{ spec }}
+                  </span>
+                </div>
+              </div>
+            </section>
+
+            <section *ngIf="hasContactInfo()" class="overflow-hidden rounded-[2rem] border border-zinc-200 bg-white shadow-[0_20px_60px_-35px_rgba(15,23,42,0.28)]">
+              <div class="border-b border-zinc-100 px-6 py-5">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.28em] text-red-600">Contact</div>
+              </div>
+              <div class="space-y-3 p-6 text-sm font-semibold text-zinc-700">
+                <a *ngIf="location.phone" [href]="'tel:' + location.phone" class="block rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 transition hover:border-red-200 hover:text-red-700">
+                  {{ location.phone }}
+                </a>
+                <a *ngIf="location.email" [href]="'mailto:' + location.email" class="block rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 transition hover:border-red-200 hover:text-red-700">
+                  {{ location.email }}
+                </a>
+                <a *ngIf="location.website" [href]="location.website" target="_blank" rel="noreferrer" class="block rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 transition hover:border-red-200 hover:text-red-700">
+                  {{ websiteLabel(location.website) }}
+                </a>
+              </div>
+            </section>
+          </aside>
+        </div>
+
+        <section class="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-[0_16px_45px_-35px_rgba(15,23,42,0.28)]">
+          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100 px-6 py-4">
+            <div>
+              <div class="text-[11px] font-semibold uppercase tracking-[0.28em] text-red-600">Upcoming Events</div>
+              <h2 class="mt-2 text-xl font-bold tracking-tight text-zinc-950">Events at this location</h2>
+            </div>
+            <div class="rounded-full bg-zinc-100 px-3 py-1.5 text-sm font-semibold text-zinc-700">
+              {{ location.upcoming_events.length }} events
+            </div>
+          </div>
+          <div class="px-6 py-5">
+            <div *ngIf="location.upcoming_events.length === 0" class="rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-6 py-10 text-center">
+              <div class="text-lg font-semibold text-zinc-900">No upcoming events scheduled</div>
+              <p class="mt-3 text-sm leading-7 text-zinc-500">Upcoming public events for this location will appear here.</p>
+            </div>
+
+            <div *ngIf="location.upcoming_events.length > 0" class="overflow-x-auto rounded-2xl border border-zinc-200">
+              <table class="min-w-full divide-y divide-zinc-200 text-left text-sm">
+                <thead class="bg-zinc-50 text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
+                  <tr>
+                    <th scope="col" class="px-4 py-3">Event</th>
+                    <th scope="col" class="px-4 py-3">Artists</th>
+                    <th scope="col" class="px-4 py-3">Schedule</th>
+                    <th scope="col" class="px-4 py-3">Type</th>
+                    <th scope="col" class="px-4 py-3 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-zinc-100 bg-white">
+                  <tr
+                    *ngFor="let event of location.upcoming_events"
+                    class="transition hover:bg-red-50/50">
+                    <td class="max-w-[260px] px-4 py-3 align-top">
+                      <div class="font-bold leading-6 text-zinc-950">{{ event.title }}</div>
+                      <span *ngIf="event.is_member_only" class="mt-1 inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                        Members Only
+                      </span>
+                    </td>
+                    <td class="max-w-[220px] px-4 py-3 align-top text-zinc-700">
+                      {{ formatArtists(event.artist_names) }}
+                    </td>
+                    <td class="min-w-[240px] px-4 py-3 align-top text-zinc-700">
+                      <div>{{ primaryScheduleLine(event) }}</div>
+                      <div *ngIf="remainingScheduleCount(event) > 0" class="mt-1 text-xs font-semibold text-red-600">
+                        +{{ remainingScheduleCount(event) }} more dates
+                      </div>
+                    </td>
+                    <td class="px-4 py-3 align-top">
+                      <span class="inline-flex rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-700">
+                        {{ event.event_domain_name || event.event_type_name || 'Event' }}
+                      </span>
+                    </td>
+                    <td class="px-4 py-3 text-right align-top">
+                      <button
+                        type="button"
+                        (click)="openEvent(event)"
+                        class="rounded-lg bg-zinc-950 px-3 py-2 text-xs font-semibold text-white transition hover:bg-red-600">
+                        View
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </div>
+    </section>
+  </ng-container>
+</div>
+
+<app-footer></app-footer>
