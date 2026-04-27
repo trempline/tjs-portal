@@ -44,13 +44,15 @@ export class AuthCallback implements OnInit {
   get activationDescription(): string {
     return this.successRoute === '/backoffice/artist-dashboard'
       ? 'Choose a secure password to activate your artist workspace.'
-      : 'Choisissez un mot de passe securise pour acceder au back-office TJS.';
+      : 'Choose a secure password to activate your TJS account.';
   }
 
   get successDescription(): string {
     return this.successRoute === '/backoffice/artist-dashboard'
       ? 'Your artist account is active. Redirecting to your workspace...'
-      : 'Votre compte est active. Redirection vers le tableau de bord...';
+      : this.authService.isPublicMember || this.authService.hasValidMembership
+        ? 'Your account is active. Redirecting to the visitor home page...'
+        : 'Your account is active. Redirecting to your dashboard...';
   }
 
   async ngOnInit() {
@@ -149,15 +151,28 @@ export class AuthCallback implements OnInit {
       return;
     }
 
+    await this.authService.refreshCurrentUserData();
     await this.authService.waitForAuthReady();
 
     this.state = 'success';
     this.isSaving = false;
 
-    setTimeout(() => this.router.navigate([this.successRoute ?? this.authService.getPostLoginRoute()]), 2000);
+    setTimeout(() => this.router.navigate([this.redirectAfterPasswordUpdate()]), 2000);
   }
 
   goToLogin() {
     this.router.navigate([this.loginRoute]);
+  }
+
+  private redirectAfterPasswordUpdate(): string {
+    if (this.successRoute) {
+      return this.successRoute;
+    }
+
+    if (this.authService.isPublicMember || this.authService.hasValidMembership) {
+      return '/';
+    }
+
+    return this.authService.getPostLoginRoute();
   }
 }
