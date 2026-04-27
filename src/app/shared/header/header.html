@@ -13,7 +13,7 @@
         <img src="assets/images/icons/menu.svg" alt="Menu Icon" class="h-8 w-8" />
       </div>
 
-      <nav class="hidden items-center space-x-14 md:flex">
+      <nav class="hidden items-center space-x-8 md:flex lg:space-x-14">
         <a
           [routerLink]="'/'"
           [ngClass]="'text-gray-700 hover:text-pont-green transition-all duration-300 font-medium text-xl relative group ' + getMenuItemClass(1)"
@@ -71,6 +71,14 @@
           class="group relative text-xl font-medium text-gray-700 transition-all duration-300 hover:text-pont-green"
         >
           Events
+          <span class="absolute -bottom-1 left-0 h-0.5 w-0 bg-pont-green transition-all duration-300 group-hover:w-full"></span>
+        </a>
+
+        <a
+          [routerLink]="'/artists'"
+          class="group relative text-xl font-medium text-gray-700 transition-all duration-300 hover:text-pont-green"
+        >
+          Artists
           <span class="absolute -bottom-1 left-0 h-0.5 w-0 bg-pont-green transition-all duration-300 group-hover:w-full"></span>
         </a>
 
@@ -204,6 +212,9 @@
 
           <a [routerLink]="'/events'" class="text-lg font-medium text-gray-700 transition-colors hover:text-pont-green" (click)="isMenuOpen = false">
             Events
+          </a>
+          <a [routerLink]="'/artists'" class="text-lg font-medium text-gray-700 transition-colors hover:text-pont-green" (click)="isMenuOpen = false">
+            Artists
           </a>
           <a [routerLink]="'/about'" class="text-lg font-medium text-gray-700 transition-colors hover:text-pont-green" (click)="isMenuOpen = false">
             À propos

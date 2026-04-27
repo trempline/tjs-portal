@@ -259,11 +259,37 @@
           </div>
 
           <aside class="space-y-6 xl:sticky xl:top-8 xl:self-start">
+
+              <section class="overflow-hidden rounded-[2rem] border border-zinc-200 bg-white shadow-[0_20px_60px_-35px_rgba(15,23,42,0.28)]">
+              <div class="border-b border-zinc-100 px-6 py-5">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.28em] text-red-600">🎼 Call to Action</div>
+              </div>
+              <div class="p-6">
+                <a
+                  *ngIf="hasCallToAction"
+                  [href]="event.call_to_action_url"
+                  target="_blank"
+                  rel="noreferrer"
+                  class="inline-flex w-full items-center justify-center rounded-xl bg-black px-5 py-4 text-sm font-semibold text-white transition hover:bg-zinc-800"
+                >
+                  Book Now
+                </a>
+                <button
+                  *ngIf="!hasCallToAction"
+                  type="button"
+                  (click)="goBack()"
+                  class="inline-flex w-full items-center justify-center rounded-xl border border-zinc-200 bg-zinc-50 px-5 py-4 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-100"
+                >
+                  Browse More Events
+                </button>
+              </div>
+             
+            </section>
+
             
             <section class="overflow-hidden rounded-[2rem] border border-zinc-200 bg-white shadow-[0_20px_60px_-35px_rgba(15,23,42,0.28)]">
               <div class="border-b border-zinc-100 px-6 py-5">
                 <div class="text-[11px] font-semibold uppercase tracking-[0.28em] text-red-600">🎼 Instruments</div>
-                <h2 class="mt-3 text-2xl font-bold tracking-tight text-zinc-950">Featured instruments</h2>
               </div>
               <div class="px-6 py-6">
                 <div *ngIf="event.instruments.length > 0" class="flex flex-wrap gap-3">

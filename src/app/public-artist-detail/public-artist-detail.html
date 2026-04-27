@@ -1,0 +1,258 @@
+<app-header></app-header>
+
+<div class="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(220,38,38,0.12),_transparent_28%),linear-gradient(180deg,#fafaf9_0%,#ffffff_40%,#f4f4f5_100%)]">
+  <div *ngIf="isLoading" class="flex min-h-[70vh] items-center justify-center px-4">
+    <div class="flex flex-col items-center gap-4">
+      <div class="h-14 w-14 animate-spin rounded-full border-4 border-zinc-200 border-t-red-600"></div>
+      <p class="text-sm font-medium uppercase tracking-[0.16em] text-zinc-500">Loading artist</p>
+    </div>
+  </div>
+
+  <div *ngIf="error && !isLoading" class="mx-auto max-w-3xl px-4 py-24">
+    <div class="overflow-hidden rounded-[2rem] border border-red-200 bg-white shadow-[0_30px_80px_-40px_rgba(220,38,38,0.45)]">
+      <div class="bg-gradient-to-r from-red-600 to-rose-500 px-8 py-6 text-white">
+        <div class="text-xs font-semibold uppercase tracking-[0.28em] text-white/80">Artist Profile</div>
+        <h1 class="mt-3 text-3xl font-bold">This artist is unavailable</h1>
+      </div>
+      <div class="px-8 py-8">
+        <p class="text-base leading-7 text-zinc-700">{{ error }}</p>
+        <button
+          type="button"
+          (click)="goBack()"
+          class="mt-8 inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-zinc-950 px-6 py-3 text-sm font-semibold text-white transition hover:border-zinc-950 hover:bg-zinc-800">
+          <span>Back to Artists</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <ng-container *ngIf="artist && !isLoading">
+    <section class="relative overflow-hidden border-b border-zinc-200 bg-zinc-950 text-white">
+      <div class="absolute inset-0">
+        <img
+          *ngIf="artist.cover_url || artist.photo_url"
+          [src]="artist.cover_url || artist.photo_url"
+          [alt]="artist.display_name"
+          class="h-full w-full object-cover opacity-30" />
+        <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(239,68,68,0.4),_transparent_35%),linear-gradient(120deg,rgba(9,9,11,0.94),rgba(39,39,42,0.8),rgba(127,29,29,0.72))]"></div>
+      </div>
+
+      <div class="relative mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-16">
+        <button
+          type="button"
+          (click)="goBack()"
+          class="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-5 py-2.5 text-sm font-semibold text-white backdrop-blur-md transition hover:bg-white/15">
+          <span>Back to Artists</span>
+        </button>
+
+        <div class="mt-10 grid gap-8 lg:grid-cols-[minmax(0,1.2fr)_320px] lg:items-end">
+          <div class="max-w-4xl">
+            <div class="flex flex-wrap items-center gap-3">
+              <span class="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/90 backdrop-blur-sm">
+                {{ heroEyebrow }}
+              </span>
+              <span *ngFor="let instrument of artist.instruments.slice(0, 3)" class="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/90 backdrop-blur-sm">
+                {{ instrument }}
+              </span>
+            </div>
+
+            <h1 class="mt-6 text-4xl font-black tracking-tight text-white sm:text-5xl lg:text-6xl">
+              {{ artist.display_name }}
+            </h1>
+
+            <p class="mt-5 max-w-3xl text-lg leading-8 text-white/85 sm:text-xl">
+              {{ artist.teaser }}
+            </p>
+          </div>
+
+          <div class="rounded-[2rem] border border-white/12 bg-white/10 p-6 shadow-[0_30px_70px_-35px_rgba(0,0,0,0.8)] backdrop-blur-xl">
+            <div class="flex flex-col items-center text-center">
+              <div class="relative h-44 w-44 overflow-hidden rounded-[2rem] border border-white/15 bg-black/20 shadow-2xl">
+                <img
+                  *ngIf="artist.photo_url"
+                  [src]="artist.photo_url"
+                  [alt]="artist.display_name"
+                  class="h-full w-full object-cover" />
+                <div *ngIf="!artist.photo_url" class="flex h-full w-full items-center justify-center bg-white/10 text-4xl font-black text-white/70">
+                  {{ initials(artist.display_name) }}
+                </div>
+              </div>
+              <div class="mt-5 text-[11px] font-semibold uppercase tracking-[0.22em] text-white/55">Artist Photo</div>
+              <div class="mt-2 text-lg font-bold text-white">{{ artist.display_name }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
+      <div class="space-y-8">
+        <div class="grid gap-8 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <div class="space-y-8">
+            <section class="overflow-hidden rounded-[2rem] border border-zinc-200 bg-white shadow-[0_20px_60px_-35px_rgba(15,23,42,0.28)]">
+              <div class="border-b border-zinc-100 px-7 py-5">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.28em] text-red-600">Biography</div>
+                <h2 class="mt-3 text-2xl font-bold tracking-tight text-zinc-950">About the artist</h2>
+              </div>
+              <div class="px-7 py-6">
+                <div *ngIf="artist.long_description; else noDescription" class="whitespace-pre-line text-[15px] leading-8 text-zinc-700">
+                  {{ artist.long_description }}
+                </div>
+                <ng-template #noDescription>
+                  <div class="rounded-[1.5rem] border border-dashed border-zinc-300 bg-zinc-50 px-6 py-12 text-center">
+                    <div class="text-lg font-semibold text-zinc-900">No long description available yet</div>
+                    <p class="mt-3 text-sm leading-7 text-zinc-500">Artist biography details will appear here once published.</p>
+                  </div>
+                </ng-template>
+              </div>
+            </section>
+
+            <section class="overflow-hidden rounded-[2rem] border border-zinc-200 bg-white shadow-[0_20px_60px_-35px_rgba(15,23,42,0.28)]">
+              <div class="border-b border-zinc-100 px-7 py-5">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.28em] text-red-600">Upcoming Events</div>
+                <h2 class="mt-3 text-2xl font-bold tracking-tight text-zinc-950">Upcoming performances</h2>
+              </div>
+              <div class="px-7 py-6">
+                <div *ngIf="artist.upcoming_events.length === 0" class="rounded-[1.5rem] border border-dashed border-zinc-300 bg-zinc-50 px-6 py-12 text-center">
+                  <div class="text-lg font-semibold text-zinc-900">No upcoming events scheduled</div>
+                  <p class="mt-3 text-sm leading-7 text-zinc-500">Upcoming public events for this artist will appear here.</p>
+                </div>
+
+                <div *ngIf="artist.upcoming_events.length > 0" class="grid gap-5 lg:grid-cols-2">
+                  <article
+                    *ngFor="let event of artist.upcoming_events; let index = index"
+                    (click)="openEvent(event.id)"
+                    class="cursor-pointer rounded-[1.75rem] border border-zinc-200 bg-[linear-gradient(180deg,#ffffff_0%,#fafaf9_100%)] px-5 py-5 shadow-sm transition hover:border-red-200 hover:shadow-lg">
+                    <div class="flex items-start gap-4">
+                      <div class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-zinc-950 text-sm font-bold text-white">
+                        {{ index + 1 }}
+                      </div>
+                      <div class="min-w-0 flex-1">
+                        <div class="flex flex-wrap items-center gap-2">
+                          <div class="text-[11px] font-semibold uppercase tracking-[0.24em] text-red-600">Performance</div>
+                          <span *ngIf="event.is_member_only" class="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                            Members Only
+                          </span>
+                        </div>
+                        <h3 class="mt-3 text-lg font-bold tracking-tight text-zinc-950">{{ event.title }}</h3>
+                        <div class="mt-3 space-y-2 text-sm leading-7 text-zinc-700">
+                          <div *ngFor="let line of event.schedule_lines.slice(0, 2)">
+                            {{ formatScheduleLine(line) }}
+                          </div>
+                          <div *ngIf="event.schedule_lines.length > 2" class="text-xs font-semibold text-red-600">
+                            +{{ event.schedule_lines.length - 2 }} more dates
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                </div>
+              </div>
+            </section>
+
+            <section class="overflow-hidden rounded-[2rem] border border-zinc-200 bg-white shadow-[0_20px_60px_-35px_rgba(15,23,42,0.28)]">
+              <div class="border-b border-zinc-100 px-7 py-5">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.28em] text-red-600">Media</div>
+                <h2 class="mt-3 text-2xl font-bold tracking-tight text-zinc-950">Video and CD media</h2>
+              </div>
+              <div class="px-7 py-6">
+                <div *ngIf="artist.media.length === 0" class="rounded-[1.5rem] border border-dashed border-zinc-300 bg-zinc-50 px-6 py-12 text-center">
+                  <div class="text-lg font-semibold text-zinc-900">No media available yet</div>
+                  <p class="mt-3 text-sm leading-7 text-zinc-500">Videos, CDs, and other artist media will appear here once published.</p>
+                </div>
+
+                <div *ngIf="artist.media.length > 0" class="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
+                  <article
+                    *ngFor="let item of artist.media"
+                    class="group overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm transition duration-300 hover:-translate-y-0.5 hover:shadow-lg">
+                    <div class="relative aspect-[16/9] overflow-hidden bg-zinc-100">
+                      <img
+                        *ngIf="item.image_url"
+                        [src]="item.image_url"
+                        [alt]="item.name"
+                        class="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+                      <div *ngIf="!item.image_url" class="flex h-full items-center justify-center bg-[linear-gradient(135deg,#18181b,#3f3f46)] text-white/70">
+                        <span class="text-sm font-semibold uppercase tracking-[0.28em]">{{ item.media_type }}</span>
+                      </div>
+                    </div>
+                    <div class="p-4">
+                      <div class="inline-flex rounded-full bg-red-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-red-700">
+                        {{ item.media_type }}
+                      </div>
+                      <h3 class="mt-3 text-lg font-bold tracking-tight text-zinc-950">{{ item.name }}</h3>
+                      <p *ngIf="item.description" class="mt-2 line-clamp-2 text-sm leading-6 text-zinc-600">{{ item.description }}</p>
+                      <a
+                        *ngIf="mediaUrl(item)"
+                        [href]="mediaUrl(item)"
+                        target="_blank"
+                        rel="noreferrer"
+                        class="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-red-600 transition hover:text-red-700">
+                        <span>Open media</span>
+                      </a>
+                    </div>
+                  </article>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <aside class="space-y-6 xl:sticky xl:top-8 xl:self-start">
+            <section class="overflow-hidden rounded-[2rem] border border-zinc-200 bg-white shadow-[0_20px_60px_-35px_rgba(15,23,42,0.28)]">
+              <div class="border-b border-zinc-100 px-6 py-5">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.28em] text-red-600">Instruments</div>
+              </div>
+              <div class="px-6 py-6">
+                <div *ngIf="artist.instruments.length > 0" class="flex flex-wrap gap-3">
+                  <span
+                    *ngFor="let instrument of artist.instruments"
+                    class="inline-flex items-center rounded-full border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 shadow-sm">
+                    {{ instrument }}
+                  </span>
+                </div>
+                <div *ngIf="artist.instruments.length === 0" class="rounded-[1.5rem] border border-dashed border-zinc-300 bg-zinc-50 px-5 py-8 text-center text-sm text-zinc-500">
+                  No instruments listed yet.
+                </div>
+              </div>
+            </section>
+
+            <section class="overflow-hidden rounded-[2rem] border border-zinc-200 bg-white shadow-[0_20px_60px_-35px_rgba(15,23,42,0.28)]">
+              <div class="border-b border-zinc-100 px-6 py-5">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.28em] text-red-600">Performance Type</div>
+              </div>
+              <div class="px-6 py-6">
+                <div *ngIf="artist.performance_types.length > 0" class="flex flex-wrap gap-3">
+                  <span
+                    *ngFor="let type of artist.performance_types"
+                    class="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-50 px-4 py-2 text-sm font-semibold text-zinc-700 shadow-sm">
+                    {{ type }}
+                  </span>
+                </div>
+                <div *ngIf="artist.performance_types.length === 0" class="rounded-[1.5rem] border border-dashed border-zinc-300 bg-zinc-50 px-5 py-8 text-center text-sm text-zinc-500">
+                  Performance type TBA.
+                </div>
+              </div>
+            </section>
+
+            <section class="overflow-hidden rounded-[2rem] border border-zinc-200 bg-white shadow-[0_20px_60px_-35px_rgba(15,23,42,0.28)]">
+              <div class="border-b border-zinc-100 px-6 py-5">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.28em] text-red-600">Summary</div>
+              </div>
+              <div class="space-y-4 p-6">
+                <div class="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                  <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500">Full Name</div>
+                  <div class="mt-2 text-lg font-bold text-zinc-950">{{ artist.display_name }}</div>
+                </div>
+                <div class="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                  <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500">Upcoming Events</div>
+                  <div class="mt-2 text-lg font-bold text-zinc-950">{{ artist.upcoming_events.length }}</div>
+                </div>
+              </div>
+            </section>
+          </aside>
+        </div>
+      </div>
+    </section>
+  </ng-container>
+</div>
+
+<app-footer></app-footer>

@@ -1,0 +1,269 @@
+<app-header></app-header>
+
+<main class="min-h-screen bg-gradient-to-b from-zinc-50 to-white">
+  <section class="relative overflow-hidden border-b border-zinc-200 bg-gradient-to-br from-zinc-900 via-zinc-800 to-red-900 px-4 py-20">
+    <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmZmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PHBhdGggZD0iTTM2IDE2YzAtMi4yMSAxLjc5LTQgNC00czQgMS43OSA0IDQtMS43OSA0LTQgNC00LTEuNzktNC00em0wIDI0YzAtMi4yMSAxLjc5LTQgNC00czQgMS43OSA0IDQtMS43OSA0LTQgNC00LTEuNzktNC00ek0xMiAxNmMwLTIuMjEgMS43OS00IDQtNHM0IDEuNzkgNCA0LTEuNzkgNC00IDQtNC0xLjc5LTQtNHptMCAyNGMwLTIuMjEgMS43OS00IDQtNHM0IDEuNzkgNCA0LTEuNzkgNC00IDQtNC0xLjc5LTQtNHoiLz48L2c+PC9nPjwvc3ZnPg==')] opacity-30"></div>
+    <div class="relative mx-auto w-full max-w-7xl">
+      <div class="max-w-3xl">
+        <div class="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 backdrop-blur-sm">
+          <svg class="h-4 w-4 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 18V5l12-2v13"></path>
+            <circle cx="6" cy="18" r="3"></circle>
+            <circle cx="18" cy="16" r="3"></circle>
+          </svg>
+          <span class="text-xs font-semibold uppercase tracking-[0.2em] text-white/90">TJS Artists</span>
+        </div>
+        <h1 class="mt-6 text-5xl font-bold tracking-tight text-white md:text-6xl">Artists</h1>
+        <p class="mt-6 text-lg leading-8 text-zinc-300">
+          Explore the TJS artist directory by performance type, instrument, and upcoming events.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="px-4 py-16">
+    <div class="mx-auto w-full max-w-7xl">
+      <div class="mb-6">
+        <div class="relative">
+          <input
+            type="text"
+            [(ngModel)]="searchQuery"
+            (ngModelChange)="applyFilters()"
+            placeholder="Search artists by name..."
+            class="w-full rounded-xl border border-zinc-300 py-4 pl-12 pr-4 text-base shadow-sm transition-all focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-600/20" />
+          <svg class="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <path d="m21 21-4.35-4.35"></path>
+          </svg>
+        </div>
+      </div>
+
+      <div class="mb-6 flex items-center gap-3">
+        <button
+          type="button"
+          (click)="toggleFilters()"
+          [class.bg-red-600]="showFilters"
+          [class.text-white]="showFilters"
+          [class.bg-white]="!showFilters"
+          [class.text-zinc-700]="!showFilters"
+          class="inline-flex items-center gap-2 rounded-lg border border-zinc-300 px-4 py-2.5 text-sm font-semibold shadow-sm transition-all hover:bg-red-600 hover:text-white">
+          <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+          </svg>
+          Filters
+          <span *ngIf="selectedFilterCount > 0" class="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-white text-xs font-bold text-red-600">
+            {{ selectedFilterCount }}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          (click)="toggleSort()"
+          [class.bg-red-600]="showSort"
+          [class.text-white]="showSort"
+          [class.bg-white]="!showSort"
+          [class.text-zinc-700]="!showSort"
+          class="inline-flex items-center gap-2 rounded-lg border border-zinc-300 px-4 py-2.5 text-sm font-semibold shadow-sm transition-all hover:bg-red-600 hover:text-white">
+          <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 6h18M7 12h10M11 18h2"></path>
+          </svg>
+          Sort
+        </button>
+
+        <div class="ml-auto text-sm text-zinc-600">
+          <span class="font-semibold text-zinc-900">{{ filteredItems.length }}</span> of <span class="font-semibold text-zinc-900">{{ items.length }}</span> artists
+        </div>
+      </div>
+
+      <div *ngIf="showFilters" class="mb-6 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+        <div class="mb-4 flex items-center justify-between">
+          <h3 class="text-lg font-bold text-zinc-900">Filter Artists</h3>
+          <button
+            type="button"
+            (click)="clearFilters()"
+            class="text-sm font-semibold text-red-600 transition-colors hover:text-red-700">
+            Clear All
+          </button>
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div>
+            <label class="mb-2 block text-sm font-semibold text-zinc-700">Name</label>
+            <select
+              [(ngModel)]="selectedName"
+              (ngModelChange)="applyFilters()"
+              class="w-full rounded-lg border border-zinc-300 px-4 py-2.5 text-sm transition-colors focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-600/20">
+              <option value="">All Artists</option>
+              <option *ngFor="let name of names" [value]="name">{{ name }}</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="mb-2 block text-sm font-semibold text-zinc-700">Instrument</label>
+            <select
+              [(ngModel)]="selectedInstrument"
+              (ngModelChange)="applyFilters()"
+              class="w-full rounded-lg border border-zinc-300 px-4 py-2.5 text-sm transition-colors focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-600/20">
+              <option value="">All Instruments</option>
+              <option *ngFor="let instrument of instruments" [value]="instrument">{{ instrument }}</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="mb-2 block text-sm font-semibold text-zinc-700">Performance Type</label>
+            <select
+              [(ngModel)]="selectedPerformanceType"
+              (ngModelChange)="applyFilters()"
+              class="w-full rounded-lg border border-zinc-300 px-4 py-2.5 text-sm transition-colors focus:border-red-600 focus:outline-none focus:ring-2 focus:ring-red-600/20">
+              <option value="">All Types</option>
+              <option *ngFor="let type of performanceTypes" [value]="type">{{ type }}</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="showSort" class="mb-6 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+        <h3 class="mb-4 text-lg font-bold text-zinc-900">Sort Artists</h3>
+
+        <div class="space-y-2">
+          <label class="flex cursor-pointer items-center gap-3 rounded-lg border border-zinc-200 p-4 transition-colors hover:bg-zinc-50" [class.bg-red-50]="sortBy === 'upcoming'" [class.border-red-600]="sortBy === 'upcoming'">
+            <input
+              type="radio"
+              name="artistSort"
+              value="upcoming"
+              [(ngModel)]="sortBy"
+              (ngModelChange)="applyFilters()"
+              class="h-4 w-4 border-zinc-300 text-red-600 focus:ring-2 focus:ring-red-600" />
+            <div>
+              <div class="text-sm font-semibold text-zinc-900">Upcoming Events</div>
+              <div class="text-xs text-zinc-500">Artists with the nearest upcoming events first</div>
+            </div>
+          </label>
+
+          <label class="flex cursor-pointer items-center gap-3 rounded-lg border border-zinc-200 p-4 transition-colors hover:bg-zinc-50" [class.bg-red-50]="sortBy === 'name-asc'" [class.border-red-600]="sortBy === 'name-asc'">
+            <input
+              type="radio"
+              name="artistSort"
+              value="name-asc"
+              [(ngModel)]="sortBy"
+              (ngModelChange)="applyFilters()"
+              class="h-4 w-4 border-zinc-300 text-red-600 focus:ring-2 focus:ring-red-600" />
+            <div>
+              <div class="text-sm font-semibold text-zinc-900">Name A-Z</div>
+              <div class="text-xs text-zinc-500">Alphabetical order</div>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <div *ngIf="error" class="rounded-2xl border border-red-200 bg-red-50 px-6 py-4 text-sm text-red-700">
+        {{ error }}
+      </div>
+
+      <div *ngIf="isLoading" class="flex items-center justify-center py-28">
+        <div class="text-center">
+          <div class="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-zinc-200 border-t-red-600"></div>
+          <p class="mt-4 text-sm text-zinc-500">Loading TJS artists...</p>
+        </div>
+      </div>
+
+      <div *ngIf="!isLoading && items.length === 0" class="rounded-2xl border-2 border-dashed border-zinc-300 bg-white px-8 py-20 text-center shadow-sm">
+        <h2 class="text-2xl font-semibold text-zinc-900">No artists found</h2>
+        <p class="mt-3 text-base text-zinc-500">Public TJS artists will appear here once available.</p>
+      </div>
+
+      <div *ngIf="!isLoading && items.length > 0 && filteredItems.length === 0" class="rounded-2xl border-2 border-dashed border-zinc-300 bg-white px-8 py-20 text-center shadow-sm">
+        <h2 class="text-2xl font-semibold text-zinc-900">No artists match your filters</h2>
+        <p class="mt-3 text-base text-zinc-500">Try another name, instrument, or performance type.</p>
+        <button
+          type="button"
+          (click)="clearFilters()"
+          class="mt-6 rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700">
+          Clear filters
+        </button>
+      </div>
+
+      <div *ngIf="!isLoading && filteredItems.length > 0" class="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
+        <article
+          *ngFor="let item of filteredItems; trackBy: trackById"
+          (click)="openArtist(item)"
+          class="group flex cursor-pointer flex-col overflow-hidden rounded-2xl bg-white shadow-md transition-all duration-300 hover:shadow-xl">
+          <div class="relative h-64 overflow-hidden bg-zinc-900">
+            <img
+              *ngIf="item.photo_url; else photoFallback"
+              [src]="item.photo_url"
+              [alt]="item.display_name"
+              class="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
+            <ng-template #photoFallback>
+              <div class="flex h-full w-full items-center justify-center bg-gradient-to-br from-zinc-800 to-zinc-900">
+                <div class="flex h-24 w-24 items-center justify-center rounded-full border border-white/15 bg-white/10 text-2xl font-bold text-white">
+                  {{ initials(item.display_name) }}
+                </div>
+              </div>
+            </ng-template>
+
+            <div class="absolute right-4 top-4 z-20">
+              <span class="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-white shadow-lg">
+                {{ item.performance_types[0] || 'Artist' }}
+              </span>
+            </div>
+
+            <div class="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent"></div>
+          </div>
+
+          <div class="flex flex-1 flex-col p-6">
+            <h2 class="text-xl font-bold text-zinc-900">
+              {{ item.display_name }}
+            </h2>
+
+            <div class="mt-3 flex items-center gap-2 text-sm text-zinc-600">
+              <svg class="h-4 w-4 shrink-0 text-red-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18V5l12-2v13"></path>
+                <circle cx="6" cy="18" r="3"></circle>
+                <circle cx="18" cy="16" r="3"></circle>
+              </svg>
+              <span class="line-clamp-1 font-medium">{{ performanceTypesLabel(item) }}</span>
+            </div>
+
+            <p class="mt-2 line-clamp-2 text-sm leading-relaxed text-zinc-600">
+              {{ item.teaser }}
+            </p>
+
+            <div class="my-2 border-t border-zinc-100"></div>
+
+            <div class="mt-auto space-y-3">
+              <div>
+                <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                  <svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                    <line x1="16" y1="2" x2="16" y2="6"></line>
+                    <line x1="8" y1="2" x2="8" y2="6"></line>
+                    <line x1="3" y1="10" x2="21" y2="10"></line>
+                  </svg>
+                  <span>Upcoming Event</span>
+                </div>
+                <div class="mt-2 text-xs leading-relaxed text-zinc-900">
+                  {{ upcomingEventLabel(item) }}
+                </div>
+                <div *ngIf="item.upcoming_event_count > 1" class="mt-1 text-xs font-medium text-red-600">
+                  {{ item.upcoming_event_count }} upcoming events
+                </div>
+              </div>
+
+              <div class="flex items-start gap-2 text-xs text-zinc-500">
+                <svg class="mt-0.5 h-3.5 w-3.5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M9 18V5l12-2v13"></path>
+                  <circle cx="6" cy="18" r="3"></circle>
+                  <circle cx="18" cy="16" r="3"></circle>
+                </svg>
+                <span>{{ instrumentsLabel(item) }}</span>
+              </div>
+            </div>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+</main>
+
+<app-footer></app-footer>

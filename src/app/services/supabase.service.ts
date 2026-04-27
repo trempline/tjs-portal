@@ -180,6 +180,44 @@ export interface PublicWebsiteEventItem {
   is_member_only: boolean;
 }
 
+export interface PublicTjsArtistItem {
+  id: string;
+  display_name: string;
+  photo_url: string | null;
+  teaser: string;
+  instruments: string[];
+  performance_types: string[];
+  next_event_date: string | null;
+  next_event_title: string | null;
+  upcoming_event_count: number;
+}
+
+export interface PublicTjsArtistDetail {
+  id: string;
+  display_name: string;
+  cover_url: string | null;
+  photo_url: string | null;
+  teaser: string;
+  long_description: string;
+  instruments: string[];
+  performance_types: string[];
+  media: Array<{
+    id?: string;
+    media_type: string;
+    image_url: string | null;
+    name: string;
+    description: string;
+    urls: string[];
+  }>;
+  upcoming_events: Array<{
+    id: string;
+    title: string;
+    primary_date: string | null;
+    schedule_lines: string[];
+    is_member_only: boolean;
+  }>;
+}
+
 export interface PublicEventDetail {
   id: string;
   title: string;
@@ -4081,6 +4119,498 @@ export class SupabaseService {
 
         return a.title.localeCompare(b.title);
       });
+  }
+
+  async getPublicTjsArtists(options?: { featuredOnly?: boolean }): Promise<PublicTjsArtistItem[]> {
+    let artistsQuery = this.adminSupabase
+      .from('tjs_artists')
+      .select(`
+        id,
+        profile_id,
+        artist_name,
+        is_featured,
+        profile:tjs_profiles (
+          id,
+          full_name,
+          bio,
+          avatar_url
+        )
+      `)
+      .eq('is_tjs_artist', true);
+
+    if (options?.featuredOnly) {
+      artistsQuery = artistsQuery.eq('is_featured', true);
+    }
+
+    const artistsResult = await artistsQuery.order('artist_name', { ascending: true });
+
+    if (artistsResult.error) {
+      if (!this.isMissingSchemaError(artistsResult.error)) {
+        console.error('getPublicTjsArtists artists error:', artistsResult.error.message);
+      }
+      return [];
+    }
+
+    const artistRows = ((artistsResult.data ?? []) as any[]);
+    if (artistRows.length === 0) {
+      return [];
+    }
+
+    const artistIds = artistRows
+      .map((row) => row.id as string | null)
+      .filter((value): value is string => !!value);
+    const profileIds = artistRows
+      .map((row) => row.profile_id as string | null)
+      .filter((value): value is string => !!value);
+
+    const [workspaceProfilesResult, performanceResult, instrumentsResult, eventArtistsResult] = await Promise.all([
+      profileIds.length > 0
+        ? this.adminSupabase
+            .from('tjs_artist_profiles')
+            .select('profile_id, first_name, last_name, tagline, short_biography')
+            .in('profile_id', profileIds)
+        : Promise.resolve({ data: [], error: null }),
+      profileIds.length > 0
+        ? this.adminSupabase
+            .from('tjs_artist_profile_performances')
+            .select('profile_id, performance:sys_artist_performance(name)')
+            .in('profile_id', profileIds)
+        : Promise.resolve({ data: [], error: null }),
+      profileIds.length > 0
+        ? this.adminSupabase
+            .from('tjs_artist_instruments')
+            .select('profile_id, instrument:sys_instruments(name)')
+            .in('profile_id', profileIds)
+        : Promise.resolve({ data: [], error: null }),
+      artistIds.length > 0
+        ? this.adminSupabase
+            .from('tjs_event_artists')
+            .select(`
+              artist_id,
+              event:tjs_events (
+                id,
+                title,
+                status,
+                event_type
+              )
+            `)
+            .in('artist_id', artistIds)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+
+    if (workspaceProfilesResult.error && !this.isMissingSchemaError(workspaceProfilesResult.error)) {
+      console.error('getPublicTjsArtists workspace profiles error:', workspaceProfilesResult.error.message);
+    }
+
+    if (performanceResult.error && !this.isMissingSchemaError(performanceResult.error)) {
+      console.error('getPublicTjsArtists performance error:', performanceResult.error.message);
+    }
+
+    if (instrumentsResult.error && !this.isMissingSchemaError(instrumentsResult.error)) {
+      console.error('getPublicTjsArtists instruments error:', instrumentsResult.error.message);
+    }
+
+    if (eventArtistsResult.error && !this.isMissingSchemaError(eventArtistsResult.error)) {
+      console.error('getPublicTjsArtists event artists error:', eventArtistsResult.error.message);
+    }
+
+    const workspaceByProfileId = new Map<string, any>();
+    for (const row of ((workspaceProfilesResult.data ?? []) as any[])) {
+      if (row.profile_id) {
+        workspaceByProfileId.set(row.profile_id as string, row);
+      }
+    }
+
+    const performanceTypesByProfileId = new Map<string, string[]>();
+    for (const row of ((performanceResult.data ?? []) as any[])) {
+      const profileId = row.profile_id as string | null;
+      const performanceName = (row.performance?.name as string | null | undefined)?.trim();
+      if (!profileId || !performanceName) {
+        continue;
+      }
+
+      const existing = performanceTypesByProfileId.get(profileId) ?? [];
+      if (!existing.includes(performanceName)) {
+        existing.push(performanceName);
+      }
+      performanceTypesByProfileId.set(profileId, existing);
+    }
+
+    const instrumentsByProfileId = new Map<string, string[]>();
+    for (const row of ((instrumentsResult.data ?? []) as any[])) {
+      const profileId = row.profile_id as string | null;
+      const instrumentName = (row.instrument?.name as string | null | undefined)?.trim();
+      if (!profileId || !instrumentName) {
+        continue;
+      }
+
+      const existing = instrumentsByProfileId.get(profileId) ?? [];
+      if (!existing.includes(instrumentName)) {
+        existing.push(instrumentName);
+      }
+      instrumentsByProfileId.set(profileId, existing);
+    }
+
+    const publicEventAssignments = ((eventArtistsResult.data ?? []) as any[])
+      .map((assignment) => {
+        const event = Array.isArray(assignment.event) ? assignment.event[0] : assignment.event;
+        return {
+          artist_id: assignment.artist_id as string | null,
+          event,
+        };
+      })
+      .filter((assignment) =>
+        !!assignment.artist_id
+        && !!assignment.event?.id
+        && assignment.event.status === 'APPROVED'
+        && assignment.event.event_type === 'EVENT_INSTANCE'
+      );
+
+    const eventIds = Array.from(
+      new Set(
+        publicEventAssignments
+          .map((assignment) => assignment.event.id as string | null)
+          .filter((value): value is string => !!value)
+      )
+    );
+
+    const eventHostsResult = eventIds.length > 0
+      ? await this.adminSupabase
+          .from('tjs_event_hosts')
+          .select('event_id, selected_dates, notes')
+          .in('event_id', eventIds)
+      : { data: [], error: null };
+
+    if (eventHostsResult.error && !this.isMissingSchemaError(eventHostsResult.error)) {
+      console.error('getPublicTjsArtists event hosts error:', eventHostsResult.error.message);
+    }
+
+    const hostAssignmentsByEventId = new Map<string, any[]>();
+    for (const assignment of ((eventHostsResult.data ?? []) as any[])) {
+      const eventId = assignment.event_id as string | null;
+      if (!eventId) {
+        continue;
+      }
+
+      const existing = hostAssignmentsByEventId.get(eventId) ?? [];
+      existing.push(assignment);
+      hostAssignmentsByEventId.set(eventId, existing);
+    }
+
+    const today = this.todayDateString();
+    const upcomingEventsByArtistId = new Map<string, Array<{ title: string; date: string }>>();
+
+    for (const assignment of publicEventAssignments) {
+      const artistId = assignment.artist_id as string;
+      const eventId = assignment.event.id as string;
+      const hostAssignments = hostAssignmentsByEventId.get(eventId) ?? [];
+      const upcomingDates = hostAssignments
+        .flatMap((hostAssignment) => {
+          const notes = (hostAssignment.notes as string | null | undefined) ?? '';
+          const scheduleEntries = this.extractScheduleEntries(
+            notes,
+            Array.isArray(hostAssignment.selected_dates)
+              ? (hostAssignment.selected_dates as string[])
+              : [],
+          );
+
+          return scheduleEntries.flatMap((entry) => this.expandScheduleEntryDates(entry));
+        })
+        .filter((date) => date >= today)
+        .sort((left, right) => left.localeCompare(right));
+
+      const nextDate = upcomingDates[0] ?? null;
+      if (!nextDate) {
+        continue;
+      }
+
+      const existing = upcomingEventsByArtistId.get(artistId) ?? [];
+      existing.push({
+        title: (assignment.event.title as string | null | undefined)?.trim() || 'Untitled event',
+        date: nextDate,
+      });
+      upcomingEventsByArtistId.set(artistId, existing);
+    }
+
+    for (const [artistId, events] of upcomingEventsByArtistId.entries()) {
+      upcomingEventsByArtistId.set(
+        artistId,
+        events.sort((left, right) => left.date.localeCompare(right.date) || left.title.localeCompare(right.title))
+      );
+    }
+
+    return artistRows
+      .map((artist) => {
+        const profileId = (artist.profile_id as string | null | undefined) ?? '';
+        const profile = artist.profile as Partial<TjsProfile> | null | undefined;
+        const workspaceProfile = profileId ? workspaceByProfileId.get(profileId) : null;
+        const workspaceName = [
+          (workspaceProfile?.first_name as string | null | undefined)?.trim(),
+          (workspaceProfile?.last_name as string | null | undefined)?.trim(),
+        ].filter(Boolean).join(' ');
+        const displayName = workspaceName
+          || (profile?.full_name ?? '').trim()
+          || (artist.artist_name as string | null | undefined)?.trim()
+          || 'Unnamed artist';
+        const upcomingEvents = upcomingEventsByArtistId.get(artist.id as string) ?? [];
+        const nextEvent = upcomingEvents[0] ?? null;
+
+        return {
+          id: artist.id as string,
+          display_name: displayName,
+          photo_url: profile?.avatar_url ?? null,
+          teaser: (workspaceProfile?.tagline as string | null | undefined)?.trim()
+            || (workspaceProfile?.short_biography as string | null | undefined)?.trim()
+            || (profile?.bio ?? '').trim()
+            || 'TJS artist',
+          instruments: (profileId ? instrumentsByProfileId.get(profileId) ?? [] : []).sort(),
+          performance_types: (profileId ? performanceTypesByProfileId.get(profileId) ?? [] : []).sort(),
+          next_event_date: nextEvent?.date ?? null,
+          next_event_title: nextEvent?.title ?? null,
+          upcoming_event_count: upcomingEvents.length,
+        } satisfies PublicTjsArtistItem;
+      })
+      .sort((left, right) => {
+        const leftDate = left.next_event_date ?? '9999-12-31';
+        const rightDate = right.next_event_date ?? '9999-12-31';
+        if (leftDate !== rightDate) {
+          return leftDate.localeCompare(rightDate);
+        }
+
+        return left.display_name.localeCompare(right.display_name);
+      });
+  }
+
+  async getPublicTjsArtistDetail(artistId: string): Promise<PublicTjsArtistDetail | null> {
+    const artistResult = await this.adminSupabase
+      .from('tjs_artists')
+      .select(`
+        id,
+        profile_id,
+        artist_name,
+        is_tjs_artist,
+        is_featured,
+        profile:tjs_profiles (
+          id,
+          full_name,
+          bio,
+          avatar_url
+        )
+      `)
+      .eq('id', artistId)
+      .eq('is_tjs_artist', true)
+      .maybeSingle();
+
+    if (artistResult.error) {
+      if (!this.isMissingSchemaError(artistResult.error)) {
+        console.error('getPublicTjsArtistDetail artist error:', artistResult.error.message);
+      }
+      return null;
+    }
+
+    const artist = artistResult.data as any | null;
+    const profileId = (artist?.profile_id as string | null | undefined) ?? null;
+    if (!artist?.id || !profileId) {
+      return null;
+    }
+
+    const [workspaceResult, performanceResult, instrumentsResult, mediaResult, eventArtistsResult] = await Promise.all([
+      this.adminSupabase
+        .from('tjs_artist_profiles')
+        .select('profile_id, banner_url, first_name, last_name, tagline, short_biography, long_biography')
+        .eq('profile_id', profileId)
+        .maybeSingle(),
+      this.adminSupabase
+        .from('tjs_artist_profile_performances')
+        .select('profile_id, performance:sys_artist_performance(name)')
+        .eq('profile_id', profileId),
+      this.adminSupabase
+        .from('tjs_artist_instruments')
+        .select('profile_id, instrument:sys_instruments(name)')
+        .eq('profile_id', profileId),
+      this.adminSupabase
+        .from('tjs_artist_media')
+        .select('id, media_type, image_url, name, description, urls')
+        .eq('profile_id', profileId)
+        .order('created_at', { ascending: true }),
+      this.adminSupabase
+        .from('tjs_event_artists')
+        .select(`
+          artist_id,
+          event:tjs_events (
+            id,
+            title,
+            status,
+            event_type,
+            visibility_scope
+          )
+        `)
+        .eq('artist_id', artist.id),
+    ]);
+
+    if (workspaceResult.error && !this.isMissingSchemaError(workspaceResult.error)) {
+      console.error('getPublicTjsArtistDetail workspace error:', workspaceResult.error.message);
+    }
+
+    if (performanceResult.error && !this.isMissingSchemaError(performanceResult.error)) {
+      console.error('getPublicTjsArtistDetail performance error:', performanceResult.error.message);
+    }
+
+    if (instrumentsResult.error && !this.isMissingSchemaError(instrumentsResult.error)) {
+      console.error('getPublicTjsArtistDetail instruments error:', instrumentsResult.error.message);
+    }
+
+    if (mediaResult.error && !this.isMissingSchemaError(mediaResult.error)) {
+      console.error('getPublicTjsArtistDetail media error:', mediaResult.error.message);
+    }
+
+    if (eventArtistsResult.error && !this.isMissingSchemaError(eventArtistsResult.error)) {
+      console.error('getPublicTjsArtistDetail event artists error:', eventArtistsResult.error.message);
+    }
+
+    const eventAssignments = ((eventArtistsResult.data ?? []) as any[])
+      .map((assignment) => {
+        const event = Array.isArray(assignment.event) ? assignment.event[0] : assignment.event;
+        return { event };
+      })
+      .filter((assignment) =>
+        !!assignment.event?.id
+        && assignment.event.status === 'APPROVED'
+        && assignment.event.event_type === 'EVENT_INSTANCE'
+      );
+    const eventIds = Array.from(
+      new Set(
+        eventAssignments
+          .map((assignment) => assignment.event.id as string | null)
+          .filter((value): value is string => !!value)
+      )
+    );
+
+    const eventHostsResult = eventIds.length > 0
+      ? await this.adminSupabase
+          .from('tjs_event_hosts')
+          .select('event_id, selected_dates, notes')
+          .in('event_id', eventIds)
+      : { data: [], error: null };
+
+    if (eventHostsResult.error && !this.isMissingSchemaError(eventHostsResult.error)) {
+      console.error('getPublicTjsArtistDetail event hosts error:', eventHostsResult.error.message);
+    }
+
+    const hostAssignmentsByEventId = new Map<string, any[]>();
+    for (const hostAssignment of ((eventHostsResult.data ?? []) as any[])) {
+      const eventId = hostAssignment.event_id as string | null;
+      if (!eventId) {
+        continue;
+      }
+
+      const existing = hostAssignmentsByEventId.get(eventId) ?? [];
+      existing.push(hostAssignment);
+      hostAssignmentsByEventId.set(eventId, existing);
+    }
+
+    const today = this.todayDateString();
+    const upcomingEvents = eventAssignments
+      .reduce<PublicTjsArtistDetail['upcoming_events']>((events, assignment) => {
+        const event = assignment.event;
+        const hostAssignments = hostAssignmentsByEventId.get(event.id as string) ?? [];
+        const futureScheduleLines = hostAssignments
+          .flatMap((hostAssignment) => {
+            const notes = (hostAssignment.notes as string | null | undefined) ?? '';
+            const scheduleEntries = this.extractScheduleEntries(
+              notes,
+              Array.isArray(hostAssignment.selected_dates)
+                ? (hostAssignment.selected_dates as string[])
+                : [],
+            );
+            const scheduleLines = this.extractEventScheduleLines(notes, scheduleEntries);
+
+            return scheduleEntries.map((entry, index) => {
+              const expandedDates = this.expandScheduleEntryDates(entry);
+              const comparisonDate = expandedDates.find((date) => date >= today) ?? null;
+              return comparisonDate
+                ? {
+                    comparisonDate,
+                    scheduleLine: scheduleLines[index] ?? `${entry.start_date} : Time TBA | Location TBA`,
+                  }
+                : null;
+            });
+          })
+          .filter((value): value is { comparisonDate: string; scheduleLine: string } => value !== null)
+          .sort((left, right) => left.comparisonDate.localeCompare(right.comparisonDate));
+
+        if (futureScheduleLines.length === 0) {
+          return events;
+        }
+
+        events.push({
+          id: event.id as string,
+          title: (event.title as string | null | undefined)?.trim() || 'Untitled event',
+          primary_date: futureScheduleLines[0]?.comparisonDate ?? null,
+          schedule_lines: futureScheduleLines.map((line) => line.scheduleLine),
+          is_member_only: this.isEventMemberOnly(event.visibility_scope),
+        });
+
+        return events;
+      }, [])
+      .sort((left, right) => {
+        const leftDate = left.primary_date ?? '9999-12-31';
+        const rightDate = right.primary_date ?? '9999-12-31';
+        if (leftDate !== rightDate) {
+          return leftDate.localeCompare(rightDate);
+        }
+
+        return left.title.localeCompare(right.title);
+      });
+
+    const profile = artist.profile as Partial<TjsProfile> | null | undefined;
+    const workspaceProfile = (workspaceResult.data ?? {}) as any;
+    const workspaceName = [
+      (workspaceProfile.first_name as string | null | undefined)?.trim(),
+      (workspaceProfile.last_name as string | null | undefined)?.trim(),
+    ].filter(Boolean).join(' ');
+    const displayName = workspaceName
+      || (profile?.full_name ?? '').trim()
+      || (artist.artist_name as string | null | undefined)?.trim()
+      || 'Unnamed artist';
+    const teaser = (workspaceProfile.tagline as string | null | undefined)?.trim()
+      || (workspaceProfile.short_biography as string | null | undefined)?.trim()
+      || (profile?.bio ?? '').trim()
+      || 'TJS artist';
+    const longDescription = (workspaceProfile.long_biography as string | null | undefined)?.trim()
+      || (workspaceProfile.short_biography as string | null | undefined)?.trim()
+      || (profile?.bio ?? '').trim()
+      || '';
+
+    return {
+      id: artist.id as string,
+      display_name: displayName,
+      cover_url: (workspaceProfile.banner_url as string | null | undefined) ?? null,
+      photo_url: profile?.avatar_url ?? null,
+      teaser,
+      long_description: longDescription,
+      instruments: ((instrumentsResult.data ?? []) as any[])
+        .map((row) => (row.instrument?.name as string | null | undefined)?.trim())
+        .filter((value): value is string => !!value)
+        .filter((value, index, values) => values.indexOf(value) === index)
+        .sort(),
+      performance_types: ((performanceResult.data ?? []) as any[])
+        .map((row) => (row.performance?.name as string | null | undefined)?.trim())
+        .filter((value): value is string => !!value)
+        .filter((value, index, values) => values.indexOf(value) === index)
+        .sort(),
+      media: ((mediaResult.data ?? []) as any[]).map((row) => ({
+        id: row.id,
+        media_type: row.media_type ?? 'media',
+        image_url: row.image_url ?? null,
+        name: row.name ?? 'Untitled media',
+        description: row.description ?? '',
+        urls: Array.isArray(row.urls)
+          ? row.urls.filter((value: unknown): value is string => typeof value === 'string' && !!value.trim())
+          : [],
+      })),
+      upcoming_events: upcomingEvents,
+    };
   }
 
   async getPublicEventDetail(eventId: string): Promise<PublicEventDetail | null> {
