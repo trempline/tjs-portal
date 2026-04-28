@@ -174,6 +174,7 @@ export interface PublicWebsiteEventItem {
   instruments: string[];
   event_type_name: string | null;
   artist_names: string[];
+  host_names: string[];
   primary_date: string | null;
   last_date: string | null;
   schedule_lines: string[];
@@ -214,6 +215,7 @@ export interface PublicTjsArtistDetail {
     title: string;
     primary_date: string | null;
     schedule_lines: string[];
+    host_names: string[];
     is_member_only: boolean;
   }>;
 }
@@ -224,6 +226,8 @@ export interface PublicLocationItem {
   image_url: string | null;
   description: string;
   address: string | null;
+  lat: number | null;
+  long: number | null;
   city: string | null;
   country: string | null;
   capacity: string | null;
@@ -241,6 +245,7 @@ export interface PublicLocationUpcomingEvent {
   event_domain_name: string | null;
   event_type_name: string | null;
   artist_names: string[];
+  host_names: string[];
   primary_date: string | null;
   schedule_lines: string[];
   is_member_only: boolean;
@@ -268,6 +273,7 @@ export interface PublicEventDetail {
   call_to_action_url: string | null;
   instruments: string[];
   artist_names: string[];
+  host_names: string[];
   schedule_lines: string[];
   is_member_only: boolean;
   media: Array<{
@@ -3895,6 +3901,28 @@ export class SupabaseService {
       });
   }
 
+  private publicHostNameFromAssignment(assignment: any): string | null {
+    const host = Array.isArray(assignment?.host) ? assignment.host[0] : assignment?.host;
+    const hostId = typeof host?.id === 'number'
+      ? host.id
+      : (typeof assignment?.host_id === 'number' ? assignment.host_id : null);
+
+    return (host?.public_name as string | null | undefined)?.trim()
+      || (host?.name as string | null | undefined)?.trim()
+      || (host?.city as string | null | undefined)?.trim()
+      || (hostId !== null ? `Host #${hostId}` : null);
+  }
+
+  private publicHostNamesFromAssignments(assignments: any[]): string[] {
+    return Array.from(
+      new Set(
+        assignments
+          .map((assignment) => this.publicHostNameFromAssignment(assignment))
+          .filter((value): value is string => !!value)
+      )
+    );
+  }
+
   async getPublicWebsiteEvents(): Promise<PublicWebsiteEventItem[]> {
     const eventsResult = await this.adminSupabase
       .from('tjs_events')
@@ -3936,7 +3964,18 @@ export class SupabaseService {
     const [hostAssignmentsResult, eventArtistsResult, requestDetailsResult, requestArtistsResult, instrumentsResult] = await Promise.all([
       this.adminSupabase
         .from('tjs_event_hosts')
-        .select('event_id, selected_dates, notes')
+        .select(`
+          event_id,
+          host_id,
+          selected_dates,
+          notes,
+          host:tjs_hosts (
+            id,
+            public_name,
+            name,
+            city
+          )
+        `)
         .in('event_id', eventIds),
       this.adminSupabase
         .from('tjs_event_artists')
@@ -4113,7 +4152,8 @@ export class SupabaseService {
         const artistNames = eventArtistNamesByEventId.get(eventId)
           ?? (requestId ? requestArtistNamesByRequestId.get(requestId) : undefined)
           ?? [];
-        const primaryAssignment = (hostAssignmentsByEventId.get(eventId) ?? [])[0];
+        const hostAssignments = hostAssignmentsByEventId.get(eventId) ?? [];
+        const primaryAssignment = hostAssignments[0];
         const notes = (primaryAssignment?.notes as string | null | undefined) ?? '';
         const instruments = Array.from(new Set([
           ...(artistProfileIdsByEventId.get(eventId) ?? [])
@@ -4142,6 +4182,7 @@ export class SupabaseService {
           instruments,
           event_type_name: this.extractNoteValue(notes, 'Event Type:'),
           artist_names: artistNames,
+          host_names: this.publicHostNamesFromAssignments(hostAssignments),
           primary_date: scheduleEntries[0]?.start_date ?? null,
           last_date: sortedScheduleEntries.at(-1)?.end_date || sortedScheduleEntries.at(-1)?.start_date || null,
           schedule_lines: scheduleLines,
@@ -4315,7 +4356,18 @@ export class SupabaseService {
     const eventHostsResult = eventIds.length > 0
       ? await this.adminSupabase
           .from('tjs_event_hosts')
-          .select('event_id, selected_dates, notes')
+          .select(`
+            event_id,
+            host_id,
+            selected_dates,
+            notes,
+            host:tjs_hosts (
+              id,
+              public_name,
+              name,
+              city
+            )
+          `)
           .in('event_id', eventIds)
       : { data: [], error: null };
 
@@ -4586,6 +4638,7 @@ export class SupabaseService {
           title: (event.title as string | null | undefined)?.trim() || 'Untitled event',
           primary_date: futureScheduleLines[0]?.comparisonDate ?? null,
           schedule_lines: futureScheduleLines.map((line) => line.scheduleLine),
+          host_names: this.publicHostNamesFromAssignments(hostAssignments),
           is_member_only: this.isEventMemberOnly(event.visibility_scope),
         });
 
@@ -4731,7 +4784,17 @@ export class SupabaseService {
     const [hostAssignmentsResult, eventArtistsResult, requestDetailsResult, requestArtistsResult, requestMediaResult] = await Promise.all([
       this.adminSupabase
         .from('tjs_event_hosts')
-        .select('selected_dates, notes')
+        .select(`
+          host_id,
+          selected_dates,
+          notes,
+          host:tjs_hosts (
+            id,
+            public_name,
+            name,
+            city
+          )
+        `)
         .eq('event_id', eventId),
       this.adminSupabase
         .from('tjs_event_artists')
@@ -4848,6 +4911,7 @@ export class SupabaseService {
       call_to_action_url: this.extractNoteValue(notes, 'Call to Action URL:'),
       instruments,
       artist_names: artistNames,
+      host_names: this.publicHostNamesFromAssignments((hostAssignmentsResult.data ?? []) as any[]),
       schedule_lines: scheduleLines,
       is_member_only: this.isEventMemberOnly(event.visibility_scope),
       media: ((requestMediaResult.data ?? []) as any[]).length > 0
@@ -7499,6 +7563,8 @@ export class SupabaseService {
         || location.restricted_description?.trim()
         || 'Location details will be available soon.',
       address: location.address,
+      lat: location.lat,
+      long: location.long,
       city: location.city,
       country: location.country,
       capacity: location.capacity,
@@ -7572,9 +7638,16 @@ export class SupabaseService {
       .from('tjs_event_hosts')
       .select(`
         event_id,
+        host_id,
         location_id,
         selected_dates,
         notes,
+        host:tjs_hosts (
+          id,
+          public_name,
+          name,
+          city
+        ),
         event:tjs_events (
           id,
           title,
@@ -7598,6 +7671,7 @@ export class SupabaseService {
       notes: string;
       primary_date: string | null;
       schedule_lines: string[];
+      host_names: string[];
     }>();
 
     for (const assignment of ((assignmentsResult.data ?? []) as any[])) {
@@ -7657,12 +7731,17 @@ export class SupabaseService {
       const nextPrimaryDate = [existing?.primary_date, matchedLines[0]?.comparisonDate]
         .filter((value): value is string => !!value)
         .sort((left, right) => left.localeCompare(right))[0] ?? null;
+      const hostName = this.publicHostNameFromAssignment(assignment);
 
       eventsById.set(eventId, {
         event,
         notes: existing?.notes || notes,
         primary_date: nextPrimaryDate,
         schedule_lines: Array.from(new Set(nextScheduleLines)),
+        host_names: Array.from(new Set([
+          ...(existing?.host_names ?? []),
+          ...(hostName ? [hostName] : []),
+        ])),
       });
     }
 
@@ -7774,6 +7853,7 @@ export class SupabaseService {
           artist_names: eventArtistNamesByEventId.get(eventId)
             ?? (requestId ? requestArtistNamesByRequestId.get(requestId) : undefined)
             ?? [],
+          host_names: entry.host_names,
           primary_date: entry.primary_date,
           schedule_lines: entry.schedule_lines,
           is_member_only: this.isEventMemberOnly(entry.event.visibility_scope),

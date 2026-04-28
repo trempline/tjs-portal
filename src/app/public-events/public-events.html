@@ -358,6 +358,14 @@
               <span class="font-medium">{{ formatArtists(item.artist_names) }}</span>
             </div>
 
+            <!-- Host -->
+            <div class="mt-2 flex items-center gap-2 text-sm text-zinc-600">
+              <svg class="h-4 w-4 text-red-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9h.01"/><path d="M9 13h.01"/><path d="M9 17h.01"/>
+              </svg>
+              <span><span class="font-semibold text-zinc-700">Host:</span> {{ formatHosts(item.host_names) }}</span>
+            </div>
+
             <!-- Description -->
             <p class="mt-2 line-clamp-2 text-sm leading-relaxed text-zinc-600">
               {{ item.teaser || 'Experience an unforgettable evening of classical music performed by exceptional young artists.' }}

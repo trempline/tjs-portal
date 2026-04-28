@@ -2,7 +2,7 @@
   <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
     <div>
       <h1 class="text-2xl font-bold text-zinc-900">Public Locations</h1>
-      <p class="mt-0.5 text-sm text-zinc-500">{{ canManageLocations ? 'Manage the public locations visible from the host manager workspace.' : 'Browse public locations and their availability.' }}</p>
+      <p class="mt-0.5 text-sm text-zinc-500">{{ pageDescription }}</p>
     </div>
 
     <div class="flex flex-col gap-3 sm:flex-row">
@@ -269,8 +269,8 @@
             <td class="px-5 py-4 text-right">
               <div class="flex justify-end gap-3">
                 <a [routerLink]="[detailRoutePrefix, location.id]" class="text-sm font-medium text-zinc-700 hover:text-zinc-900">View</a>
-                <button *ngIf="canManageLocations" type="button" (click)="openEditForm(location)" class="text-sm font-medium text-blue-600 hover:text-blue-700">Edit</button>
-                <button *ngIf="canManageLocations" type="button" (click)="deleteLocation(location)" class="text-sm font-medium text-red-600 hover:text-red-700">Delete</button>
+                <button *ngIf="canManageLocation(location)" type="button" (click)="openEditForm(location)" class="text-sm font-medium text-blue-600 hover:text-blue-700">Edit</button>
+                <button *ngIf="canManageLocation(location)" type="button" (click)="deleteLocation(location)" class="text-sm font-medium text-red-600 hover:text-red-700">Delete</button>
               </div>
             </td>
           </tr>

@@ -43,8 +43,8 @@ export class HostManagerPublicLocationDetail implements OnInit {
     }
 
     const [location, bookings] = await Promise.all([
-      this.supabase.getPublicLocationById(locationId, this.filterOwnerId),
-      this.supabase.getHostPrivateLocationBookings(this.authService.isAdmin ? undefined : this.currentUserId, locationId),
+      this.supabase.getPublicLocationById(locationId),
+      this.supabase.getHostPrivateLocationBookings(undefined, locationId),
     ]);
     if (!location) {
       this.error = 'Public location not found.';
@@ -78,7 +78,13 @@ export class HostManagerPublicLocationDetail implements OnInit {
   }
 
   get canManageLocations(): boolean {
-    return this.authService.isAdmin || this.authService.isCommitteeMember || this.authService.isHostManager;
+    return !!this.location && this.canManageLocation(this.location);
+  }
+
+  get detailDescription(): string {
+    return this.canManageLocations
+      ? 'Review this public location and manage its active status.'
+      : 'Public location detail and availability view.';
   }
 
   get shouldHideBookingDetails(): boolean {
@@ -175,10 +181,12 @@ export class HostManagerPublicLocationDetail implements OnInit {
     return booking.event_id;
   }
 
-  private get filterOwnerId(): string | undefined {
-    return this.authService.isAdmin || this.authService.isCommitteeMember || this.authService.isHostManager
-      ? undefined
-      : this.currentUserId;
+  private get canManageAllLocations(): boolean {
+    return this.authService.isAdmin || this.authService.isCommitteeMember || this.authService.isHostManager;
+  }
+
+  private canManageLocation(location: TjsLocation): boolean {
+    return this.canManageAllLocations || (!!this.currentUserId && location.created_by === this.currentUserId);
   }
 
   private startOfMonth(value: Date): Date {

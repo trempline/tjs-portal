@@ -160,7 +160,14 @@
                 </div>
               </div>
 
-              <div class="mt-4 flex justify-end">
+              <div class="mt-4 flex justify-between gap-3">
+                <button
+                  type="button"
+                  (click)="openDonation()"
+                  class="rounded-full bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
+                >
+                  Donation
+                </button>
                 <button
                   type="button"
                   (click)="logoutMember()"
@@ -275,6 +282,13 @@
                     <div class="mt-1 text-sm font-medium text-zinc-900">{{ memberPaymentAmountLabel }}</div>
                   </div>
                 </div>
+                <button
+                  type="button"
+                  (click)="openDonation()"
+                  class="w-full rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-red-700"
+                >
+                  Donation
+                </button>
                 <button
                   type="button"
                   (click)="logoutMember()"

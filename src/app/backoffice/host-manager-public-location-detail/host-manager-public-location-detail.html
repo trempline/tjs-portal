@@ -7,7 +7,7 @@
       Back to Public Locations
     </a>
     <h1 class="mt-3 text-3xl font-bold tracking-tight text-zinc-900">Public Location Detail</h1>
-    <p class="mt-1 text-sm text-zinc-500">{{ canManageLocations ? 'Read-only detail view for a host manager public location.' : 'Public location detail and availability view.' }}</p>
+    <p class="mt-1 text-sm text-zinc-500">{{ detailDescription }}</p>
   </div>
 
   <div *ngIf="error" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

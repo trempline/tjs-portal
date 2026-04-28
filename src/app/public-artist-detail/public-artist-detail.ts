@@ -64,6 +64,18 @@ export class PublicArtistDetail implements OnInit {
     return this.artist?.instruments.length ? this.artist.instruments.join(', ') : 'No instruments listed yet';
   }
 
+  formatHosts(names: string[]): string {
+    if (names.length === 0) {
+      return 'Host to be announced';
+    }
+
+    if (names.length === 1) {
+      return names[0];
+    }
+
+    return names.join(', ');
+  }
+
   performanceTypesLabel(): string {
     return this.artist?.performance_types.length ? this.artist.performance_types.join(', ') : 'Performance type TBA';
   }

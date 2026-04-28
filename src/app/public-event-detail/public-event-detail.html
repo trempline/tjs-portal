@@ -81,6 +81,10 @@
                 <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/55">Artists</div>
                 <div class="mt-2 text-lg font-bold text-white">{{ formatArtists(event.artist_names) }}</div>
               </div>
+              <div class="rounded-2xl border border-white/10 bg-black/15 p-4">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/55">Host</div>
+                <div class="mt-2 text-lg font-bold text-white">{{ formatHosts(event.host_names) }}</div>
+              </div>
               <a
                 *ngIf="hasCallToAction"
                 [href]="event.call_to_action_url"

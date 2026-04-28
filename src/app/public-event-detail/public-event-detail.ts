@@ -74,6 +74,18 @@ export class PublicEventDetailComponent implements OnInit {
     return `${names.slice(0, -1).join(', ')} & ${names[names.length - 1]}`;
   }
 
+  formatHosts(names: string[]): string {
+    if (names.length === 0) {
+      return 'Host to be announced';
+    }
+
+    if (names.length === 1) {
+      return names[0];
+    }
+
+    return names.join(', ');
+  }
+
   private parseScheduleLine(line: string): { datePart: string; timePart: string; locationPart: string } {
     const parts = line.split('|').map(part => part.trim());
     const dateTimePart = parts[0] || '';

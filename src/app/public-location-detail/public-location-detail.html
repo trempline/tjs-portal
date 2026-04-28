@@ -161,6 +161,27 @@
                   <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500">Address</div>
                   <div class="mt-2 text-base font-bold leading-7 text-zinc-950">{{ addressLabel() }}</div>
                 </div>
+                <div *ngIf="mapEmbedUrl as safeMapEmbedUrl" class="overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-50">
+                  <iframe
+                    [src]="safeMapEmbedUrl"
+                    [title]="'Map for ' + location.name"
+                    loading="lazy"
+                    class="h-64 w-full border-0"></iframe>
+                  <div class="border-t border-zinc-200 p-4">
+                    <a
+                      *ngIf="directionsUrl"
+                      [href]="directionsUrl"
+                      target="_blank"
+                      rel="noreferrer"
+                      class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-red-600">
+                      <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                        <path d="m9 12 2 2 4-4"></path>
+                      </svg>
+                      <span>Get directions</span>
+                    </a>
+                  </div>
+                </div>
                 <div *ngIf="location.location_type_name" class="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
                   <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500">Location Type</div>
                   <div class="mt-2 text-base font-bold text-zinc-950">{{ location.location_type_name }}</div>
@@ -247,6 +268,7 @@
                   <tr>
                     <th scope="col" class="px-4 py-3">Event</th>
                     <th scope="col" class="px-4 py-3">Artists</th>
+                    <th scope="col" class="px-4 py-3">Host</th>
                     <th scope="col" class="px-4 py-3">Schedule</th>
                     <th scope="col" class="px-4 py-3">Type</th>
                     <th scope="col" class="px-4 py-3 text-right">Action</th>
@@ -264,6 +286,9 @@
                     </td>
                     <td class="max-w-[220px] px-4 py-3 align-top text-zinc-700">
                       {{ formatArtists(event.artist_names) }}
+                    </td>
+                    <td class="max-w-[180px] px-4 py-3 align-top text-zinc-700">
+                      {{ formatHosts(event.host_names) }}
                     </td>
                     <td class="min-w-[240px] px-4 py-3 align-top text-zinc-700">
                       <div>{{ primaryScheduleLine(event) }}</div>

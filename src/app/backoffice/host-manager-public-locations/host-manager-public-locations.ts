@@ -81,7 +81,15 @@ export class HostManagerPublicLocations implements OnInit {
   }
 
   get canManageLocations(): boolean {
-    return this.authService.isAdmin || this.authService.isCommitteeMember || this.authService.isHostManager;
+    return this.canManageAllLocations || this.authService.hasAnyRole(['Host', 'Host+']);
+  }
+
+  get pageDescription(): string {
+    if (this.canManageAllLocations) {
+      return 'Manage the public locations available to host workspaces.';
+    }
+
+    return 'Browse public locations and create public locations for your host workspace.';
   }
 
   get filteredLocations(): TjsLocation[] {
@@ -138,7 +146,7 @@ export class HostManagerPublicLocations implements OnInit {
   }
 
   openEditForm(location: TjsLocation) {
-    if (!this.canManageLocations) {
+    if (!this.canManageLocation(location)) {
       return;
     }
 
@@ -180,8 +188,13 @@ export class HostManagerPublicLocations implements OnInit {
   }
 
   async saveLocation() {
-    if (!this.canManageLocations) {
-      this.error = 'You can view public locations, but only host managers and committee members can manage them.';
+    if (this.editingLocation && !this.canManageLocation(this.editingLocation)) {
+      this.error = 'You can only edit public locations that you created.';
+      return;
+    }
+
+    if (!this.editingLocation && !this.canManageLocations) {
+      this.error = 'You do not have permission to create public locations.';
       return;
     }
 
@@ -238,7 +251,7 @@ export class HostManagerPublicLocations implements OnInit {
   }
 
   async deleteLocation(location: TjsLocation) {
-    if (!this.canManageLocations) {
+    if (!this.canManageLocation(location)) {
       return;
     }
 
@@ -347,6 +360,10 @@ export class HostManagerPublicLocations implements OnInit {
     return location.id;
   }
 
+  canManageLocation(location: TjsLocation): boolean {
+    return this.canManageAllLocations || (!!this.currentUserId && location.created_by === this.currentUserId);
+  }
+
   trackByOption(_: number, option: LocationLookupOption) {
     return option.id;
   }
@@ -356,9 +373,11 @@ export class HostManagerPublicLocations implements OnInit {
   }
 
   private get filterOwnerId(): string | undefined {
-    return this.authService.isAdmin || this.authService.isCommitteeMember || this.authService.isHostManager
-      ? undefined
-      : this.currentUserId;
+    return undefined;
+  }
+
+  private get canManageAllLocations(): boolean {
+    return this.authService.isAdmin || this.authService.isCommitteeMember || this.authService.isHostManager;
   }
 
   private blankForm(): LocationForm {

@@ -19,6 +19,7 @@ export class Header implements OnInit, OnDestroy {
   isMobileMemberPanelOpen = false;
   memberProfile: TjsProfile | null = null;
   memberPayment: MembershipPaymentRecord | null = null;
+  private readonly donationUrl = 'https://www.helloasso.com/associations/tremplin-jeunes-solistes/formulaires/1';
 
   private subscription = new Subscription();
 
@@ -113,6 +114,13 @@ export class Header implements OnInit, OnDestroy {
 
   async logoutMember() {
     await this.authService.signOut();
+  }
+
+  openDonation() {
+    this.isMemberDropdownOpen = false;
+    this.isMobileMemberPanelOpen = false;
+    this.isMenuOpen = false;
+    window.open(this.donationUrl, '_blank');
   }
 
   toggleMemberDropdown() {
