@@ -28,7 +28,7 @@
     <section class="overflow-hidden rounded-[2rem] border border-orange-100 bg-[linear-gradient(145deg,#fff3e6_0%,#fffdfa_42%,#eef6ff_100%)] shadow-sm">
       <div class="grid gap-6 p-6 lg:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
         <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.28em] text-red-600">{{ isCommitteeMember ? 'Committee Event View' : 'Host Event' }}</p>
+          <p class="text-xs font-semibold uppercase tracking-[0.28em] text-red-600">{{ eventViewLabel }}</p>
           <h2 class="mt-3 text-3xl font-semibold tracking-tight text-zinc-900">{{ detailTitle }}</h2>
           <p class="mt-2 max-w-2xl text-sm leading-6 text-zinc-600">{{ detailTeaser }}</p>
           <div class="mt-5 flex flex-wrap gap-3">
@@ -50,7 +50,7 @@
           </div>
         </div>
 
-        <div *ngIf="canEditEvent; else committeeSummaryCard" class="rounded-3xl border border-white/70 bg-white/85 p-5 shadow-sm backdrop-blur">
+        <div *ngIf="canEditEvent; else readOnlySummaryCard" class="rounded-3xl border border-white/70 bg-white/85 p-5 shadow-sm backdrop-blur">
           <div class="space-y-4">
             <button
               type="button"
@@ -83,10 +83,10 @@
             </button>
           </div>
         </div>
-        <ng-template #committeeSummaryCard>
+        <ng-template #readOnlySummaryCard>
           <div class="rounded-3xl border border-white/70 bg-white/85 p-5 shadow-sm backdrop-blur">
             <h3 class="text-sm font-semibold uppercase tracking-[0.14em] text-zinc-500">Access</h3>
-            <p class="mt-3 text-sm leading-6 text-zinc-600">This workspace is read-only for event data. You can review the event and add committee comments.</p>
+            <p class="mt-3 text-sm leading-6 text-zinc-600">{{ readonlySummaryText }}</p>
           </div>
         </ng-template>
       </div>
@@ -135,11 +135,11 @@
           <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h3 class="text-lg font-semibold text-zinc-900">Event Details</h3>
-              <p class="mt-1 text-sm text-zinc-500">{{ canEditEvent ? 'Update the event metadata and public-facing story for this host event.' : 'Review the event metadata and public-facing story for this event.' }}</p>
+              <p class="mt-1 text-sm text-zinc-500">{{ canEditEventDetails ? 'Update the event metadata and public-facing story for this event.' : 'Review the event metadata and public-facing story for this event.' }}</p>
             </div>
             <div class="flex flex-wrap gap-3">
               <button
-                *ngIf="!isEditingDetails && canEditEvent"
+                *ngIf="!isEditingDetails && canEditEventDetails"
                 type="button"
                 (click)="startEditingDetails()"
                 class="inline-flex items-center justify-center rounded-2xl bg-zinc-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-zinc-800"
@@ -147,7 +147,7 @@
                 Edit
               </button>
               <button
-                *ngIf="isEditingDetails && canEditEvent"
+                *ngIf="isEditingDetails && canEditEventDetails"
                 type="button"
                 (click)="saveDetails()"
                 [disabled]="isUpdating"
@@ -156,7 +156,7 @@
                 {{ isUpdating ? 'Updating...' : 'Update' }}
               </button>
               <button
-                *ngIf="isEditingDetails && canEditEvent"
+                *ngIf="isEditingDetails && canEditEventDetails"
                 type="button"
                 (click)="cancelEditingDetails()"
                 [disabled]="isUpdating"
@@ -488,32 +488,143 @@
         </div>
 
         <div *ngIf="activeTab === 'media'" class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
-          <h3 class="text-lg font-semibold text-zinc-900">Media</h3>
-          <div *ngIf="mediaEntries.length === 0" class="mt-5 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-10 text-center text-sm text-zinc-500">
-            No media attached to the source request.
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h3 class="text-lg font-semibold text-zinc-900">Media</h3>
+              <p class="mt-1 text-sm text-zinc-500">Manage event media shown with this event.</p>
+            </div>
+            <div *ngIf="canEditEventMedia" class="flex flex-wrap gap-3">
+              <button
+                *ngIf="!isEditingMedia"
+                type="button"
+                (click)="startEditingMedia()"
+                class="inline-flex items-center justify-center rounded-2xl bg-zinc-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-zinc-800"
+              >
+                Edit
+              </button>
+              <button
+                *ngIf="isEditingMedia"
+                type="button"
+                (click)="addMedia('Video')"
+                class="inline-flex items-center justify-center rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50"
+              >
+                Add Video
+              </button>
+              <button
+                *ngIf="isEditingMedia"
+                type="button"
+                (click)="addMedia('CD')"
+                class="inline-flex items-center justify-center rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50"
+              >
+                Add CD
+              </button>
+              <button
+                *ngIf="isEditingMedia"
+                type="button"
+                (click)="saveMedia()"
+                [disabled]="isUpdating || isImageUploading"
+                class="inline-flex items-center justify-center rounded-2xl bg-zinc-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {{ isUpdating ? 'Updating...' : 'Update' }}
+              </button>
+              <button
+                *ngIf="isEditingMedia"
+                type="button"
+                (click)="cancelEditingMedia()"
+                [disabled]="isUpdating"
+                class="inline-flex items-center justify-center rounded-2xl border border-zinc-200 bg-white px-5 py-3 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
-          <div *ngIf="mediaEntries.length > 0" class="mt-5 space-y-4">
-            <article *ngFor="let item of mediaEntries" class="rounded-3xl border border-zinc-200 bg-zinc-50 p-5">
-              <div class="grid gap-4 md:grid-cols-[10rem_minmax(0,1fr)]">
-                <div class="overflow-hidden rounded-2xl border border-zinc-200 bg-white">
-                  <img *ngIf="item.image_url; else mediaFallback" [src]="item.image_url" alt="Event media image" class="h-40 w-full object-cover" />
-                  <ng-template #mediaFallback>
-                    <div class="flex h-40 items-center justify-center px-4 text-center text-xs text-zinc-500">No image</div>
-                  </ng-template>
-                </div>
-                <div>
-                  <div class="flex items-start justify-between gap-3">
-                    <div>
-                      <h4 class="text-base font-semibold text-zinc-900">{{ item.name || item.media_type }}</h4>
-                      <div class="mt-1 text-xs uppercase tracking-[0.14em] text-zinc-500">{{ item.media_type }}</div>
-                    </div>
-                    <a *ngIf="item.url" [href]="item.url" target="_blank" rel="noreferrer" class="text-sm font-semibold text-red-600 hover:text-red-700">Open</a>
+
+          <div *ngIf="isEditingMedia; else mediaReadOnly" class="mt-5">
+            <div *ngIf="mediaForm.length === 0" class="rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-10 text-center text-sm text-zinc-500">
+              No media added yet.
+            </div>
+            <div *ngIf="mediaForm.length > 0" class="overflow-x-auto rounded-3xl border border-zinc-200 bg-white">
+              <table class="min-w-full divide-y divide-zinc-200 text-sm">
+                <thead class="bg-zinc-50">
+                  <tr>
+                    <th class="px-4 py-3 text-left font-semibold text-zinc-600">Image</th>
+                    <th class="px-4 py-3 text-left font-semibold text-zinc-600">Type</th>
+                    <th class="px-4 py-3 text-left font-semibold text-zinc-600">Name</th>
+                    <th class="px-4 py-3 text-left font-semibold text-zinc-600">Description</th>
+                    <th class="px-4 py-3 text-left font-semibold text-zinc-600">URL</th>
+                    <th class="px-4 py-3 text-left font-semibold text-zinc-600">Action</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-zinc-100">
+                  <tr *ngFor="let media of mediaForm; let i = index; trackBy: trackByMedia">
+                    <td class="px-4 py-3">
+                      <div class="flex h-16 w-16 items-center justify-center overflow-hidden rounded-xl bg-zinc-200">
+                        <img *ngIf="media.image_url" [src]="media.image_url" alt="Media image" class="h-full w-full object-cover" />
+                        <span *ngIf="!media.image_url" class="text-[11px] text-zinc-500">No image</span>
+                      </div>
+                      <label class="mt-2 inline-flex cursor-pointer items-center rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-700">
+                        {{ isImageUploading ? 'Uploading...' : 'Upload' }}
+                        <input type="file" accept="image/*" class="hidden" (change)="onMediaImageSelected($event, i)" />
+                      </label>
+                    </td>
+                    <td class="px-4 py-3">
+                      <select [(ngModel)]="media.media_type" class="w-full min-w-28 rounded-2xl border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100">
+                        <option value="Video">Video</option>
+                        <option value="CD">CD</option>
+                      </select>
+                    </td>
+                    <td class="px-4 py-3">
+                      <input [(ngModel)]="media.name" type="text" class="w-full min-w-40 rounded-2xl border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+                    </td>
+                    <td class="px-4 py-3">
+                      <textarea [(ngModel)]="media.description" rows="2" class="w-full min-w-52 rounded-2xl border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100"></textarea>
+                    </td>
+                    <td class="px-4 py-3">
+                      <div class="space-y-2">
+                        <input [(ngModel)]="media.url" type="text" class="w-full min-w-52 rounded-2xl border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+                        <a *ngIf="media.url" [href]="media.url" target="_blank" rel="noopener noreferrer" class="text-sm font-medium text-red-600 hover:text-red-700">
+                          Open
+                        </a>
+                      </div>
+                    </td>
+                    <td class="px-4 py-3">
+                      <button type="button" (click)="removeMedia(i)" class="rounded-xl border border-red-200 px-4 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50">
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <ng-template #mediaReadOnly>
+            <div *ngIf="mediaEntries.length === 0" class="mt-5 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-10 text-center text-sm text-zinc-500">
+              No media attached to this event.
+            </div>
+            <div *ngIf="mediaEntries.length > 0" class="mt-5 space-y-4">
+              <article *ngFor="let item of mediaEntries" class="rounded-3xl border border-zinc-200 bg-zinc-50 p-5">
+                <div class="grid gap-4 md:grid-cols-[10rem_minmax(0,1fr)]">
+                  <div class="overflow-hidden rounded-2xl border border-zinc-200 bg-white">
+                    <img *ngIf="item.image_url; else mediaFallback" [src]="item.image_url" alt="Event media image" class="h-40 w-full object-cover" />
+                    <ng-template #mediaFallback>
+                      <div class="flex h-40 items-center justify-center px-4 text-center text-xs text-zinc-500">No image</div>
+                    </ng-template>
                   </div>
-                  <p class="mt-4 text-sm leading-6 text-zinc-600">{{ item.description || 'No media description available.' }}</p>
+                  <div>
+                    <div class="flex items-start justify-between gap-3">
+                      <div>
+                        <h4 class="text-base font-semibold text-zinc-900">{{ item.name || item.media_type }}</h4>
+                        <div class="mt-1 text-xs uppercase tracking-[0.14em] text-zinc-500">{{ item.media_type }}</div>
+                      </div>
+                      <a *ngIf="item.url" [href]="item.url" target="_blank" rel="noreferrer" class="text-sm font-semibold text-red-600 hover:text-red-700">Open</a>
+                    </div>
+                    <p class="mt-4 text-sm leading-6 text-zinc-600">{{ item.description || 'No media description available.' }}</p>
+                  </div>
                 </div>
-              </div>
-            </article>
-          </div>
+              </article>
+            </div>
+          </ng-template>
         </div>
 
         <div *ngIf="activeTab === 'images'" class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
@@ -522,7 +633,7 @@
               <h3 class="text-lg font-semibold text-zinc-900">Event Image</h3>
               <p class="mt-1 text-sm text-zinc-500">This tab shows only the request image used as the event image.</p>
             </div>
-            <label *ngIf="canEditEvent" class="inline-flex cursor-pointer items-center justify-center rounded-2xl bg-zinc-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-zinc-800">
+            <label *ngIf="canEditEventImage" class="inline-flex cursor-pointer items-center justify-center rounded-2xl bg-zinc-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-zinc-800">
               {{ isImageUploading ? 'Replacing...' : (eventImageUrl ? 'Replace Image' : 'Upload Image') }}
               <input type="file" accept="image/*" class="hidden" (change)="onEventImageSelected($event)" />
             </label>

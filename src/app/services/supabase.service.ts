@@ -587,6 +587,7 @@ export interface ArtistWorkspaceProfile {
   email: string;
   phone: string;
   website: string;
+  address: string;
   city: string;
   country: string;
   performance_types: ArtistPerformanceType[];
@@ -1331,6 +1332,7 @@ export class SupabaseService {
       email: baseProfile.email ?? '',
       phone: baseProfile.phone ?? '',
       website: workspaceProfile.website ?? '',
+      address: workspaceProfile.address ?? '',
       city: workspaceProfile.city ?? '',
       country: workspaceProfile.country ?? '',
       performance_types: performanceTypes,
@@ -1364,6 +1366,7 @@ export class SupabaseService {
         short_biography: profile.short_biography || null,
         long_biography: profile.long_biography || null,
         website: profile.website || null,
+        address: profile.address || null,
         city: profile.city || null,
         country: profile.country || null,
         updated_at: new Date().toISOString(),
@@ -5479,6 +5482,125 @@ export class SupabaseService {
     return null;
   }
 
+  async updateArtistWorkspaceEventDetail(
+    profileId: string,
+    eventId: string,
+    payload: UpdateHostWorkspaceEventDetailPayload,
+  ): Promise<string | null> {
+    const scopedEvent = await this.getArtistWorkspaceEventDetail(profileId, eventId);
+    if (!scopedEvent) {
+      return 'You do not have access to this event.';
+    }
+
+    const eventResult = await this.adminSupabase
+      .from('tjs_events')
+      .select('id, parent_event_id')
+      .eq('id', eventId)
+      .maybeSingle();
+
+    if (eventResult.error) {
+      if (this.isMissingSchemaError(eventResult.error)) {
+        return 'Host event tables are missing in the database. Run db/023_host_event_tables.sql and db/024_event_featured_flag.sql and try again.';
+      }
+      return eventResult.error.message;
+    }
+
+    if (!eventResult.data?.id) {
+      return 'Event not found.';
+    }
+
+    const [hostAssignmentResult, editionOptions, eventTypeOptions, eventDomains] = await Promise.all([
+      this.adminSupabase
+        .from('tjs_event_hosts')
+        .select('host_id, notes')
+        .eq('event_id', eventId)
+        .limit(1)
+        .maybeSingle(),
+      this.listConcreteEventEditionOptions(),
+      this.listEventTypeOptions(),
+      this.listEventDomains(),
+    ]);
+
+    if (hostAssignmentResult.error) {
+      if (this.isMissingSchemaError(hostAssignmentResult.error)) {
+        return 'Host event tables are missing in the database. Run db/023_host_event_tables.sql and db/024_event_featured_flag.sql and try again.';
+      }
+      return hostAssignmentResult.error.message;
+    }
+
+    const selectedEdition = editionOptions.find((item) => item.id === payload.editionId) ?? null;
+    const selectedEventType = eventTypeOptions.find((item) => item.id === payload.eventTypeId) ?? null;
+    const selectedEventDomain = eventDomains.find((item) => item.id === payload.eventDomainId) ?? null;
+    const existingNotes = (hostAssignmentResult.data?.notes as string | null | undefined) ?? '';
+    const visibilityScope = this.buildEventVisibilityScope(payload.isMemberOnly);
+    const timestamp = new Date().toISOString();
+    const title = payload.title.trim() || scopedEvent.request_detail?.event_title || scopedEvent.title || 'Untitled Event';
+
+    if (eventResult.data.parent_event_id) {
+      const { error: requestError } = await this.adminSupabase
+        .from('tjs_artist_requests')
+        .update({
+          event_domain_id: payload.eventDomainId,
+          event_title: title,
+          teaser: payload.teaser.trim() || null,
+          description: payload.description.trim() || null,
+          updated_at: timestamp,
+        })
+        .eq('id', eventResult.data.parent_event_id);
+
+      if (requestError) {
+        if (this.isMissingSchemaError(requestError)) {
+          return 'Artist request tables are missing in the database. Run the request schema migrations and try again.';
+        }
+        return requestError.message;
+      }
+    }
+
+    const { error: eventError } = await this.adminSupabase
+      .from('tjs_events')
+      .update({
+        title,
+        description: payload.teaser.trim() || payload.description.trim() || null,
+        visibility_scope: visibilityScope,
+        updated_at: timestamp,
+      })
+      .eq('id', eventId);
+
+    if (eventError) {
+      if (this.isMissingSchemaError(eventError)) {
+        return 'Host event tables are missing in the database. Run db/023_host_event_tables.sql and db/024_event_featured_flag.sql and try again.';
+      }
+      return eventError.message;
+    }
+
+    if (hostAssignmentResult.data?.host_id) {
+      const notes = this.mergeStructuredHostNotes(existingNotes, {
+        eventDomain: selectedEventDomain?.name ?? null,
+        edition: selectedEdition?.label ?? selectedEdition?.name ?? null,
+        eventType: selectedEventType?.name ?? null,
+        showTime: this.extractNoteValue(existingNotes, 'Show Time:'),
+        eventImageUrl: this.extractNoteValue(existingNotes, 'Event Image:'),
+        callToActionUrl: payload.callToActionUrl.trim() || null,
+        hostNotes: null,
+      });
+
+      const { error: hostNotesError } = await this.adminSupabase
+        .from('tjs_event_hosts')
+        .update({ notes: notes || null })
+        .eq('event_id', eventId)
+        .eq('host_id', hostAssignmentResult.data.host_id as number);
+
+      if (hostNotesError) {
+        if (this.isMissingSchemaError(hostNotesError)) {
+          return 'Host event tables are missing in the database. Run db/023_host_event_tables.sql and db/024_event_featured_flag.sql and try again.';
+        }
+        return hostNotesError.message;
+      }
+    }
+
+    return null;
+  }
+
   async updateHostWorkspaceEventDetail(
     profileId: string,
     eventId: string,
@@ -5939,6 +6061,208 @@ export class SupabaseService {
     }
 
     return null;
+  }
+
+  async updateArtistWorkspaceEventImage(profileId: string, eventId: string, imageUrl: string | null): Promise<string | null> {
+    const scopedEvent = await this.getArtistWorkspaceEventDetail(profileId, eventId);
+    if (!scopedEvent) {
+      return 'You do not have access to this event.';
+    }
+
+    const eventResult = await this.adminSupabase
+      .from('tjs_events')
+      .select('id, parent_event_id')
+      .eq('id', eventId)
+      .maybeSingle();
+
+    if (eventResult.error) {
+      if (this.isMissingSchemaError(eventResult.error)) {
+        return 'Host event tables are missing in the database. Run db/023_host_event_tables.sql and db/024_event_featured_flag.sql and try again.';
+      }
+      return eventResult.error.message;
+    }
+
+    if (!eventResult.data?.id) {
+      return 'Event not found.';
+    }
+
+    if (eventResult.data.parent_event_id) {
+      const { error } = await this.adminSupabase
+        .from('tjs_artist_requests')
+        .update({
+          image_url: imageUrl,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', eventResult.data.parent_event_id);
+
+      if (error) {
+        if (this.isMissingSchemaError(error)) {
+          return 'Artist request tables are missing in the database. Run the request schema migrations and try again.';
+        }
+        return error.message;
+      }
+
+      return null;
+    }
+
+    const hostAssignmentResult = await this.adminSupabase
+      .from('tjs_event_hosts')
+      .select('host_id, notes')
+      .eq('event_id', eventId)
+      .limit(1)
+      .maybeSingle();
+
+    if (hostAssignmentResult.error || !hostAssignmentResult.data?.host_id) {
+      return hostAssignmentResult.error?.message ?? 'The event is missing an assigned host.';
+    }
+
+    const existingNotes = (hostAssignmentResult.data.notes as string | null | undefined) ?? '';
+    const notes = this.mergeStructuredHostNotes(existingNotes, {
+      eventDomain: this.extractNoteValue(existingNotes, 'Event Domain:'),
+      edition: this.extractNoteValue(existingNotes, 'Edition:'),
+      eventType: this.extractNoteValue(existingNotes, 'Event Type:'),
+      showTime: this.extractNoteValue(existingNotes, 'Show Time:'),
+      eventImageUrl: imageUrl,
+      callToActionUrl: this.extractNoteValue(existingNotes, 'Call to Action URL:'),
+      hostNotes: null,
+    });
+
+    const { error: hostNotesError } = await this.adminSupabase
+      .from('tjs_event_hosts')
+      .update({ notes: notes || null })
+      .eq('event_id', eventId)
+      .eq('host_id', hostAssignmentResult.data.host_id as number);
+
+    return hostNotesError ? hostNotesError.message : null;
+  }
+
+  async addArtistWorkspaceEventComment(
+    profileId: string,
+    eventId: string,
+    body: string,
+    standaloneCommentLine: string,
+  ): Promise<string | null> {
+    const scopedEvent = await this.getArtistWorkspaceEventDetail(profileId, eventId);
+    if (!scopedEvent) {
+      return 'You do not have access to this event.';
+    }
+
+    if (scopedEvent.request_detail?.id) {
+      return this.addArtistWorkspaceRequestComment(scopedEvent.request_detail.id, profileId, body);
+    }
+
+    const hostAssignmentResult = await this.adminSupabase
+      .from('tjs_event_hosts')
+      .select('host_id, notes')
+      .eq('event_id', eventId)
+      .limit(1)
+      .maybeSingle();
+
+    if (hostAssignmentResult.error || !hostAssignmentResult.data?.host_id) {
+      return hostAssignmentResult.error?.message ?? 'The event is missing an assigned host.';
+    }
+
+    const existingNotes = ((hostAssignmentResult.data.notes as string | null | undefined) ?? '').trim();
+    const nextNotes = [existingNotes, standaloneCommentLine.trim()].filter(Boolean).join('\n');
+    const { error } = await this.adminSupabase
+      .from('tjs_event_hosts')
+      .update({ notes: nextNotes || null })
+      .eq('event_id', eventId)
+      .eq('host_id', hostAssignmentResult.data.host_id as number);
+
+    return error ? error.message : null;
+  }
+
+  async saveArtistWorkspaceEventMedia(
+    profileId: string,
+    eventId: string,
+    media: ArtistRequestMediaEntry[],
+  ): Promise<string | null> {
+    const scopedEvent = await this.getArtistWorkspaceEventDetail(profileId, eventId);
+    if (!scopedEvent) {
+      return 'You do not have access to this event.';
+    }
+
+    const normalizedMedia = media
+      .map((item) => ({
+        media_type: item.media_type === 'CD' ? 'CD' as const : 'Video' as const,
+        image_url: item.image_url || null,
+        name: item.name.trim(),
+        description: item.description.trim(),
+        url: item.url.trim(),
+      }))
+      .filter((item) => item.name || item.description || item.url || item.image_url)
+      .map((item) => ({
+        ...item,
+        name: item.name || 'Untitled media',
+      }));
+
+    if (scopedEvent.request_detail?.id) {
+      const requestId = scopedEvent.request_detail.id;
+      const { error: mediaDeleteError } = await this.adminSupabase
+        .from('tjs_artist_request_media')
+        .delete()
+        .eq('request_id', requestId);
+
+      if (mediaDeleteError) {
+        if (this.isMissingSchemaError(mediaDeleteError)) {
+          return 'Artist request media tables are missing in the database. Run db/021_artist_workspace_requests.sql.';
+        }
+        return mediaDeleteError.message;
+      }
+
+      if (normalizedMedia.length > 0) {
+        const timestamp = new Date().toISOString();
+        const { error: mediaInsertError } = await this.adminSupabase
+          .from('tjs_artist_request_media')
+          .insert(normalizedMedia.map((item) => ({
+            request_id: requestId,
+            media_type: item.media_type,
+            image_url: item.image_url,
+            name: item.name,
+            description: item.description || null,
+            url: item.url || null,
+            updated_at: timestamp,
+          })));
+
+        if (mediaInsertError) {
+          if (this.isMissingSchemaError(mediaInsertError)) {
+            return 'Artist request media tables are missing in the database. Run db/021_artist_workspace_requests.sql.';
+          }
+          return mediaInsertError.message;
+        }
+      }
+
+      await this.adminSupabase
+        .from('tjs_artist_requests')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('id', requestId);
+
+      return null;
+    }
+
+    const hostAssignmentResult = await this.adminSupabase
+      .from('tjs_event_hosts')
+      .select('host_id, notes')
+      .eq('event_id', eventId)
+      .limit(1)
+      .maybeSingle();
+
+    if (hostAssignmentResult.error || !hostAssignmentResult.data?.host_id) {
+      return hostAssignmentResult.error?.message ?? 'The event is missing an assigned host.';
+    }
+
+    const nextNotes = this.replaceHostNoteMediaEntries(
+      (hostAssignmentResult.data.notes as string | null | undefined) ?? '',
+      normalizedMedia,
+    );
+    const { error } = await this.adminSupabase
+      .from('tjs_event_hosts')
+      .update({ notes: nextNotes || null })
+      .eq('event_id', eventId)
+      .eq('host_id', hostAssignmentResult.data.host_id as number);
+
+    return error ? error.message : null;
   }
 
   async updateHostWorkspaceEventSchedule(
@@ -10353,12 +10677,12 @@ export class SupabaseService {
       .filter((line) => line.startsWith('- '))
       .map((line) => line.replace(/^- /, '').trim())
       .map((line) => {
-        const [mediaType, name, url, imageUrl] = line.split('|').map((item) => item.trim());
+        const [mediaType, name, url, imageUrl, description] = line.split('|').map((item) => item.trim());
         return {
           media_type: mediaType || 'Video',
           image_url: imageUrl && imageUrl !== 'No image' ? imageUrl : null,
           name: name || 'Untitled media',
-          description: '',
+          description: description && description !== 'No description' ? description : '',
           url: url && url !== 'No link' ? url : '',
         };
       });
@@ -10445,10 +10769,12 @@ export class SupabaseService {
       scheduleEntries?: Array<{ mode: 'day_show' | 'period'; startDate: string; endDate: string; showTime?: string; locationLabel?: string }> | null;
     },
   ): string {
-    const filteredLines = (existingNotes ?? '')
+    const existingLines = (existingNotes ?? '')
       .split('\n')
       .map((line) => line.trim())
-      .filter((line) => !!line)
+      .filter((line) => !!line);
+    const commentLines = existingLines.filter((line) => line.startsWith('[COMMENT]'));
+    const filteredLines = existingLines
       .filter((line) =>
         !line.startsWith('Event Domain:')
         && !line.startsWith('Edition:')
@@ -10477,10 +10803,55 @@ export class SupabaseService {
     const freeformLines = hasHostNotesInput
       ? (freeformText ? freeformText.split('\n').map((line) => line.trimEnd()) : [])
       : filteredLines;
+    const freeformWithComments = [...freeformLines];
+    for (const commentLine of commentLines) {
+      if (!freeformWithComments.some((line) => line.trim() === commentLine.trim())) {
+        freeformWithComments.push(commentLine);
+      }
+    }
 
-    return [...structuredLines, ...freeformLines]
+    return [...structuredLines, ...freeformWithComments]
       .filter((line) => !!line.trim())
       .join('\n');
+  }
+
+  private replaceHostNoteMediaEntries(
+    existingNotes: string | null | undefined,
+    mediaEntries: Array<{ media_type: 'CD' | 'Video'; image_url: string | null; name: string; description: string; url: string }>,
+  ): string {
+    const retainedLines: string[] = [];
+    let isMediaBlock = false;
+
+    for (const line of (existingNotes ?? '').split('\n')) {
+      const trimmed = line.trim();
+      if (trimmed === 'Media:') {
+        isMediaBlock = true;
+        continue;
+      }
+
+      if (isMediaBlock && trimmed.startsWith('- ')) {
+        continue;
+      }
+
+      isMediaBlock = false;
+      if (trimmed) {
+        retainedLines.push(line.trimEnd());
+      }
+    }
+
+    return [...retainedLines, ...this.buildHostNoteMediaLines(mediaEntries)]
+      .filter((line) => !!line.trim())
+      .join('\n');
+  }
+
+  private buildHostNoteMediaLines(
+    mediaEntries: Array<{ media_type: 'CD' | 'Video'; image_url: string | null; name: string; description: string; url: string }>,
+  ): string[] {
+    const mediaLines = mediaEntries.map((item) =>
+      `- ${item.media_type} | ${item.name.trim() || 'Untitled media'} | ${item.url.trim() || 'No link'} | ${item.image_url || 'No image'} | ${item.description.trim() || 'No description'}`
+    );
+
+    return mediaLines.length > 0 ? ['Media:', ...mediaLines] : [];
   }
 
   private extractScheduleEntries(

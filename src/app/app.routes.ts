@@ -48,7 +48,6 @@ import { ArtistWorkspacePage } from './backoffice/artist-workspace-page/artist-w
 import { HostEvents } from './backoffice/host-events/host-events';
 import { HostEventDetail } from './backoffice/host-event-detail/host-event-detail';
 import { ArtistEvents } from './backoffice/artist-events/artist-events';
-import { ArtistEventDetail } from './backoffice/artist-event-detail/artist-event-detail';
 import { HostArtists } from './backoffice/host-artists/host-artists';
 import { HostNewEvent } from './backoffice/host-new-event/host-new-event';
 import { ArtistProfile } from './backoffice/artist-profile/artist-profile';
@@ -201,7 +200,7 @@ export const routes: Routes = [
             { path: 'artist-requests', component: ArtistRequests, canActivate: [roleGuard(['Artist', 'Artist Invited'])] },
             { path: 'artist-availability', component: ArtistAvailability, canActivate: [roleGuard(['Artist', 'Artist Invited'])] },
             { path: 'artist-events', component: ArtistEvents, canActivate: [roleGuard(['Artist', 'Artist Invited'])] },
-            { path: 'artist-events/:id', component: ArtistEventDetail, canActivate: [roleGuard(['Artist', 'Artist Invited'])] },
+            { path: 'artist-events/:id', component: HostEventDetail, canActivate: [roleGuard(['Artist', 'Artist Invited'])] },
             { path: 'artist-messages', component: ArtistMessages, canActivate: [roleGuard(['Artist', 'Artist Invited'])] },
             { path: 'committee-messages', component: ArtistMessages, canActivate: [roleGuard(['Committee Member'])] },
             { path: 'artist-notifications', component: ArtistNotifications, canActivate: [roleGuard(['Artist', 'Artist Invited'])] },

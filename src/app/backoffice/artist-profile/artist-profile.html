@@ -275,6 +275,10 @@
           <label class="text-sm font-medium text-zinc-700">Website</label>
           <input [(ngModel)]="profile.website" [disabled]="!isEditing" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-500" />
         </div>
+        <div class="space-y-2 md:col-span-2">
+          <label class="text-sm font-medium text-zinc-700">Address</label>
+          <input [(ngModel)]="profile.address" [disabled]="!isEditing" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-500" />
+        </div>
         <div class="space-y-2">
           <label class="text-sm font-medium text-zinc-700">City</label>
           <input [(ngModel)]="profile.city" [disabled]="!isEditing" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-500" />

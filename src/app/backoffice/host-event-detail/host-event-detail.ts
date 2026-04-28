@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import {
+  ArtistRequestMediaEntry,
   ArtistRequestCommentEntry,
   EventEditionOption,
   EventTypeOption,
@@ -63,6 +64,7 @@ export class HostEventDetail implements OnInit {
   isEditingDetails = false;
   isEditingHostNotes = false;
   isEditingSchedule = false;
+  isEditingMedia = false;
   isSubmittingComment = false;
   error = '';
   successMessage = '';
@@ -90,6 +92,7 @@ export class HostEventDetail implements OnInit {
     showTime: '',
     locationId: null,
   };
+  mediaForm: ArtistRequestMediaEntry[] = [];
 
   async ngOnInit() {
     await this.authService.waitForAuthReady();
@@ -114,7 +117,9 @@ export class HostEventDetail implements OnInit {
           ? this.supabase.getAdminWorkspaceEventDetail(eventId)
           : this.isCommitteeMember
             ? this.supabase.getCommitteeWorkspaceEventDetail(eventId)
-            : this.supabase.getHostWorkspaceEventDetail(profileId, eventId),
+            : this.isArtistWorkspace
+              ? this.supabase.getArtistWorkspaceEventDetail(profileId, eventId)
+              : this.supabase.getHostWorkspaceEventDetail(profileId, eventId),
         this.supabase.listEventDomains(),
         this.supabase.listConcreteEventEditionOptions(),
         this.supabase.listEventTypeOptions(),
@@ -160,12 +165,31 @@ export class HostEventDetail implements OnInit {
     return this.authService.isAdmin;
   }
 
+  get isArtistWorkspace(): boolean {
+    return this.authService.isArtist
+      && !this.authService.isAdmin
+      && !this.isCommitteeMember
+      && !this.authService.hasAnyRole(['Host', 'Host+', 'Host Manager']);
+  }
+
   get canEditEvent(): boolean {
-    return !this.isCommitteeMember;
+    return !this.isCommitteeMember && !this.isArtistWorkspace;
+  }
+
+  get canEditEventDetails(): boolean {
+    return !!this.event && !this.isCommitteeMember && (this.canEditEvent || this.isArtistWorkspace);
+  }
+
+  get canEditEventImage(): boolean {
+    return !!this.event && !this.isCommitteeMember && (this.canEditEvent || this.isArtistWorkspace);
+  }
+
+  get canEditEventMedia(): boolean {
+    return !!this.event && this.isArtistWorkspace;
   }
 
   get canCommentOnEvent(): boolean {
-    return !!this.event && (this.isCommitteeMember || this.isAdmin || this.authService.isHostManager);
+    return !!this.event && (this.isArtistWorkspace || this.isCommitteeMember || this.isAdmin || this.authService.isHostManager);
   }
 
   get canViewCommentsSection(): boolean {
@@ -173,13 +197,14 @@ export class HostEventDetail implements OnInit {
       this.isCommitteeMember
       || this.isAdmin
       || this.authService.isHostManager
+      || this.isArtistWorkspace
       || (this.event.request_detail?.comments?.length ?? 0) > 0
       || this.standaloneCommentLines.length > 0
     );
   }
 
   get shouldShowHostNotes(): boolean {
-    return !this.isCommitteeMember;
+    return !this.isCommitteeMember && !this.isArtistWorkspace;
   }
 
   get isActive(): boolean {
@@ -188,6 +213,30 @@ export class HostEventDetail implements OnInit {
 
   get detailTitle(): string {
     return this.event?.request_detail?.event_title || this.event?.title || 'Event Detail';
+  }
+
+  get eventViewLabel(): string {
+    if (this.isCommitteeMember) {
+      return 'Committee Event View';
+    }
+
+    if (this.isArtistWorkspace) {
+      return 'Artist Event';
+    }
+
+    return 'Host Event';
+  }
+
+  get readonlySummaryText(): string {
+    if (this.isCommitteeMember) {
+      return 'This workspace is read-only for event data. You can review the event and add committee comments.';
+    }
+
+    if (this.isArtistWorkspace) {
+      return 'You can update event details, media, images, and comments for events where you are assigned as a primary or invited artist.';
+    }
+
+    return 'This workspace is read-only for event data.';
   }
 
   get primaryHostName(): string {
@@ -270,7 +319,7 @@ export class HostEventDetail implements OnInit {
     }));
   }
 
-  get mediaEntries() {
+  get mediaEntries(): ArtistRequestMediaEntry[] {
     if (this.event?.request_detail?.media?.length) {
       return this.event.request_detail.media;
     }
@@ -308,8 +357,12 @@ export class HostEventDetail implements OnInit {
     return item.id;
   }
 
+  trackByMedia(index: number, item: ArtistRequestMediaEntry) {
+    return item.id ?? `${item.media_type}-${index}`;
+  }
+
   async saveDetails() {
-    if (!this.canEditEvent) {
+    if (!this.canEditEventDetails) {
       return;
     }
 
@@ -333,7 +386,9 @@ export class HostEventDetail implements OnInit {
 
     const error = this.isAdmin
       ? await this.supabase.updateAdminWorkspaceEventDetail(this.event.id, payload)
-      : await this.supabase.updateHostWorkspaceEventDetail(profileId, this.event.id, payload);
+      : this.isArtistWorkspace
+        ? await this.supabase.updateArtistWorkspaceEventDetail(profileId, this.event.id, payload)
+        : await this.supabase.updateHostWorkspaceEventDetail(profileId, this.event.id, payload);
     if (error) {
       this.error = error;
       this.isUpdating = false;
@@ -348,7 +403,7 @@ export class HostEventDetail implements OnInit {
   }
 
   async onEventImageSelected(event: Event) {
-    if (!this.canEditEvent) {
+    if (!this.canEditEventImage) {
       return;
     }
 
@@ -374,7 +429,9 @@ export class HostEventDetail implements OnInit {
 
     const saveError = this.isAdmin
       ? await this.supabase.updateAdminWorkspaceEventImage(this.event.id, uploadResult.url)
-      : await this.supabase.updateHostWorkspaceEventImage(profileId, this.event.id, uploadResult.url);
+      : this.isArtistWorkspace
+        ? await this.supabase.updateArtistWorkspaceEventImage(profileId, this.event.id, uploadResult.url)
+        : await this.supabase.updateHostWorkspaceEventImage(profileId, this.event.id, uploadResult.url);
     if (saveError) {
       this.error = saveError;
       this.isImageUploading = false;
@@ -495,7 +552,7 @@ export class HostEventDetail implements OnInit {
   }
 
   startEditingDetails() {
-    if (!this.canEditEvent) {
+    if (!this.canEditEventDetails) {
       return;
     }
 
@@ -507,6 +564,99 @@ export class HostEventDetail implements OnInit {
   cancelEditingDetails() {
     this.isEditingDetails = false;
     this.resetFormFromEvent();
+  }
+
+  startEditingMedia() {
+    if (!this.canEditEventMedia) {
+      return;
+    }
+
+    this.mediaForm = this.mediaEntries.map((item) => this.cloneMediaEntry(item));
+    this.isEditingMedia = true;
+    this.successMessage = '';
+    this.error = '';
+  }
+
+  cancelEditingMedia() {
+    this.isEditingMedia = false;
+    this.resetMediaFormFromEvent();
+  }
+
+  addMedia(mediaType: 'CD' | 'Video') {
+    if (!this.canEditEventMedia || !this.isEditingMedia) {
+      return;
+    }
+
+    this.mediaForm = [
+      ...this.mediaForm,
+      this.blankMediaEntry(mediaType),
+    ];
+  }
+
+  removeMedia(index: number) {
+    if (!this.canEditEventMedia || !this.isEditingMedia) {
+      return;
+    }
+
+    this.mediaForm = this.mediaForm.filter((_, currentIndex) => currentIndex !== index);
+  }
+
+  async onMediaImageSelected(event: Event, index: number) {
+    if (!this.canEditEventMedia || !this.isEditingMedia) {
+      return;
+    }
+
+    const profileId = this.authService.currentProfile?.id ?? this.authService.currentUser?.id ?? '';
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!profileId || !file || !this.mediaForm[index]) {
+      return;
+    }
+
+    this.isImageUploading = true;
+    this.error = '';
+    this.successMessage = '';
+
+    const uploadResult = await this.supabase.uploadArtistWorkspaceRequestImage(profileId, file, 'request-media');
+    if (uploadResult.error || !uploadResult.url) {
+      this.error = uploadResult.error ?? 'Media image upload failed.';
+      this.isImageUploading = false;
+      input.value = '';
+      return;
+    }
+
+    this.mediaForm = this.mediaForm.map((item, currentIndex) =>
+      currentIndex === index ? { ...item, image_url: uploadResult.url } : item
+    );
+    this.isImageUploading = false;
+    input.value = '';
+  }
+
+  async saveMedia() {
+    if (!this.canEditEventMedia) {
+      return;
+    }
+
+    const profileId = this.authService.currentProfile?.id ?? this.authService.currentUser?.id ?? '';
+    if (!profileId || !this.event) {
+      return;
+    }
+
+    this.isUpdating = true;
+    this.error = '';
+    this.successMessage = '';
+
+    const error = await this.supabase.saveArtistWorkspaceEventMedia(profileId, this.event.id, this.mediaForm);
+    if (error) {
+      this.error = error;
+      this.isUpdating = false;
+      return;
+    }
+
+    await this.loadData();
+    this.successMessage = 'Event media updated.';
+    this.isEditingMedia = false;
+    this.isUpdating = false;
   }
 
   startEditingHostNotes() {
@@ -633,13 +783,15 @@ export class HostEventDetail implements OnInit {
     this.successMessage = '';
 
     const standaloneCommentLine = this.buildStandaloneCommentLine(body);
-    const error = requestId
-      ? await this.supabase.addArtistWorkspaceRequestComment(requestId, profileId, body)
-      : this.isAdmin
-        ? await this.supabase.appendAdminWorkspaceEventComment(eventId, standaloneCommentLine)
-        : this.authService.isHostManager
-          ? await this.supabase.appendHostWorkspaceEventComment(profileId, eventId, standaloneCommentLine)
-          : 'Comments can only be added to request-backed events from this workspace.';
+    const error = this.isArtistWorkspace
+      ? await this.supabase.addArtistWorkspaceEventComment(profileId, eventId, body, standaloneCommentLine)
+      : requestId
+        ? await this.supabase.addArtistWorkspaceRequestComment(requestId, profileId, body)
+        : this.isAdmin
+          ? await this.supabase.appendAdminWorkspaceEventComment(eventId, standaloneCommentLine)
+          : this.authService.isHostManager
+            ? await this.supabase.appendHostWorkspaceEventComment(profileId, eventId, standaloneCommentLine)
+            : 'Comments can only be added to request-backed events from this workspace.';
     if (error) {
       this.error = error;
       this.isSubmittingComment = false;
@@ -670,6 +822,7 @@ export class HostEventDetail implements OnInit {
       hostNotes: this.extractFreeformHostNotes(this.event.host_notes),
     };
     this.resetScheduleFormFromEvent();
+    this.resetMediaFormFromEvent();
   }
 
   private resetScheduleFormFromEvent() {
@@ -807,9 +960,36 @@ export class HostEventDetail implements OnInit {
         ? 'Committee Member'
         : this.authService.isHostManager
           ? 'Host Manager'
-          : 'Host';
+          : this.isArtistWorkspace
+            ? 'Artist'
+            : 'Host';
 
     return `[COMMENT] ${timestamp}|${encodeURIComponent(authorName)}|${encodeURIComponent(authorRole)}|${encodeURIComponent(body)}`;
+  }
+
+  private resetMediaFormFromEvent() {
+    this.mediaForm = this.mediaEntries.map((item) => this.cloneMediaEntry(item));
+  }
+
+  private cloneMediaEntry(item: ArtistRequestMediaEntry): ArtistRequestMediaEntry {
+    return {
+      id: item.id,
+      media_type: item.media_type === 'CD' ? 'CD' : 'Video',
+      image_url: item.image_url ?? null,
+      name: item.name ?? '',
+      description: item.description ?? '',
+      url: item.url ?? '',
+    };
+  }
+
+  private blankMediaEntry(mediaType: 'CD' | 'Video'): ArtistRequestMediaEntry {
+    return {
+      media_type: mediaType,
+      image_url: null,
+      name: '',
+      description: '',
+      url: '',
+    };
   }
 
   private extractNoteValue(notes: string | null | undefined, prefix: string): string | null {
@@ -840,12 +1020,12 @@ export class HostEventDetail implements OnInit {
       .filter((line) => line.startsWith('- '))
       .map((line) => line.replace(/^- /, '').trim())
       .map((line) => {
-        const [mediaType, name, url, imageUrl] = line.split('|').map((item) => item.trim());
+        const [mediaType, name, url, imageUrl, description] = line.split('|').map((item) => item.trim());
         return {
-          media_type: mediaType || 'Video',
+          media_type: mediaType === 'CD' ? 'CD' as const : 'Video' as const,
           image_url: imageUrl && imageUrl !== 'No image' ? imageUrl : null,
           name: name || 'Untitled media',
-          description: '',
+          description: description && description !== 'No description' ? description : '',
           url: url && url !== 'No link' ? url : '',
         };
       });

@@ -13,11 +13,15 @@ CREATE TABLE IF NOT EXISTS public.tjs_artist_profiles (
     short_biography text,
     long_biography text,
     website text,
+    address text,
     city text,
     country text,
     created_at timestamptz DEFAULT now(),
     updated_at timestamptz DEFAULT now()
 );
+
+ALTER TABLE public.tjs_artist_profiles
+ADD COLUMN IF NOT EXISTS address text;
 
 CREATE TABLE IF NOT EXISTS public.tjs_artist_profile_performances (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -414,6 +414,19 @@
           </li>
           <li>
             <a
+              routerLink="/backoffice/artist-requirements"
+              routerLinkActive="bg-zinc-700 text-white"
+              class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+            >
+              <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 11l3 3L22 4"></path>
+                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+              </svg>
+              <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Requirements</span>
+            </a>
+          </li>
+          <li>
+            <a
               routerLink="/backoffice/artist-media"
               routerLinkActive="bg-zinc-700 text-white"
               class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"

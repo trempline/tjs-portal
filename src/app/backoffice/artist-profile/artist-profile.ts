@@ -59,6 +59,7 @@ export class ArtistProfile implements OnInit {
       email: '',
       phone: '',
       website: '',
+      address: '',
       city: '',
       country: '',
       performance_types: [],
