@@ -1,7 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { SharedModule } from '../shared/shared-module';
 import { AuthService } from '../services/auth.service';
 import { SupabaseService } from '../services/supabase.service';
@@ -14,6 +14,7 @@ import { SupabaseService } from '../services/supabase.service';
 export class HostLogin {
   private authService = inject(AuthService);
   private router = inject(Router);
+  private route = inject(ActivatedRoute);
   private supabase = inject(SupabaseService);
 
   credentials = {
@@ -29,6 +30,28 @@ export class HostLogin {
   resetError = '';
   resetSuccess = '';
   isResetting = false;
+
+  get isHostPlusLogin(): boolean {
+    return this.route.snapshot.data['hostPlusLogin'] === true;
+  }
+
+  get portalTitle(): string {
+    return this.isHostPlusLogin ? 'Host+ Portal' : 'Host Portal';
+  }
+
+  get portalSubtitle(): string {
+    return this.isHostPlusLogin
+      ? 'Sign in to manage your Host+ events and settings'
+      : 'Welcome back! Sign in to manage your events';
+  }
+
+  get emailPlaceholder(): string {
+    return this.isHostPlusLogin ? 'hostplus@example.com' : 'host@example.com';
+  }
+
+  get submitLabel(): string {
+    return this.isHostPlusLogin ? 'Sign in to Host+ Portal' : 'Sign in to Host Portal';
+  }
 
   togglePasswordVisibility() {
     this.showPassword = !this.showPassword;
@@ -58,7 +81,21 @@ export class HostLogin {
       await this.authService.waitForAuthReady();
 
       const isHost = this.authService.hasAnyRole(['Host', 'Host+']);
+      const isHostPlus = this.authService.hasRole('Host+');
       const isHostManager = this.authService.isHostManager;
+
+      if (this.isHostPlusLogin) {
+        if (!isHostPlus || isHostManager) {
+          await this.authService.signOut();
+          this.errorMessage = 'This login is for Host+ users only.';
+          this.isLoading = false;
+          return;
+        }
+
+        this.router.navigate(['/backoffice/host-plus/home']);
+        this.isLoading = false;
+        return;
+      }
 
       if (!isHost || isHostManager) {
         await this.authService.signOut();
@@ -67,7 +104,7 @@ export class HostLogin {
         return;
       }
 
-      this.router.navigate(['/backoffice/host/dashboard']);
+      this.router.navigate([isHostPlus ? '/backoffice/host-plus/home' : '/backoffice/host/dashboard']);
     } else {
       this.errorMessage = this.mapError(result.error);
     }

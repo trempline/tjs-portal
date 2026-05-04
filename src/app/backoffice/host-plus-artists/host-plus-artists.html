@@ -1,0 +1,94 @@
+<div class="space-y-6">
+  <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-zinc-900">Host+ Artists</h1>
+      <p class="mt-1 text-sm text-zinc-500">{{ hostName }} - {{ databaseLabel }}</p>
+    </div>
+
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+      <input
+        [(ngModel)]="searchQuery"
+        type="text"
+        placeholder="Search artists..."
+        class="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 shadow-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20 sm:w-72"
+      />
+      <button
+        type="button"
+        (click)="loadData()"
+        class="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 shadow-sm transition-colors hover:bg-zinc-50"
+      >
+        Refresh
+      </button>
+    </div>
+  </div>
+
+  <div *ngIf="error" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+    {{ error }}
+  </div>
+
+  <div class="grid gap-4 md:grid-cols-3">
+    <div class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Loaded Artists</p>
+      <p class="mt-1 text-2xl font-bold text-zinc-900">{{ artists.length }}</p>
+    </div>
+    <div class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wide text-emerald-600">Active</p>
+      <p class="mt-1 text-2xl font-bold text-zinc-900">{{ activeCount }}</p>
+    </div>
+    <div class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Source</p>
+      <p class="mt-2 text-sm font-semibold text-zinc-800">{{ sourceLabel }}</p>
+    </div>
+  </div>
+
+  <div class="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
+    <div *ngIf="isLoading" class="flex items-center justify-center py-16">
+      <div class="h-8 w-8 animate-spin rounded-full border-4 border-zinc-200 border-t-red-600"></div>
+    </div>
+
+    <div *ngIf="!isLoading && !error && filteredArtists.length === 0" class="px-5 py-16 text-center text-zinc-400">
+      <p class="text-sm font-medium">No artists found</p>
+      <p class="mt-1 text-xs">No matching artists were returned from the Host+ database.</p>
+    </div>
+
+    <div *ngIf="!isLoading && filteredArtists.length > 0" class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="border-b border-zinc-200 bg-zinc-50">
+          <tr>
+            <th class="px-5 py-3 text-left font-semibold text-zinc-600">Artist</th>
+            <th class="px-5 py-3 text-left font-semibold text-zinc-600">Email</th>
+            <th class="px-5 py-3 text-left font-semibold text-zinc-600">Phone</th>
+            <th class="px-5 py-3 text-left font-semibold text-zinc-600">Status</th>
+            <th class="px-5 py-3 text-left font-semibold text-zinc-600">Featured</th>
+            <th class="px-5 py-3 text-left font-semibold text-zinc-600">Created</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-zinc-100">
+          <tr *ngFor="let artist of filteredArtists; trackBy: trackByArtist" class="transition-colors hover:bg-zinc-50">
+            <td class="px-5 py-4">
+              <div class="flex items-center gap-3">
+                <div class="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-zinc-800 text-sm font-bold text-white">
+                  <img *ngIf="artist.photo_url; else avatarFallback" [src]="artist.photo_url" [alt]="artist.display_name" class="h-full w-full object-cover" />
+                  <ng-template #avatarFallback>{{ avatarLetter(artist) }}</ng-template>
+                </div>
+                <div>
+                  <div class="font-semibold text-zinc-900">{{ artist.display_name }}</div>
+                  <div class="text-xs text-zinc-400">{{ artist.source_table }}</div>
+                </div>
+              </div>
+            </td>
+            <td class="px-5 py-4 text-zinc-600">{{ artist.email || '-' }}</td>
+            <td class="px-5 py-4 text-zinc-600">{{ artist.phone || '-' }}</td>
+            <td class="px-5 py-4">
+              <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold" [ngClass]="statusClass(artist)">
+                {{ artist.status_label }}
+              </span>
+            </td>
+            <td class="px-5 py-4 text-zinc-600">{{ artist.is_featured ? 'Yes' : 'No' }}</td>
+            <td class="px-5 py-4 text-zinc-600">{{ artist.created_at ? (artist.created_at | date:'dd/MM/yyyy') : '-' }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,176 @@
+<div class="space-y-6">
+  <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+    <div>
+      <a
+        [routerLink]="backLink"
+        class="mb-3 inline-flex items-center gap-2 text-sm font-medium text-zinc-500 transition-colors hover:text-zinc-800"
+      >
+        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="m15 18-6-6 6-6"></path>
+        </svg>
+        {{ backLabel }}
+      </a>
+      <h1 class="text-2xl font-bold text-zinc-900">Host+ Events</h1>
+      <p class="mt-1 text-sm text-zinc-500">{{ hostName }} - {{ databaseLabel }}</p>
+    </div>
+
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+      <input
+        [(ngModel)]="searchQuery"
+        type="text"
+        placeholder="Search event title..."
+        class="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 shadow-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20 sm:w-72"
+      />
+      <button
+        type="button"
+        (click)="loadData()"
+        class="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 shadow-sm transition-colors hover:bg-zinc-50"
+      >
+        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
+          <path d="M3 21v-5h5"></path>
+          <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
+          <path d="M16 8h5V3"></path>
+        </svg>
+        Refresh
+      </button>
+    </div>
+  </div>
+
+  <div class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+    <div class="grid gap-3 md:grid-cols-4 xl:grid-cols-5">
+      <div>
+        <label class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Domain</label>
+        <select
+          [(ngModel)]="selectedDomain"
+          class="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20"
+        >
+          <option value="all">All domains</option>
+          <option *ngFor="let domain of domainOptions" [value]="domain">{{ domain }}</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Edition</label>
+        <select
+          [(ngModel)]="selectedEdition"
+          class="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20"
+        >
+          <option value="all">All editions</option>
+          <option *ngFor="let edition of editionOptions" [value]="edition">{{ edition }}</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Type</label>
+        <select
+          [(ngModel)]="selectedType"
+          class="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20"
+        >
+          <option value="all">All types</option>
+          <option *ngFor="let type of typeOptions" [value]="type">{{ type }}</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Sort By</label>
+        <select
+          [(ngModel)]="sortBy"
+          class="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20"
+        >
+          <option value="date-desc">Date, latest first</option>
+          <option value="date-asc">Date, oldest first</option>
+        </select>
+      </div>
+      <div class="flex items-end">
+        <button
+          type="button"
+          (click)="clearFilters()"
+          class="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50"
+        >
+          Clear
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div *ngIf="error" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+    {{ error }}
+  </div>
+
+  <div class="grid gap-4 md:grid-cols-3">
+    <div class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Loaded Events</p>
+      <p class="mt-1 text-2xl font-bold text-zinc-900">{{ items.length }}</p>
+    </div>
+    <div class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Active</p>
+      <p class="mt-1 text-2xl font-bold text-zinc-900">{{ activeCount }}</p>
+    </div>
+    <div class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Source</p>
+      <p class="mt-2 text-sm font-semibold text-zinc-800">{{ sourceLabel }}</p>
+    </div>
+  </div>
+
+  <div class="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
+    <div *ngIf="isLoading" class="flex items-center justify-center py-16">
+      <div class="h-8 w-8 animate-spin rounded-full border-4 border-zinc-200 border-t-red-600"></div>
+    </div>
+
+    <div *ngIf="!isLoading && !error && filteredEvents.length === 0" class="px-5 py-16 text-center text-zinc-400">
+      <svg class="mx-auto mb-3 h-12 w-12 text-zinc-300" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+        <line x1="16" y1="2" x2="16" y2="6"></line>
+        <line x1="8" y1="2" x2="8" y2="6"></line>
+        <line x1="3" y1="10" x2="21" y2="10"></line>
+      </svg>
+      <p class="text-sm font-medium">No events found</p>
+      <p class="mt-1 text-xs">No matching events were returned from the Host+ database.</p>
+    </div>
+
+    <div *ngIf="!isLoading && filteredEvents.length > 0" class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="border-b border-zinc-200 bg-zinc-50">
+          <tr>
+            <th class="px-5 py-3 text-left font-semibold text-zinc-600">Event</th>
+            <th class="px-5 py-3 text-left font-semibold text-zinc-600">Domain</th>
+            <th class="px-5 py-3 text-left font-semibold text-zinc-600">Edition</th>
+            <th class="px-5 py-3 text-left font-semibold text-zinc-600">Type</th>
+            <th class="px-5 py-3 text-left font-semibold text-zinc-600">Schedule</th>
+            <th class="px-5 py-3 text-left font-semibold text-zinc-600">Created</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-zinc-100">
+          <tr *ngFor="let item of filteredEvents" (click)="openEvent(item)" class="cursor-pointer transition-colors hover:bg-zinc-50">
+            <td class="px-5 py-4 align-top">
+              <div class="font-semibold text-zinc-900">{{ item.title }}</div>
+              <div *ngIf="item.teaser" class="mt-1 max-w-md text-xs text-zinc-500">{{ item.teaser }}</div>
+              <a
+                *ngIf="item.booking_url"
+                [href]="item.booking_url"
+                target="_blank"
+                rel="noreferrer"
+                (click)="$event.stopPropagation()"
+                class="mt-1 inline-flex text-xs font-medium text-red-600 hover:underline"
+              >
+                Booking link
+              </a>
+              <div class="mt-1 text-xs font-medium text-red-600">Open details</div>
+            </td>
+            <td class="px-5 py-4 text-zinc-600">{{ item.event_domain_name || '-' }}</td>
+            <td class="px-5 py-4 text-zinc-600">{{ item.edition_name || '-' }}</td>
+            <td class="px-5 py-4 text-zinc-600">{{ item.event_type_name || '-' }}</td>
+            <td class="px-5 py-4 text-zinc-600">
+              <div *ngIf="item.schedule_entries.length === 0">{{ item.date_summary }}</div>
+              <div *ngFor="let entry of visibleScheduleEntries(item)" class="whitespace-nowrap text-xs">
+                {{ formatScheduleEntry(entry) }}
+              </div>
+              <div *ngIf="extraScheduleCount(item) > 0" class="mt-1 text-xs font-medium text-zinc-400">
+                +{{ extraScheduleCount(item) }} more
+              </div>
+            </td>
+            <td class="px-5 py-4 text-zinc-600">{{ item.created_at ? (item.created_at | date:'dd/MM/yyyy') : '-' }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

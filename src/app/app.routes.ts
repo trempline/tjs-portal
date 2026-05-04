@@ -122,6 +122,11 @@ export const routes: Routes = [
         component: HostLogin,
     },
     {
+        path: 'host-plus-login',
+        component: HostLogin,
+        data: { hostPlusLogin: true },
+    },
+    {
         path: 'member-login',
         component: MemberLogin,
     },
@@ -159,6 +164,54 @@ export const routes: Routes = [
             { path: 'artists/non-tjs/:id', component: CommitteeArtistDetail, canActivate: [roleGuard(['Committee Member'])] },
             { path: 'artists/:id', component: CommitteeArtistDetail, canActivate: [roleGuard(['Admin', 'Committee Member'])] },
             { path: 'hosts', component: Hosts, canActivate: [roleGuard(['Admin'])] },
+            { path: 'host-plus', component: Hosts, canActivate: [roleGuard(['Admin'])], data: { hostPlus: true } },
+            {
+                path: 'host-plus/home',
+                loadComponent: () => import('./backoffice/host-plus-home/host-plus-home').then(m => m.HostPlusHome),
+                canActivate: [roleGuard(['Host+'])],
+            },
+            {
+                path: 'host-plus/events',
+                loadComponent: () => import('./backoffice/host-plus-events/host-plus-events').then(m => m.HostPlusEvents),
+                canActivate: [roleGuard(['Host+'])],
+            },
+            {
+                path: 'host-plus/events/:eventId',
+                loadComponent: () => import('./backoffice/host-plus-event-detail/host-plus-event-detail').then(m => m.HostPlusEventDetail),
+                canActivate: [roleGuard(['Host+'])],
+            },
+            {
+                path: 'host-plus/events/:eventId/create-tjs',
+                loadComponent: () => import('./backoffice/host-plus-create-tjs-event/host-plus-create-tjs-event').then(m => m.HostPlusCreateTjsEvent),
+                canActivate: [roleGuard(['Host+'])],
+            },
+            {
+                path: 'host-plus/artists',
+                loadComponent: () => import('./backoffice/host-plus-artists/host-plus-artists').then(m => m.HostPlusArtists),
+                canActivate: [roleGuard(['Host+'])],
+            },
+            { path: 'host-plus/communication-center', component: ArtistMessages, canActivate: [roleGuard(['Host+'])] },
+            { path: 'host-plus/notification', component: ArtistNotifications, canActivate: [roleGuard(['Host+'])] },
+            {
+                path: 'host-plus/settings',
+                loadComponent: () => import('./backoffice/host-plus-settings/host-plus-settings').then(m => m.HostPlusSettings),
+                canActivate: [roleGuard(['Host+'])],
+            },
+            {
+                path: 'host-plus/:id/events',
+                loadComponent: () => import('./backoffice/host-plus-events/host-plus-events').then(m => m.HostPlusEvents),
+                canActivate: [roleGuard(['Admin'])],
+            },
+            {
+                path: 'host-plus/:id/events/:eventId',
+                loadComponent: () => import('./backoffice/host-plus-event-detail/host-plus-event-detail').then(m => m.HostPlusEventDetail),
+                canActivate: [roleGuard(['Admin'])],
+            },
+            {
+                path: 'host-plus/:id/events/:eventId/create-tjs',
+                loadComponent: () => import('./backoffice/host-plus-create-tjs-event/host-plus-create-tjs-event').then(m => m.HostPlusCreateTjsEvent),
+                canActivate: [roleGuard(['Admin'])],
+            },
             { path: 'locations/public', component: HostManagerPublicLocations, canActivate: [roleGuard(['Admin'])] },
             { path: 'locations/public/:id', component: HostManagerPublicLocationDetail, canActivate: [roleGuard(['Admin'])] },
             { path: 'locations/private', component: HostPrivateLocations, canActivate: [roleGuard(['Admin'])] },

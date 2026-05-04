@@ -87,6 +87,7 @@ export class HostManagerHostDetail implements OnInit {
   hostUsers: TjsUserWithRoles[] = [];
   selectedHostUserId = '';
   hostRoleId = '';
+  hostPlusRoleId = '';
   pendingUserAssignment: TjsUserWithRoles | null = null;
   pendingUserOtherHosts: Array<{ id: number; name: string | null; public_name: string | null }> = [];
   pendingRemoveMember: TjsHostMember | null = null;
@@ -161,6 +162,7 @@ export class HostManagerHostDetail implements OnInit {
       this.typeOptions = typeOptions;
       this.hostUsers = users.filter((user) => this.hasHostRole(user));
       this.hostRoleId = roles.find((role) => role.name === 'Host')?.id ?? '';
+      this.hostPlusRoleId = roles.find((role) => role.name === 'Host+')?.id ?? '';
 
       if (!details.host) {
         this.error = 'Host not found.';
@@ -490,8 +492,9 @@ export class HostManagerHostDetail implements OnInit {
       return;
     }
 
-    if (!this.hostRoleId) {
-      this.userError = 'Host role not found.';
+    const assignedRoleId = this.host?.is_host_plus ? this.hostPlusRoleId : this.hostRoleId;
+    if (!assignedRoleId) {
+      this.userError = this.host?.is_host_plus ? 'Host+ role not found.' : 'Host role not found.';
       return;
     }
 
@@ -525,14 +528,14 @@ export class HostManagerHostDetail implements OnInit {
       return;
     }
 
-    const roleError = await this.supabase.assignRole(userId, this.hostRoleId, this.currentUserId);
+    const roleError = await this.supabase.assignRole(userId, assignedRoleId, this.currentUserId);
     if (roleError) {
       this.userError = roleError;
       this.isSavingUser = false;
       return;
     }
 
-    const assignError = await this.supabase.assignHostMember(this.hostId, userId);
+    const assignError = await this.supabase.assignHostMember(this.hostId, userId, 'member', this.currentUserId);
     if (assignError) {
       this.userError = assignError;
       this.isSavingUser = false;
@@ -678,7 +681,7 @@ export class HostManagerHostDetail implements OnInit {
       return;
     }
 
-    const error = await this.supabase.assignHostMember(this.hostId, user.id);
+    const error = await this.supabase.assignHostMember(this.hostId, user.id, 'member', this.currentUserId);
     if (error) {
       this.userError = error;
       this.isSavingUser = false;

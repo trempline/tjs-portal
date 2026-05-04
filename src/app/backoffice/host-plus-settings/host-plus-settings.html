@@ -1,0 +1,173 @@
+<div class="space-y-6">
+  <div>
+    <h1 class="text-2xl font-bold text-zinc-900">Host+ Settings</h1>
+    <p class="mt-1 text-sm text-zinc-500">Change the account password and maintain the external database connection for {{ hostName }}.</p>
+  </div>
+
+  <div *ngIf="error" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+    {{ error }}
+  </div>
+
+  <div *ngIf="isLoading" class="flex items-center justify-center rounded-2xl border border-zinc-200 bg-white py-20 shadow-sm">
+    <div class="h-8 w-8 animate-spin rounded-full border-4 border-zinc-200 border-t-red-600"></div>
+  </div>
+
+  <ng-container *ngIf="!isLoading && host">
+    <section class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+      <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div>
+          <h2 class="text-lg font-semibold text-zinc-900">Change Password</h2>
+          <p class="mt-1 text-sm text-zinc-500">Update the password used to sign in to this Host+ workspace.</p>
+        </div>
+        <button
+          *ngIf="!isEditingPassword"
+          type="button"
+          (click)="startPasswordEdit()"
+          class="inline-flex w-fit items-center rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50"
+        >
+          Edit
+        </button>
+      </div>
+
+      <div *ngIf="passwordError" class="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        {{ passwordError }}
+      </div>
+      <div *ngIf="passwordSuccess" class="mt-5 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+        {{ passwordSuccess }}
+      </div>
+
+      <form class="mt-5" (ngSubmit)="changePassword()">
+        <fieldset [disabled]="!isEditingPassword || isSavingPassword" class="grid gap-4 md:grid-cols-2 disabled:opacity-75">
+          <div>
+            <label class="mb-1 block text-sm font-medium text-zinc-700">New password</label>
+            <input
+              type="password"
+              [(ngModel)]="newPassword"
+              name="newPassword"
+              placeholder="Minimum 6 characters"
+              class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20"
+            />
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-zinc-700">Confirm password</label>
+            <input
+              type="password"
+              [(ngModel)]="confirmPassword"
+              name="confirmPassword"
+              placeholder="Repeat the new password"
+              class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20"
+            />
+          </div>
+        </fieldset>
+        <div *ngIf="isEditingPassword" class="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            (click)="cancelPasswordEdit()"
+            [disabled]="isSavingPassword"
+            class="inline-flex items-center rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50 disabled:opacity-60"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            [disabled]="isSavingPassword"
+            class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-60"
+          >
+            <svg *ngIf="isSavingPassword" class="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+            </svg>
+            {{ isSavingPassword ? 'Saving...' : 'Update password' }}
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <section class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+      <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 class="text-lg font-semibold text-zinc-900">Database Settings</h2>
+          <p class="mt-1 text-sm text-zinc-500">These settings are used to load Host+ events from the external Supabase database.</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <span
+            class="inline-flex w-fit rounded-full px-3 py-1 text-xs font-semibold"
+            [class.bg-emerald-50]="databaseForm.is_active"
+            [class.text-emerald-700]="databaseForm.is_active"
+            [class.bg-zinc-100]="!databaseForm.is_active"
+            [class.text-zinc-600]="!databaseForm.is_active"
+          >
+            {{ databaseForm.is_active ? 'Active' : 'Inactive' }}
+          </span>
+          <button
+            *ngIf="!isEditingDatabase"
+            type="button"
+            (click)="startDatabaseEdit()"
+            class="inline-flex items-center rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50"
+          >
+            Edit
+          </button>
+        </div>
+      </div>
+
+      <div *ngIf="databaseError" class="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        {{ databaseError }}
+      </div>
+      <div *ngIf="databaseSuccess" class="mt-5 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+        {{ databaseSuccess }}
+      </div>
+
+      <form class="mt-5" (ngSubmit)="saveDatabaseSettings()">
+        <fieldset [disabled]="!isEditingDatabase || isSavingDatabase" class="grid gap-4 md:grid-cols-2 disabled:opacity-75">
+          <div>
+            <label class="mb-1 block text-sm font-medium text-zinc-700">Database label</label>
+            <input type="text" [(ngModel)]="databaseForm.database_label" name="database_label" placeholder="Production" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20" />
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-zinc-700">Schema</label>
+            <input type="text" [(ngModel)]="databaseForm.schema_name" name="schema_name" placeholder="public" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20" />
+          </div>
+          <div class="md:col-span-2">
+            <label class="mb-1 block text-sm font-medium text-zinc-700">Supabase URL</label>
+            <input type="url" [(ngModel)]="databaseForm.supabase_url" name="supabase_url" placeholder="https://project.supabase.co" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20" />
+          </div>
+          <div class="md:col-span-2">
+            <label class="mb-1 block text-sm font-medium text-zinc-700">Supabase anon key</label>
+            <input type="password" [(ngModel)]="databaseForm.supabase_anon_key" name="supabase_anon_key" placeholder="eyJ..." class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20" />
+          </div>
+          <div class="md:col-span-2">
+            <label class="mb-1 block text-sm font-medium text-zinc-700">Notes</label>
+            <textarea [(ngModel)]="databaseForm.notes" name="notes" rows="3" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20"></textarea>
+          </div>
+          <div class="md:col-span-2">
+            <label class="inline-flex items-center gap-2 text-sm font-medium text-zinc-700">
+              <input type="checkbox" [(ngModel)]="databaseForm.is_active" name="is_active" class="h-4 w-4 rounded border-zinc-300 text-red-600 focus:ring-red-500" />
+              Database connection is active
+            </label>
+          </div>
+        </fieldset>
+        <div *ngIf="isEditingDatabase" class="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            (click)="cancelDatabaseEdit()"
+            [disabled]="isSavingDatabase"
+            class="inline-flex items-center rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50 disabled:opacity-60"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            [disabled]="isSavingDatabase"
+            class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-60"
+          >
+            <svg *ngIf="isSavingDatabase" class="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+            </svg>
+            {{ isSavingDatabase ? 'Saving...' : 'Save database settings' }}
+          </button>
+        </div>
+      </form>
+    </section>
+  </ng-container>
+</div>

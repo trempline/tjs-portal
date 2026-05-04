@@ -1,0 +1,202 @@
+<div class="space-y-6">
+  <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div>
+      <button
+        type="button"
+        (click)="goBack()"
+        class="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-zinc-50"
+      >
+        Back to Host+ Events
+      </button>
+      <h1 class="mt-3 text-3xl font-bold tracking-tight text-zinc-900">Host+ Event Detail</h1>
+    </div>
+    <button
+      *ngIf="!isLoading && event && !error"
+      type="button"
+      (click)="createTjsEvent()"
+      class="inline-flex items-center justify-center rounded-2xl bg-red-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700"
+    >
+      Create TJS Event
+    </button>
+  </div>
+
+  <div *ngIf="error" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+    {{ error }}
+  </div>
+
+  <div *ngIf="isLoading" class="flex items-center justify-center rounded-3xl border border-zinc-200 bg-white py-20 shadow-sm">
+    <div class="h-8 w-8 animate-spin rounded-full border-4 border-zinc-200 border-t-red-600"></div>
+  </div>
+
+  <ng-container *ngIf="!isLoading && event">
+    <section class="overflow-hidden rounded-[2rem] border border-orange-100 bg-[linear-gradient(145deg,#fff3e6_0%,#fffdfa_42%,#eef6ff_100%)] shadow-sm">
+      <div class="grid gap-6 p-6 lg:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.28em] text-red-600">Host+ External Event</p>
+          <h2 class="mt-3 text-3xl font-semibold tracking-tight text-zinc-900">{{ event.title }}</h2>
+          <p class="mt-2 max-w-2xl text-sm leading-6 text-zinc-600">{{ detailTeaser }}</p>
+          <div class="mt-5 flex flex-wrap gap-3">
+            <span class="inline-flex rounded-full border border-white/80 bg-white/80 px-4 py-2 text-sm font-medium text-zinc-700 shadow-sm">
+              Host+: {{ hostName }}
+            </span>
+          </div>
+        </div>
+
+        <div class="rounded-3xl border border-white/70 bg-white/85 p-5 shadow-sm backdrop-blur">
+          <h3 class="text-sm font-semibold uppercase tracking-[0.14em] text-zinc-500">External Database</h3>
+          <p class="mt-3 break-all text-sm font-medium text-zinc-900">{{ databaseLabel }}</p>
+          <p class="mt-2 text-xs text-zinc-500">This view is read-only and is loaded from the Host+ configured database.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+      <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div class="rounded-2xl bg-zinc-50 px-4 py-3">
+          <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">Domain</div>
+          <div class="mt-1 text-sm font-medium text-zinc-900">{{ metadataLabel(event.event_domain_name, 'Not assigned in Host+ database') }}</div>
+        </div>
+        <div class="rounded-2xl bg-zinc-50 px-4 py-3">
+          <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">Edition</div>
+          <div class="mt-1 text-sm font-medium text-zinc-900">{{ metadataLabel(event.edition_name, 'Not assigned in Host+ database') }}</div>
+        </div>
+        <div class="rounded-2xl bg-zinc-50 px-4 py-3">
+          <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">Event Type</div>
+          <div class="mt-1 text-sm font-medium text-zinc-900">{{ metadataLabel(event.event_type_name, 'Not assigned in Host+ database') }}</div>
+        </div>
+        <div class="rounded-2xl bg-zinc-50 px-4 py-3">
+          <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">Primary Date</div>
+          <div class="mt-1 text-sm font-medium text-zinc-900">{{ event.primary_date ? (event.primary_date | date:'dd/MM/yyyy') : 'Not scheduled' }}</div>
+        </div>
+        <div class="rounded-2xl bg-zinc-50 px-4 py-3">
+          <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">External ID</div>
+          <div class="mt-1 break-all text-sm font-medium text-zinc-900">{{ event.id }}</div>
+        </div>
+        <div class="rounded-2xl bg-zinc-50 px-4 py-3">
+          <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">Created</div>
+          <div class="mt-1 text-sm font-medium text-zinc-900">{{ event.created_at ? (event.created_at | date:'dd/MM/yyyy') : '-' }}</div>
+        </div>
+        <div class="rounded-2xl bg-zinc-50 px-4 py-3">
+          <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">Updated</div>
+          <div class="mt-1 text-sm font-medium text-zinc-900">{{ event.updated_at ? (event.updated_at | date:'dd/MM/yyyy') : '-' }}</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(20rem,0.7fr)]">
+      <div class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+        <h3 class="text-lg font-semibold text-zinc-900">Event Details</h3>
+        <div class="mt-5 space-y-5">
+          <div>
+            <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">Teaser</div>
+            <p class="mt-2 whitespace-pre-line text-sm leading-6 text-zinc-700">{{ event.teaser || 'No teaser available.' }}</p>
+          </div>
+          <div>
+            <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">Description</div>
+            <p class="mt-2 whitespace-pre-line text-sm leading-6 text-zinc-700">{{ event.description || 'No description available.' }}</p>
+          </div>
+          <a
+            *ngIf="event.booking_url"
+            [href]="event.booking_url"
+            target="_blank"
+            rel="noreferrer"
+            class="inline-flex items-center rounded-2xl bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700"
+          >
+            Open Booking Link
+          </a>
+        </div>
+      </div>
+
+      <div class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+        <h3 class="text-lg font-semibold text-zinc-900">Media</h3>
+        <div *ngIf="event.photo_url; else noPhoto" class="mt-5 overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-50">
+          <img [src]="event.photo_url" [alt]="event.title" class="h-64 w-full object-cover" />
+        </div>
+        <ng-template #noPhoto>
+          <div class="mt-5 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-12 text-center text-sm text-zinc-500">
+            No event image available.
+          </div>
+        </ng-template>
+      </div>
+    </section>
+
+    <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+      <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 class="text-lg font-semibold text-zinc-900">Artists</h3>
+          <p class="mt-1 text-sm text-zinc-500">Artist information loaded from the Host+ source database.</p>
+        </div>
+        <span class="inline-flex w-fit rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-semibold text-zinc-600">
+          {{ event.artists.length }} artist{{ event.artists.length === 1 ? '' : 's' }}
+        </span>
+      </div>
+
+      <div *ngIf="event.artists.length === 0" class="mt-5 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-10 text-center text-sm text-zinc-500">
+        No artist information was returned for this event.
+      </div>
+
+      <div *ngIf="event.artists.length > 0" class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <article
+          *ngFor="let artist of event.artists; trackBy: trackByExternalArtistId"
+          class="overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-50"
+        >
+          <div class="h-48 bg-zinc-100">
+            <img
+              *ngIf="artist.photo_url || artist.image_urls[0]; else artistFallback"
+              [src]="artist.photo_url || artist.image_urls[0]"
+              [alt]="artist.display_name"
+              class="h-full w-full object-cover"
+            />
+            <ng-template #artistFallback>
+              <div class="flex h-full w-full items-center justify-center text-sm font-medium text-zinc-400">
+                No image
+              </div>
+            </ng-template>
+          </div>
+
+          <div class="p-4">
+            <h4 class="text-base font-semibold text-zinc-900">{{ artist.display_name }}</h4>
+            <p *ngIf="artist.teaser" class="mt-2 text-sm leading-6 text-zinc-600">{{ artist.teaser }}</p>
+            <div class="mt-3 text-xs text-zinc-500">External artist ID: {{ artist.id }}</div>
+
+            <div *ngIf="artist.image_urls.length > 1" class="mt-4 flex gap-2 overflow-x-auto">
+              <img
+                *ngFor="let imageUrl of artist.image_urls"
+                [src]="imageUrl"
+                [alt]="artist.display_name"
+                class="h-14 w-14 shrink-0 rounded-xl border border-zinc-200 object-cover"
+              />
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm">
+      <div class="border-b border-zinc-200 bg-zinc-50 px-6 py-4">
+        <h3 class="text-lg font-semibold text-zinc-900">Show Dates</h3>
+      </div>
+      <div *ngIf="event.schedule_entries.length === 0" class="px-6 py-12 text-center text-sm text-zinc-500">
+        No schedule entries are available for this event.
+      </div>
+      <div *ngIf="event.schedule_entries.length > 0" class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="border-b border-zinc-200 bg-zinc-50">
+            <tr>
+              <th class="px-5 py-3 text-left font-semibold text-zinc-600">Date</th>
+              <th class="px-5 py-3 text-left font-semibold text-zinc-600">Time</th>
+              <th class="px-5 py-3 text-left font-semibold text-zinc-600">Place</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-zinc-100">
+            <tr *ngFor="let entry of event.schedule_entries">
+              <td class="px-5 py-4 font-medium text-zinc-900">{{ scheduleDateLabel(entry) }}</td>
+              <td class="px-5 py-4 text-zinc-700">{{ scheduleTimeLabel(entry) }}</td>
+              <td class="px-5 py-4 text-zinc-700">{{ schedulePlaceLabel(entry) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </ng-container>
+</div>

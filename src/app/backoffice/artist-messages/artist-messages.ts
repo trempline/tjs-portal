@@ -1,6 +1,7 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { DatePipe, NgClass, NgFor, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import {
   ArtistConversationMessage,
@@ -19,6 +20,7 @@ import {
 export class ArtistMessages implements OnInit {
   private authService = inject(AuthService);
   private supabase = inject(SupabaseService);
+  private router = inject(Router);
 
   isLoading = true;
   isSending = false;
@@ -73,6 +75,16 @@ export class ArtistMessages implements OnInit {
     return this.directoryUsers.filter((user) =>
       user.id !== currentUserId && user.roles.some((role) => role.id === selectedRoleId)
     );
+  }
+
+  get pageTitle(): string {
+    return this.router.url.startsWith('/backoffice/host-plus/communication-center')
+      ? 'Communication Center'
+      : 'Message Center';
+  }
+
+  get pageDescription(): string {
+    return 'Send and receive messages with specific people across the workspace.';
   }
 
   openCompose() {

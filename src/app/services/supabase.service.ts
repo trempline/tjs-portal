@@ -342,6 +342,101 @@ export interface TjsHost {
   members?: TjsHostMember[];
 }
 
+export interface TjsHostPlusDatabaseSettings {
+  id: string;
+  host_id: number;
+  database_label: string | null;
+  supabase_url: string | null;
+  supabase_anon_key: string | null;
+  schema_name: string | null;
+  is_active: boolean;
+  notes: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SaveHostPlusDatabaseSettingsInput {
+  database_label?: string | null;
+  supabase_url?: string | null;
+  supabase_anon_key?: string | null;
+  schema_name?: string | null;
+  is_active: boolean;
+  notes?: string | null;
+}
+
+export interface HostPlusExternalEventScheduleEntry {
+  start_date: string | null;
+  end_date: string | null;
+  time: string | null;
+  location_name: string | null;
+}
+
+export interface HostPlusExternalEventArtistItem {
+  id: string;
+  display_name: string;
+  artist_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  teaser: string | null;
+  photo_url: string | null;
+  image_urls: string[];
+}
+
+export interface HostPlusExternalEventItem {
+  id: string;
+  title: string;
+  teaser: string | null;
+  description: string | null;
+  event_domain_name: string | null;
+  event_type_name: string | null;
+  edition_name: string | null;
+  host_name: string | null;
+  booking_url: string | null;
+  photo_url: string | null;
+  is_active: boolean | null;
+  status: string | null;
+  status_label: string;
+  primary_date: string | null;
+  date_summary: string;
+  schedule_entries: HostPlusExternalEventScheduleEntry[];
+  artists: HostPlusExternalEventArtistItem[];
+  created_at: string | null;
+  updated_at: string | null;
+  source_table: 'events' | 'tjs_events';
+}
+
+export interface HostPlusExternalEventsResult {
+  settings: TjsHostPlusDatabaseSettings | null;
+  items: HostPlusExternalEventItem[];
+  source_table: 'events' | 'tjs_events' | null;
+  error: string | null;
+}
+
+export interface HostPlusExternalArtistItem {
+  id: string;
+  display_name: string;
+  artist_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
+  photo_url: string | null;
+  is_featured: boolean | null;
+  is_active: boolean | null;
+  status_label: string;
+  created_at: string | null;
+  source_table: 'artists' | 'tjs_artists';
+}
+
+export interface HostPlusExternalArtistsResult {
+  settings: TjsHostPlusDatabaseSettings | null;
+  items: HostPlusExternalArtistItem[];
+  source_table: 'artists' | 'tjs_artists' | null;
+  error: string | null;
+}
+
 export interface SysHostType {
   id: number;
   name: string;
@@ -558,6 +653,41 @@ export interface CreateStandaloneHostEventPayload {
   artistIds: string[];
   additionalInstruments: string[];
   mediaEntries: ArtistRequestMediaEntry[];
+  notes: string;
+}
+
+export interface CreateHostPlusTjsEventPayload {
+  hostId: number;
+  externalEventId: string;
+  externalSourceTable: 'events' | 'tjs_events';
+  externalDatabaseLabel: string | null;
+  title: string;
+  eventDomainId: number | null;
+  eventDomainName: string | null;
+  editionId: number | null;
+  editionName: string | null;
+  eventTypeId: number | null;
+  eventTypeName: string | null;
+  teaser: string;
+  description: string;
+  imageUrl: string | null;
+  callToActionUrl: string;
+  isPublished: boolean;
+  isMemberOnly: boolean;
+  externalArtists: Array<{
+    id: string;
+    displayName: string;
+    photoUrl: string | null;
+    imageUrls: string[];
+  }>;
+  entries: Array<{
+    mode: 'day_show' | 'period';
+    startDate: string;
+    endDate: string;
+    showTime: string;
+    locationId: string | null;
+    locationLabel: string;
+  }>;
   notes: string;
 }
 
@@ -3932,6 +4062,7 @@ export class SupabaseService {
       .select(`
         id,
         title,
+        description,
         status,
         event_type,
         parent_event_id,
@@ -4158,6 +4289,10 @@ export class SupabaseService {
         const hostAssignments = hostAssignmentsByEventId.get(eventId) ?? [];
         const primaryAssignment = hostAssignments[0];
         const notes = (primaryAssignment?.notes as string | null | undefined) ?? '';
+        const externalArtists = this.extractExternalArtistEntriesFromNotes(notes);
+        const displayArtistNames = artistNames.length > 0
+          ? artistNames
+          : externalArtists.map((artist) => artist.display_name);
         const instruments = Array.from(new Set([
           ...(artistProfileIdsByEventId.get(eventId) ?? [])
             .flatMap((profileId) => instrumentNamesByProfileId.get(profileId) ?? []),
@@ -4179,12 +4314,15 @@ export class SupabaseService {
         return {
           id: eventId,
           title: (event.title as string | null | undefined)?.trim() || 'Untitled event',
-          teaser: requestDetail?.teaser || '',
+          teaser: requestDetail?.teaser
+            || this.extractNoteValue(notes, 'Event Teaser:')
+            || (event.description as string | null | undefined)?.trim()
+            || '',
           image_url: requestDetail?.image_url ?? this.extractNoteValue(notes, 'Event Image:') ?? null,
-          event_domain_name: requestDetail?.event_domain_name ?? null,
+          event_domain_name: requestDetail?.event_domain_name ?? this.extractNoteValue(notes, 'Event Domain:') ?? null,
           instruments,
           event_type_name: this.extractNoteValue(notes, 'Event Type:'),
-          artist_names: artistNames,
+          artist_names: displayArtistNames,
           host_names: this.publicHostNamesFromAssignments(hostAssignments),
           primary_date: scheduleEntries[0]?.start_date ?? null,
           last_date: sortedScheduleEntries.at(-1)?.end_date || sortedScheduleEntries.at(-1)?.start_date || null,
@@ -4771,7 +4909,7 @@ export class SupabaseService {
   async getPublicEventDetail(eventId: string): Promise<PublicEventDetail | null> {
     const eventsResult = await this.adminSupabase
       .from('tjs_events')
-      .select('id, title, status, event_type, parent_event_id, visibility_scope')
+      .select('id, title, description, status, event_type, parent_event_id, visibility_scope')
       .eq('id', eventId)
       .eq('event_type', 'EVENT_INSTANCE')
       .eq('status', 'APPROVED')
@@ -4840,6 +4978,10 @@ export class SupabaseService {
         ...requestArtists.map((a) => a.artist?.artist_name || a.invited_artist?.artist_name).filter(Boolean),
       ])
     );
+    const externalArtists = this.extractExternalArtistEntriesFromNotes(notes);
+    const displayArtistNames = artistNames.length > 0
+      ? artistNames
+      : externalArtists.map((artist) => artist.display_name);
 
     const artistProfileIds = eventArtists
       .map((a) => a.artist?.profile_id)
@@ -4905,15 +5047,15 @@ export class SupabaseService {
     return {
       id: eventId,
       title: event.title?.trim() || 'Untitled event',
-      teaser: requestDetail?.teaser || '',
-      description: requestDetail?.description || '',
+      teaser: requestDetail?.teaser || this.extractNoteValue(notes, 'Event Teaser:') || '',
+      description: requestDetail?.description || event.description || '',
       image_url: requestDetail?.image_url ?? this.extractNoteValue(notes, 'Event Image:') ?? null,
-      event_domain_name: requestDetail?.event_domain?.name ?? null,
+      event_domain_name: requestDetail?.event_domain?.name ?? this.extractNoteValue(notes, 'Event Domain:') ?? null,
       edition,
       event_type_name: this.extractNoteValue(notes, 'Event Type:'),
       call_to_action_url: this.extractNoteValue(notes, 'Call to Action URL:'),
       instruments,
-      artist_names: artistNames,
+      artist_names: displayArtistNames,
       host_names: this.publicHostNamesFromAssignments((hostAssignmentsResult.data ?? []) as any[]),
       schedule_lines: scheduleLines,
       is_member_only: this.isEventMemberOnly(event.visibility_scope),
@@ -4927,7 +5069,7 @@ export class SupabaseService {
             url: m.url,
           }))
         : this.extractMediaEntriesFromNotes(notes),
-      artists: eventArtists.map((a) => {
+      artists: eventArtists.length > 0 ? eventArtists.map((a) => {
         const profileId = a.artist?.profile_id;
         const profile = profileId ? profilesById.get(profileId) : null;
         return {
@@ -4937,7 +5079,13 @@ export class SupabaseService {
           image_url: profile?.avatar_url ?? null,
           instruments: profileId ? instrumentsByProfileId.get(profileId) ?? [] : [],
         };
-      }),
+      }) : externalArtists.map((artist) => ({
+        id: artist.id,
+        display_name: artist.display_name,
+        tagline: null,
+        image_url: artist.image_url,
+        instruments: [],
+      })),
     };
   }
 
@@ -7823,6 +7971,1047 @@ export class SupabaseService {
     return data as TjsHost[];
   }
 
+  async getHost(hostId: number): Promise<TjsHost | null> {
+    const { data, error } = await this.adminSupabase
+      .from('tjs_hosts')
+      .select('*')
+      .eq('id', hostId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('getHost error:', error.message);
+      return null;
+    }
+
+    return data as TjsHost | null;
+  }
+
+  async getHostPlusDatabaseSettings(hostId: number): Promise<TjsHostPlusDatabaseSettings | null> {
+    const { data, error } = await this.adminSupabase
+      .from('tjs_host_plus_database_settings')
+      .select('*')
+      .eq('host_id', hostId)
+      .maybeSingle();
+
+    if (error) {
+      if (!this.isMissingSchemaError(error)) {
+        console.error('getHostPlusDatabaseSettings error:', error.message);
+      }
+      return null;
+    }
+
+    return data as TjsHostPlusDatabaseSettings | null;
+  }
+
+  async upsertHostPlusDatabaseSettings(
+    hostId: number,
+    settings: SaveHostPlusDatabaseSettingsInput,
+    actorUserId: string
+  ): Promise<string | null> {
+    const payload = {
+      host_id: hostId,
+      database_label: settings.database_label || null,
+      supabase_url: settings.supabase_url || null,
+      supabase_anon_key: settings.supabase_anon_key || null,
+      schema_name: settings.schema_name || 'public',
+      is_active: settings.is_active,
+      notes: settings.notes || null,
+      created_by: actorUserId || null,
+      updated_by: actorUserId || null,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await this.adminSupabase
+      .from('tjs_host_plus_database_settings')
+      .upsert(payload, { onConflict: 'host_id' });
+
+    if (error) {
+      console.error('upsertHostPlusDatabaseSettings error:', error.message);
+      return this.isMissingSchemaError(error)
+        ? 'Host+ database settings table is missing. Run db/028_tjs_host_plus_database_settings.sql in Supabase.'
+        : error.message;
+    }
+
+    return null;
+  }
+
+  async getHostPlusExternalEvents(hostId: number): Promise<HostPlusExternalEventsResult> {
+    const settings = await this.getHostPlusDatabaseSettings(hostId);
+
+    if (!settings) {
+      return {
+        settings: null,
+        items: [],
+        source_table: null,
+        error: 'Database settings are not configured for this Host+.',
+      };
+    }
+
+    if (settings.is_active === false) {
+      return {
+        settings,
+        items: [],
+        source_table: null,
+        error: 'Database settings for this Host+ are inactive.',
+      };
+    }
+
+    const supabaseUrl = settings.supabase_url?.trim();
+    const supabaseKey = settings.supabase_anon_key?.trim();
+
+    if (!supabaseUrl || !supabaseKey) {
+      return {
+        settings,
+        items: [],
+        source_table: null,
+        error: 'Supabase URL and anon key are required before events can be loaded.',
+      };
+    }
+
+    try {
+      const remoteClient = createClient(supabaseUrl, supabaseKey, {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+          detectSessionInUrl: false,
+        },
+      });
+      const schemaName = settings.schema_name?.trim() || 'public';
+      const remoteDb: any = schemaName === 'public' ? remoteClient : remoteClient.schema(schemaName);
+
+      const legacyResult = await this.fetchHostPlusLegacyEvents(remoteDb);
+      if (!legacyResult.error) {
+        return {
+          settings,
+          items: legacyResult.items,
+          source_table: 'events',
+          error: null,
+        };
+      }
+
+      if (!this.isMissingSchemaError(legacyResult.error)) {
+        return {
+          settings,
+          items: [],
+          source_table: null,
+          error: `Unable to load external events: ${legacyResult.error.message}`,
+        };
+      }
+
+      const tjsResult = await this.fetchHostPlusTjsEvents(remoteDb);
+      if (tjsResult.error) {
+        return {
+          settings,
+          items: [],
+          source_table: null,
+          error: this.isMissingSchemaError(tjsResult.error)
+            ? 'No compatible event table was found in the configured Host+ database.'
+            : `Unable to load external events: ${tjsResult.error.message}`,
+        };
+      }
+
+      return {
+        settings,
+        items: tjsResult.items,
+        source_table: 'tjs_events',
+        error: null,
+      };
+    } catch (error) {
+      return {
+        settings,
+        items: [],
+        source_table: null,
+        error: error instanceof Error ? error.message : 'Unable to connect to the configured Host+ database.',
+      };
+    }
+  }
+
+  async getHostPlusExternalArtists(hostId: number): Promise<HostPlusExternalArtistsResult> {
+    const settings = await this.getHostPlusDatabaseSettings(hostId);
+
+    if (!settings) {
+      return {
+        settings: null,
+        items: [],
+        source_table: null,
+        error: 'Database settings are not configured for this Host+.',
+      };
+    }
+
+    if (settings.is_active === false) {
+      return {
+        settings,
+        items: [],
+        source_table: null,
+        error: 'Database settings for this Host+ are inactive.',
+      };
+    }
+
+    const supabaseUrl = settings.supabase_url?.trim();
+    const supabaseKey = settings.supabase_anon_key?.trim();
+
+    if (!supabaseUrl || !supabaseKey) {
+      return {
+        settings,
+        items: [],
+        source_table: null,
+        error: 'Supabase URL and anon key are required before artists can be loaded.',
+      };
+    }
+
+    try {
+      const remoteClient = createClient(supabaseUrl, supabaseKey, {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+          detectSessionInUrl: false,
+        },
+      });
+      const schemaName = settings.schema_name?.trim() || 'public';
+      const remoteDb: any = schemaName === 'public' ? remoteClient : remoteClient.schema(schemaName);
+
+      const legacyResult = await this.fetchHostPlusLegacyArtists(remoteDb);
+      if (!legacyResult.error) {
+        return {
+          settings,
+          items: legacyResult.items,
+          source_table: 'artists',
+          error: null,
+        };
+      }
+
+      if (!this.isMissingSchemaError(legacyResult.error)) {
+        return {
+          settings,
+          items: [],
+          source_table: null,
+          error: `Unable to load external artists: ${legacyResult.error.message}`,
+        };
+      }
+
+      const tjsResult = await this.fetchHostPlusTjsArtists(remoteDb);
+      if (tjsResult.error) {
+        return {
+          settings,
+          items: [],
+          source_table: null,
+          error: this.isMissingSchemaError(tjsResult.error)
+            ? 'No compatible artist table was found in the configured Host+ database.'
+            : `Unable to load external artists: ${tjsResult.error.message}`,
+        };
+      }
+
+      return {
+        settings,
+        items: tjsResult.items,
+        source_table: 'tjs_artists',
+        error: null,
+      };
+    } catch (error) {
+      return {
+        settings,
+        items: [],
+        source_table: null,
+        error: error instanceof Error ? error.message : 'Unable to connect to the configured Host+ database.',
+      };
+    }
+  }
+
+  private async fetchHostPlusLegacyEvents(
+    remoteDb: any
+  ): Promise<{ items: HostPlusExternalEventItem[]; error: any | null }> {
+    const eventsResult = await this.fetchHostPlusTableRows(remoteDb, 'events', 'created_on');
+
+    if (eventsResult.error) {
+      return { items: [], error: eventsResult.error };
+    }
+
+    const eventRows = eventsResult.data;
+    const eventIds = this.uniqueNumbers(eventRows.map((row) => row.id));
+
+    const [dateRows, editionRows, domainRows, typeRows, hostRows, eventArtistRows] = await Promise.all([
+      this.fetchHostPlusRowsByIds(remoteDb, 'event_dates', '*', 'id_event', eventIds, 'start_date'),
+      this.fetchHostPlusRowsByIds(
+        remoteDb,
+        'event_edition',
+        'id, name, year, id_edition_type',
+        'id',
+        this.uniqueNumbers(eventRows.map((row) => row.id_edition))
+      ),
+      this.fetchHostPlusRowsByIds(
+        remoteDb,
+        'sys_event_domain',
+        'id, name',
+        'id',
+        this.uniqueNumbers(eventRows.map((row) => row.id_event_domain))
+      ),
+      this.fetchHostPlusRowsByIds(
+        remoteDb,
+        'sys_event_type',
+        'id, name',
+        'id',
+        this.uniqueNumbers(eventRows.map((row) => row.id_event_type))
+      ),
+      this.fetchHostPlusRowsByIds(
+        remoteDb,
+        'hosts',
+        'id, name, public_name, city',
+        'id',
+        this.uniqueNumbers(eventRows.map((row) => row.id_host))
+      ),
+      this.fetchHostPlusRowsByIds(remoteDb, 'event_artists', 'id_event, id_artist', 'id_event', eventIds),
+    ]);
+
+    const locationRows = await this.fetchHostPlusRowsByIds(
+      remoteDb,
+      'locations',
+      'id, name, city, address',
+      'id',
+      this.uniqueNumbers(dateRows.map((row) => row.id_location))
+    );
+    const artistRows = await this.fetchHostPlusRowsByIds(
+      remoteDb,
+      'artists',
+      '*',
+      'id',
+      this.uniqueNumbers(eventArtistRows.map((row) => row.id_artist))
+    );
+    const artistMediaRows = await this.fetchHostPlusRowsByIds(
+      remoteDb,
+      'artist_media',
+      '*',
+      'id_artist',
+      this.uniqueNumbers(eventArtistRows.map((row) => row.id_artist))
+    );
+
+    const editionById = new Map<number, string>();
+    for (const row of editionRows) {
+      const id = this.numberValue(row.id);
+      if (id === null) {
+        continue;
+      }
+
+      const label = [this.stringValue(row.name), this.stringValue(row.year)]
+        .filter((value): value is string => !!value)
+        .join(' ')
+        .trim();
+      if (label) {
+        editionById.set(id, label);
+      }
+    }
+
+    const domainById = this.nameLookup(domainRows);
+    const typeById = this.nameLookup(typeRows);
+    const hostById = new Map<number, string>();
+    for (const row of hostRows) {
+      const id = this.numberValue(row.id);
+      if (id === null) {
+        continue;
+      }
+
+      const label = this.stringValue(row.public_name)
+        || this.stringValue(row.name)
+        || this.stringValue(row.city)
+        || `Host #${id}`;
+      hostById.set(id, label);
+    }
+
+    const locationById = new Map<number, string>();
+    for (const row of locationRows) {
+      const id = this.numberValue(row.id);
+      if (id === null) {
+        continue;
+      }
+
+      const label = [this.stringValue(row.name), this.stringValue(row.city), this.stringValue(row.address)]
+        .filter((value): value is string => !!value)
+        .join(', ');
+      if (label) {
+        locationById.set(id, label);
+      }
+    }
+
+    const datesByEventId = new Map<number, HostPlusExternalEventScheduleEntry[]>();
+    for (const row of dateRows) {
+      const eventId = this.numberValue(row.id_event);
+      if (eventId === null) {
+        continue;
+      }
+
+      const locationId = this.numberValue(row.id_location);
+      const entries = datesByEventId.get(eventId) ?? [];
+      entries.push({
+        start_date: this.dateValue(row.start_date),
+        end_date: this.dateValue(row.end_date),
+        time: this.timeValue(row.time),
+        location_name: locationId === null ? null : locationById.get(locationId) ?? null,
+      });
+      datesByEventId.set(eventId, entries);
+    }
+
+    const mediaImagesByArtistId = new Map<number, string[]>();
+    for (const row of artistMediaRows) {
+      const artistId = this.numberValue(row.id_artist);
+      if (artistId === null) {
+        continue;
+      }
+
+      const imageUrl = this.stringValue(row.image) || this.stringValue(row.image_url) || this.stringValue(row.photo);
+      if (!imageUrl) {
+        continue;
+      }
+
+      const existing = mediaImagesByArtistId.get(artistId) ?? [];
+      if (!existing.includes(imageUrl)) {
+        existing.push(imageUrl);
+      }
+      mediaImagesByArtistId.set(artistId, existing);
+    }
+
+    const artistById = new Map<number, HostPlusExternalEventArtistItem>();
+    for (const row of artistRows) {
+      const id = this.numberValue(row.id);
+      if (id === null) {
+        continue;
+      }
+
+      artistById.set(id, this.mapHostPlusLegacyEventArtist(row, mediaImagesByArtistId.get(id) ?? []));
+    }
+
+    const artistsByEventId = new Map<number, HostPlusExternalEventArtistItem[]>();
+    for (const row of eventArtistRows) {
+      const eventId = this.numberValue(row.id_event);
+      const artistId = this.numberValue(row.id_artist);
+      const artist = artistId === null ? null : artistById.get(artistId) ?? null;
+      if (eventId === null || !artist) {
+        continue;
+      }
+
+      const existing = artistsByEventId.get(eventId) ?? [];
+      if (!existing.some((item) => item.id === artist.id)) {
+        existing.push(artist);
+      }
+      artistsByEventId.set(eventId, existing);
+    }
+
+    return {
+      items: eventRows.map((row) => {
+        const numericId = this.numberValue(row.id);
+        const eventId = numericId === null ? this.stringValue(row.id) || '' : String(numericId);
+        const scheduleEntries = this.sortedScheduleEntries(
+          numericId === null ? [] : datesByEventId.get(numericId) ?? []
+        );
+
+        return {
+          id: eventId,
+          title: this.stringValue(row.title) || (eventId ? `Event #${eventId}` : 'Untitled event'),
+          teaser: this.stringValue(row.teaser) || this.stringValue(row.long_teaser),
+          description: this.stringValue(row.description) || this.stringValue(row.comments),
+          event_domain_name: domainById.get(this.numberValue(row.id_event_domain) ?? -1)
+            ?? this.stringValue(row.event_domain_name)
+            ?? this.stringValue(row.event_domain)
+            ?? this.stringValue(row.domain),
+          event_type_name: typeById.get(this.numberValue(row.id_event_type) ?? -1) ?? null,
+          edition_name: editionById.get(this.numberValue(row.id_edition) ?? -1)
+            ?? this.stringValue(row.edition_name)
+            ?? this.stringValue(row.edition),
+          host_name: hostById.get(this.numberValue(row.id_host) ?? -1) ?? null,
+          booking_url: this.stringValue(row.booking_url),
+          photo_url: this.stringValue(row.photo),
+          is_active: typeof row.is_active === 'boolean' ? row.is_active : null,
+          status: this.stringValue(row.status),
+          status_label: this.hostPlusLegacyStatusLabel(row.status, row.is_active),
+          primary_date: this.primaryScheduleDate(scheduleEntries),
+          date_summary: this.scheduleDateSummary(scheduleEntries),
+          schedule_entries: scheduleEntries,
+          artists: numericId === null ? [] : artistsByEventId.get(numericId) ?? [],
+          created_at: this.stringValue(row.created_on) || this.stringValue(row.created_at),
+          updated_at: this.stringValue(row.last_update) || this.stringValue(row.updated_at),
+          source_table: 'events',
+        };
+      }),
+      error: null,
+    };
+  }
+
+  private async fetchHostPlusTjsEvents(
+    remoteDb: any
+  ): Promise<{ items: HostPlusExternalEventItem[]; error: any | null }> {
+    const eventsResult = await this.fetchHostPlusTableRows(remoteDb, 'tjs_events', 'created_at');
+
+    if (eventsResult.error) {
+      return { items: [], error: eventsResult.error };
+    }
+
+    const eventRows = eventsResult.data.filter((row) => {
+      const eventType = this.stringValue(row.event_type);
+      return !eventType || eventType === 'EVENT_INSTANCE';
+    });
+    const eventIds = eventRows
+      .map((row) => this.stringValue(row.id))
+      .filter((value): value is string => !!value);
+    const [assignmentRows, eventArtistRows] = await Promise.all([
+      this.fetchHostPlusRowsByIds(
+        remoteDb,
+        'tjs_event_hosts',
+        'event_id, host_id, selected_dates',
+        'event_id',
+        eventIds
+      ),
+      this.fetchHostPlusRowsByIds(
+        remoteDb,
+        'tjs_event_artists',
+        'event_id, artist_id, role',
+        'event_id',
+        eventIds
+      ),
+    ]);
+    const hostRows = await this.fetchHostPlusRowsByIds(
+      remoteDb,
+      'tjs_hosts',
+      'id, name, public_name, city',
+      'id',
+      this.uniqueNumbers(assignmentRows.map((row) => row.host_id))
+    );
+    const externalArtistIds = eventArtistRows
+      .map((row) => this.stringValue(row.artist_id))
+      .filter((value): value is string => !!value);
+    const tjsArtistRows = await this.fetchHostPlusRowsByIds(remoteDb, 'tjs_artists', '*', 'id', externalArtistIds);
+    const externalArtistProfileIds = tjsArtistRows
+      .map((row) => this.stringValue(row.profile_id) || this.stringValue(row.id_profile))
+      .filter((value): value is string => !!value);
+    const tjsProfileRows = await this.fetchHostPlusRowsByIds(remoteDb, 'tjs_profiles', '*', 'id', externalArtistProfileIds);
+    const fallbackProfileRows = tjsProfileRows.length > 0
+      ? []
+      : await this.fetchHostPlusRowsByIds(remoteDb, 'profiles', '*', 'id', externalArtistProfileIds);
+
+    const hostById = new Map<number, string>();
+    for (const row of hostRows) {
+      const id = this.numberValue(row.id);
+      if (id === null) {
+        continue;
+      }
+
+      hostById.set(
+        id,
+        this.stringValue(row.public_name) || this.stringValue(row.name) || this.stringValue(row.city) || `Host #${id}`
+      );
+    }
+
+    const assignmentsByEventId = new Map<string, any[]>();
+    for (const assignment of assignmentRows) {
+      const eventId = this.stringValue(assignment.event_id);
+      if (!eventId) {
+        continue;
+      }
+
+      const entries = assignmentsByEventId.get(eventId) ?? [];
+      entries.push(assignment);
+      assignmentsByEventId.set(eventId, entries);
+    }
+
+    const profileById = new Map<string, any>();
+    for (const row of [...tjsProfileRows, ...fallbackProfileRows]) {
+      const id = this.stringValue(row.id);
+      if (id) {
+        profileById.set(id, row);
+      }
+    }
+
+    const artistById = new Map<string, HostPlusExternalEventArtistItem>();
+    for (const row of tjsArtistRows) {
+      const id = this.stringValue(row.id);
+      if (!id) {
+        continue;
+      }
+
+      const profileId = this.stringValue(row.profile_id) || this.stringValue(row.id_profile);
+      artistById.set(id, this.mapHostPlusTjsEventArtist(row, profileId ? profileById.get(profileId) ?? null : null));
+    }
+
+    const artistsByEventId = new Map<string, HostPlusExternalEventArtistItem[]>();
+    for (const row of eventArtistRows) {
+      const eventId = this.stringValue(row.event_id);
+      const artistId = this.stringValue(row.artist_id);
+      const artist = artistId ? artistById.get(artistId) ?? null : null;
+      if (!eventId || !artist) {
+        continue;
+      }
+
+      const existing = artistsByEventId.get(eventId) ?? [];
+      if (!existing.some((item) => item.id === artist.id)) {
+        existing.push(artist);
+      }
+      artistsByEventId.set(eventId, existing);
+    }
+
+    return {
+      items: eventRows.map((row) => {
+        const eventId = this.stringValue(row.id) || '';
+        const assignments = assignmentsByEventId.get(eventId) ?? [];
+        const locationLabel = this.stringValue(row.city) || this.stringValue(row.department);
+        const assignedDateEntries = assignments.flatMap((assignment) => {
+          const dates: unknown[] = Array.isArray(assignment.selected_dates) ? assignment.selected_dates : [];
+          return dates
+            .map((date: unknown) => this.dateValue(date))
+            .filter((date: string | null): date is string => !!date)
+            .map((date: string) => ({
+              start_date: date,
+              end_date: null,
+              time: null,
+              location_name: locationLabel,
+            }));
+        });
+        const proposedDateEntries = Array.isArray(row.proposed_dates)
+          ? row.proposed_dates
+              .map((date: unknown) => this.dateValue(date))
+              .filter((date: string | null): date is string => !!date)
+              .map((date: string) => ({
+                start_date: date,
+                end_date: null,
+                time: null,
+                location_name: locationLabel,
+              }))
+          : [];
+        const scheduleEntries = this.sortedScheduleEntries(
+          assignedDateEntries.length > 0 ? assignedDateEntries : proposedDateEntries
+        );
+        const hostNames = Array.from(
+          new Set(
+            assignments
+              .map((assignment) => hostById.get(this.numberValue(assignment.host_id) ?? -1) ?? null)
+              .filter((value): value is string => !!value)
+          )
+        );
+        const status = this.stringValue(row.status);
+
+        return {
+          id: eventId,
+          title: this.stringValue(row.title) || (eventId ? `Event ${eventId}` : 'Untitled event'),
+          teaser: null,
+          description: this.stringValue(row.description),
+          event_domain_name: null,
+          event_type_name: this.hostPlusStatusLabel(row.event_type),
+          edition_name: null,
+          host_name: hostNames.length > 0 ? hostNames.join(', ') : null,
+          booking_url: null,
+          photo_url: null,
+          is_active: status ? !['CANCELLED', 'COMPLETED'].includes(status.toUpperCase()) : null,
+          status,
+          status_label: this.hostPlusStatusLabel(status),
+          primary_date: this.primaryScheduleDate(scheduleEntries),
+          date_summary: this.scheduleDateSummary(scheduleEntries),
+          schedule_entries: scheduleEntries,
+          artists: artistsByEventId.get(eventId) ?? [],
+          created_at: this.stringValue(row.created_at),
+          updated_at: this.stringValue(row.updated_at),
+          source_table: 'tjs_events',
+        };
+      }),
+      error: null,
+    };
+  }
+
+  private async fetchHostPlusLegacyArtists(
+    remoteDb: any
+  ): Promise<{ items: HostPlusExternalArtistItem[]; error: any | null }> {
+    const artistsResult = await this.fetchHostPlusTableRows(remoteDb, 'artists', 'created_on');
+
+    if (artistsResult.error) {
+      return { items: [], error: artistsResult.error };
+    }
+
+    return {
+      items: artistsResult.data.map((row) => this.mapHostPlusLegacyArtist(row)),
+      error: null,
+    };
+  }
+
+  private async fetchHostPlusTjsArtists(
+    remoteDb: any
+  ): Promise<{ items: HostPlusExternalArtistItem[]; error: any | null }> {
+    const artistsResult = await this.fetchHostPlusTableRows(remoteDb, 'tjs_artists', 'created_at');
+
+    if (artistsResult.error) {
+      return { items: [], error: artistsResult.error };
+    }
+
+    const artistRows = artistsResult.data;
+    const profileIds = artistRows
+      .map((row) => this.stringValue(row.profile_id) || this.stringValue(row.id_profile))
+      .filter((value): value is string => !!value);
+    const profileRows = await this.fetchHostPlusRowsByIds(
+      remoteDb,
+      'profiles',
+      'id, email, full_name, phone, avatar_url',
+      'id',
+      profileIds
+    );
+    const profileById = new Map<string, any>();
+    for (const row of profileRows) {
+      const id = this.stringValue(row.id);
+      if (id) {
+        profileById.set(id, row);
+      }
+    }
+
+    return {
+      items: artistRows.map((row) => {
+        const profileId = this.stringValue(row.profile_id) || this.stringValue(row.id_profile);
+        return this.mapHostPlusTjsArtist(row, profileId ? profileById.get(profileId) ?? null : null);
+      }),
+      error: null,
+    };
+  }
+
+  private mapHostPlusLegacyArtist(row: any): HostPlusExternalArtistItem {
+    const id = this.stringValue(row.id) || '';
+    const firstName = this.stringValue(row.fname) || this.stringValue(row.first_name);
+    const lastName = this.stringValue(row.lname) || this.stringValue(row.last_name);
+    const fullName = [firstName, lastName].filter((value): value is string => !!value).join(' ').trim();
+    const artistName = this.stringValue(row.artist_name) || this.stringValue(row.name) || fullName || null;
+    const isActive = this.booleanValue(row.is_active);
+
+    return {
+      id,
+      display_name: artistName || this.stringValue(row.email) || (id ? `Artist #${id}` : 'Unknown artist'),
+      artist_name: artistName,
+      first_name: firstName,
+      last_name: lastName,
+      email: this.stringValue(row.email),
+      phone: this.stringValue(row.phone) || this.stringValue(row.phone1) || this.stringValue(row.mobile),
+      photo_url: this.stringValue(row.photo) || this.stringValue(row.avatar_url) || this.stringValue(row.image_url),
+      is_featured: this.booleanValue(row.is_featured),
+      is_active: isActive,
+      status_label: isActive === false ? 'Inactive' : 'Active',
+      created_at: this.stringValue(row.created_on) || this.stringValue(row.created_at),
+      source_table: 'artists',
+    };
+  }
+
+  private mapHostPlusLegacyEventArtist(row: any, mediaImages: string[]): HostPlusExternalEventArtistItem {
+    const id = this.stringValue(row.id) || '';
+    const firstName = this.stringValue(row.fname) || this.stringValue(row.first_name);
+    const lastName = this.stringValue(row.lname) || this.stringValue(row.last_name);
+    const fullName = [firstName, lastName].filter((value): value is string => !!value).join(' ').trim();
+    const artistName = this.stringValue(row.artist_name) || this.stringValue(row.name) || fullName || null;
+    const primaryPhoto = this.stringValue(row.photo) || this.stringValue(row.avatar_url) || this.stringValue(row.image_url);
+    const coverPhoto = this.stringValue(row.cover) || this.stringValue(row.cover_url);
+    const imageUrls = Array.from(new Set([primaryPhoto, coverPhoto, ...mediaImages].filter((value): value is string => !!value)));
+
+    return {
+      id,
+      display_name: artistName || this.stringValue(row.email) || (id ? `Artist #${id}` : 'Unknown artist'),
+      artist_name: artistName,
+      first_name: firstName,
+      last_name: lastName,
+      teaser: this.stringValue(row.teaser) || this.stringValue(row.short_bio),
+      photo_url: primaryPhoto,
+      image_urls: imageUrls,
+    };
+  }
+
+  private mapHostPlusTjsEventArtist(row: any, profile: any | null): HostPlusExternalEventArtistItem {
+    const id = this.stringValue(row.id) || '';
+    const firstName = this.stringValue(row.fname) || this.stringValue(row.first_name);
+    const lastName = this.stringValue(row.lname) || this.stringValue(row.last_name);
+    const fullName = [firstName, lastName].filter((value): value is string => !!value).join(' ').trim();
+    const artistName = this.stringValue(row.artist_name) || this.stringValue(row.name) || fullName || null;
+    const profileName = this.stringValue(profile?.full_name);
+    const primaryPhoto = this.stringValue(profile?.avatar_url)
+      || this.stringValue(row.photo)
+      || this.stringValue(row.avatar_url)
+      || this.stringValue(row.image_url);
+    const coverPhoto = this.stringValue(row.cover) || this.stringValue(row.cover_url) || this.stringValue(profile?.banner_url);
+    const imageUrls = Array.from(new Set([primaryPhoto, coverPhoto].filter((value): value is string => !!value)));
+
+    return {
+      id,
+      display_name: profileName || artistName || this.stringValue(profile?.email) || (id ? `Artist ${id}` : 'Unknown artist'),
+      artist_name: artistName,
+      first_name: firstName,
+      last_name: lastName,
+      teaser: this.stringValue(row.teaser) || this.stringValue(row.tagline) || this.stringValue(profile?.bio),
+      photo_url: primaryPhoto,
+      image_urls: imageUrls,
+    };
+  }
+
+  private mapHostPlusTjsArtist(row: any, profile: any | null): HostPlusExternalArtistItem {
+    const id = this.stringValue(row.id) || '';
+    const firstName = this.stringValue(row.fname) || this.stringValue(row.first_name);
+    const lastName = this.stringValue(row.lname) || this.stringValue(row.last_name);
+    const fullName = [firstName, lastName].filter((value): value is string => !!value).join(' ').trim();
+    const artistName = this.stringValue(row.artist_name) || this.stringValue(row.name) || fullName || null;
+    const profileName = this.stringValue(profile?.full_name);
+    const activationStatus = this.stringValue(row.activation_status) || this.stringValue(row.status);
+    const isActive = this.booleanValue(row.is_active)
+      ?? (activationStatus ? activationStatus.toLowerCase() !== 'inactive' : null);
+
+    return {
+      id,
+      display_name: profileName || artistName || this.stringValue(profile?.email) || (id ? `Artist ${id}` : 'Unknown artist'),
+      artist_name: artistName,
+      first_name: firstName,
+      last_name: lastName,
+      email: this.stringValue(profile?.email) || this.stringValue(row.email),
+      phone: this.stringValue(profile?.phone) || this.stringValue(row.phone) || this.stringValue(row.phone1),
+      photo_url: this.stringValue(profile?.avatar_url) || this.stringValue(row.photo) || this.stringValue(row.avatar_url),
+      is_featured: this.booleanValue(row.is_featured),
+      is_active: isActive,
+      status_label: this.hostPlusStatusLabel(activationStatus) || (isActive === false ? 'Inactive' : 'Active'),
+      created_at: this.stringValue(row.created_at) || this.stringValue(row.created_on),
+      source_table: 'tjs_artists',
+    };
+  }
+
+  private async fetchHostPlusTableRows(
+    remoteDb: any,
+    table: string,
+    orderColumn: string
+  ): Promise<{ data: any[]; error: any | null }> {
+    const orderedResult = await remoteDb
+      .from(table)
+      .select('*')
+      .order(orderColumn, { ascending: false })
+      .limit(500);
+
+    if (!orderedResult.error || this.isMissingSchemaError(orderedResult.error)) {
+      return { data: (orderedResult.data ?? []) as any[], error: orderedResult.error };
+    }
+
+    if (!this.isMissingColumnError(orderedResult.error)) {
+      return { data: [], error: orderedResult.error };
+    }
+
+    const unorderedResult = await remoteDb
+      .from(table)
+      .select('*')
+      .limit(500);
+
+    return {
+      data: (unorderedResult.data ?? []) as any[],
+      error: unorderedResult.error,
+    };
+  }
+
+  private async fetchHostPlusRowsByIds(
+    remoteDb: any,
+    table: string,
+    columns: string,
+    idColumn: string,
+    ids: Array<number | string>,
+    orderColumn?: string
+  ): Promise<any[]> {
+    const uniqueIds = Array.from(new Set(ids.filter((id) => id !== null && id !== undefined && id !== '')));
+    if (uniqueIds.length === 0) {
+      return [];
+    }
+
+    const chunkSize = 50;
+    const rows: any[] = [];
+    for (let index = 0; index < uniqueIds.length; index += chunkSize) {
+      const chunk = uniqueIds.slice(index, index + chunkSize);
+      rows.push(...await this.fetchHostPlusRowsByIdBatch(remoteDb, table, columns, idColumn, chunk, orderColumn));
+    }
+
+    return rows;
+  }
+
+  private async fetchHostPlusRowsByIdBatch(
+    remoteDb: any,
+    table: string,
+    columns: string,
+    idColumn: string,
+    ids: Array<number | string>,
+    orderColumn?: string
+  ): Promise<any[]> {
+    if (orderColumn) {
+      const orderedResult = await remoteDb
+        .from(table)
+        .select(columns)
+        .in(idColumn, ids)
+        .order(orderColumn, { ascending: true })
+        .limit(1000);
+
+      if (!orderedResult.error) {
+        return (orderedResult.data ?? []) as any[];
+      }
+
+      if (this.isMissingSchemaError(orderedResult.error)) {
+        return [];
+      }
+
+      if (!this.isMissingColumnError(orderedResult.error)) {
+        console.error(`fetchHostPlusRowsByIds ${table} error:`, orderedResult.error.message);
+        return [];
+      }
+    }
+
+    const { data, error } = await remoteDb
+      .from(table)
+      .select(columns)
+      .in(idColumn, ids)
+      .limit(1000);
+
+    if (error) {
+      if (!this.isMissingSchemaError(error)) {
+        console.error(`fetchHostPlusRowsByIds ${table} error:`, error.message);
+      }
+      return [];
+    }
+
+    return (data ?? []) as any[];
+  }
+
+  private nameLookup(rows: any[]): Map<number, string> {
+    const lookup = new Map<number, string>();
+    for (const row of rows) {
+      const id = this.numberValue(row.id);
+      const name = this.stringValue(row.name);
+      if (id !== null && name) {
+        lookup.set(id, name);
+      }
+    }
+
+    return lookup;
+  }
+
+  private uniqueNumbers(values: unknown[]): number[] {
+    return Array.from(
+      new Set(
+        values
+          .map((value) => this.numberValue(value))
+          .filter((value): value is number => value !== null)
+      )
+    );
+  }
+
+  private numberValue(value: unknown): number | null {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+
+    if (typeof value === 'string' && value.trim()) {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+
+    return null;
+  }
+
+  private stringValue(value: unknown): string | null {
+    if (value === null || value === undefined) {
+      return null;
+    }
+
+    const stringValue = String(value).trim();
+    return stringValue ? stringValue : null;
+  }
+
+  private booleanValue(value: unknown): boolean | null {
+    if (typeof value === 'boolean') {
+      return value;
+    }
+
+    if (typeof value === 'number') {
+      return value === 1 ? true : value === 0 ? false : null;
+    }
+
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (['true', '1', 'yes', 'active'].includes(normalized)) {
+        return true;
+      }
+      if (['false', '0', 'no', 'inactive'].includes(normalized)) {
+        return false;
+      }
+    }
+
+    return null;
+  }
+
+  private dateValue(value: unknown): string | null {
+    const raw = this.stringValue(value);
+    if (!raw) {
+      return null;
+    }
+
+    return raw.slice(0, 10);
+  }
+
+  private timeValue(value: unknown): string | null {
+    const raw = this.stringValue(value);
+    if (!raw) {
+      return null;
+    }
+
+    return raw.length >= 5 ? raw.slice(0, 5) : raw;
+  }
+
+  private sortedScheduleEntries(
+    entries: HostPlusExternalEventScheduleEntry[]
+  ): HostPlusExternalEventScheduleEntry[] {
+    return [...entries].sort((left, right) =>
+      (left.start_date ?? '9999-12-31').localeCompare(right.start_date ?? '9999-12-31')
+    );
+  }
+
+  private primaryScheduleDate(entries: HostPlusExternalEventScheduleEntry[]): string | null {
+    return entries.find((entry) => !!entry.start_date)?.start_date ?? null;
+  }
+
+  private scheduleDateSummary(entries: HostPlusExternalEventScheduleEntry[]): string {
+    const dates = entries
+      .map((entry) => entry.start_date)
+      .filter((date): date is string => !!date);
+
+    if (dates.length === 0) {
+      return 'Not scheduled';
+    }
+
+    return dates.length > 1 ? `${dates[0]} +${dates.length - 1}` : dates[0];
+  }
+
+  private hostPlusLegacyStatusLabel(status: unknown, isActive: unknown): string {
+    const statusValue = this.stringValue(status);
+    if (statusValue) {
+      return `Status ${statusValue}`;
+    }
+
+    if (typeof isActive === 'boolean') {
+      return isActive ? 'Active' : 'Inactive';
+    }
+
+    return 'Unknown';
+  }
+
+  private hostPlusStatusLabel(status: unknown): string {
+    const statusValue = this.stringValue(status);
+    if (!statusValue) {
+      return 'Unknown';
+    }
+
+    return statusValue
+      .toLowerCase()
+      .split(/[_\s-]+/)
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
+  }
+
+  private isMissingColumnError(error: { code?: string | null; message?: string | null } | null | undefined): boolean {
+    if (!error) {
+      return false;
+    }
+
+    const message = error.message?.toLowerCase() ?? '';
+    return error.code === '42703'
+      || message.includes('column')
+      || message.includes('could not find')
+      || message.includes('does not exist');
+  }
+
   private mapLocationRow(row: any): TjsLocation {
     const amenityLinks = Array.isArray(row.amenity_links) ? row.amenity_links : [];
     const specLinks = Array.isArray(row.spec_links) ? row.spec_links : [];
@@ -8675,15 +9864,22 @@ export class SupabaseService {
   async assignHostMember(
     hostId: number,
     profileId: string,
-    role: string = 'member'
+    role: string = 'member',
+    assignedBy?: string
   ): Promise<string | null> {
     const { error } = await this.adminSupabase
       .from('tjs_host_members')
-      .insert({ host_id: hostId, profile_id: profileId, role });
+      .upsert({ host_id: hostId, profile_id: profileId, role }, { onConflict: 'host_id,profile_id' });
     if (error) {
       console.error('assignHostMember error:', error.message);
       return error.message;
     }
+
+    const roleError = await this.ensureHostRoleForHost(hostId, profileId, assignedBy ?? profileId);
+    if (roleError) {
+      return roleError;
+    }
+
     return null;
   }
 
@@ -8698,6 +9894,32 @@ export class SupabaseService {
       return error.message;
     }
     return null;
+  }
+
+  private async ensureHostRoleForHost(
+    hostId: number,
+    profileId: string,
+    assignedBy: string
+  ): Promise<string | null> {
+    const { data: host, error: hostError } = await this.adminSupabase
+      .from('tjs_hosts')
+      .select('is_host_plus')
+      .eq('id', hostId)
+      .maybeSingle();
+
+    if (hostError) {
+      console.error('ensureHostRoleForHost host lookup error:', hostError.message);
+      return hostError.message;
+    }
+
+    const roleName = (host as { is_host_plus?: boolean } | null)?.is_host_plus ? 'Host+' : 'Host';
+    const roleId = await this.getRoleIdByName(roleName);
+
+    if (!roleId) {
+      return `${roleName} role not found.`;
+    }
+
+    return this.assignRole(profileId, roleId, assignedBy);
   }
 
   // ── Artists ─────────────────────────────────────────────────────────────
@@ -9203,6 +10425,7 @@ export class SupabaseService {
 
     const baseEventNotes = this.mergeStructuredHostNotes('', {
       eventDomain: selectedEventDomain?.name ?? null,
+      eventTeaser: payload.teaser.trim() || null,
       edition: selectedEdition?.label ?? selectedEdition?.name ?? null,
       eventType: selectedEventType?.name ?? null,
       showTime: payload.entries[0]?.showTime?.trim() || null,
@@ -9273,6 +10496,165 @@ export class SupabaseService {
       }
 
       return { eventId: null, error: artistInsertError.message };
+    }
+
+    return { eventId: insertedEvent.id, error: null };
+  }
+
+  async createHostPlusTjsEvent(
+    createdBy: string,
+    payload: CreateHostPlusTjsEventPayload,
+  ): Promise<{ eventId: string | null; error: string | null }> {
+    const timestamp = new Date().toISOString();
+    const host = await this.getHost(payload.hostId);
+
+    if (!host) {
+      return { eventId: null, error: 'Host+ not found.' };
+    }
+
+    if (!host.is_host_plus) {
+      return { eventId: null, error: 'This host is not marked as Host+.' };
+    }
+
+    const normalizedEntries = payload.entries
+      .filter((entry) => !!entry.startDate)
+      .map((entry) => ({
+        mode: entry.mode,
+        startDate: entry.startDate,
+        endDate: entry.mode === 'period' ? entry.endDate : '',
+        showTime: entry.showTime.trim(),
+        locationId: entry.locationId,
+        locationLabel: entry.locationLabel.trim(),
+      }));
+
+    if (normalizedEntries.length === 0) {
+      return { eventId: null, error: 'At least one event date is required.' };
+    }
+
+    for (const [index, entry] of normalizedEntries.entries()) {
+      if (entry.mode === 'period' && !entry.endDate) {
+        return { eventId: null, error: `Schedule entry ${index + 1} requires an end date.` };
+      }
+
+      if (entry.mode === 'period' && entry.startDate > entry.endDate) {
+        return { eventId: null, error: `Schedule entry ${index + 1} has an end date before its start date.` };
+      }
+    }
+
+    const [eventDomains, editionOptions, eventTypeOptions] = await Promise.all([
+      this.listEventDomains(),
+      this.listConcreteEventEditionOptions(),
+      this.listEventTypeOptions(),
+    ]);
+
+    const selectedEventDomain = eventDomains.find((item) => item.id === payload.eventDomainId) ?? null;
+    const selectedEdition = editionOptions.find((item) => item.id === payload.editionId) ?? null;
+    const selectedEventType = eventTypeOptions.find((item) => item.id === payload.eventTypeId) ?? null;
+
+    const eventDomainName = (selectedEventDomain?.name ?? payload.eventDomainName?.trim()) || null;
+    const editionName = (selectedEdition?.label ?? selectedEdition?.name ?? payload.editionName?.trim()) || null;
+    const eventTypeName = (selectedEventType?.name ?? payload.eventTypeName?.trim()) || null;
+
+    let persistedLocationId: string | null = null;
+    const firstLinkedLocationId = normalizedEntries.find((entry) => !!entry.locationId)?.locationId ?? null;
+    if (firstLinkedLocationId) {
+      const publicLocation = await this.getPublicLocationById(firstLinkedLocationId);
+      if (publicLocation) {
+        persistedLocationId = firstLinkedLocationId;
+      }
+    }
+
+    const selectedDates = normalizedEntries.flatMap((entry) =>
+      entry.mode === 'period'
+        ? [entry.startDate, entry.endDate].filter(Boolean)
+        : [entry.startDate].filter(Boolean)
+    );
+
+    const hostLabel = host.public_name || host.name || host.city || `Host #${host.id}`;
+    const provenanceLines = [
+      `Host+ External Event ID: ${payload.externalEventId}`,
+      `Host+ Source Table: ${payload.externalSourceTable}`,
+      payload.externalDatabaseLabel ? `Host+ External Database: ${payload.externalDatabaseLabel}` : null,
+      `Host+ Imported From: ${hostLabel}`,
+    ].filter((line): line is string => !!line);
+    const externalArtistLines = payload.externalArtists.length > 0
+      ? [
+          'External Artists:',
+          ...payload.externalArtists.map((artist) => {
+            const imageUrl = artist.photoUrl || artist.imageUrls[0] || 'No image';
+            return `- ${artist.displayName.trim() || 'Unknown artist'} | ${imageUrl}`;
+          }),
+        ]
+      : [];
+    const hostNotes = [payload.notes.trim(), ...externalArtistLines, ...provenanceLines]
+      .filter(Boolean)
+      .join('\n');
+
+    const eventNotes = this.mergeStructuredHostNotes('', {
+      eventDomain: eventDomainName,
+      eventTeaser: payload.teaser.trim() || null,
+      edition: editionName,
+      eventType: eventTypeName,
+      showTime: normalizedEntries[0]?.showTime || null,
+      eventImageUrl: payload.imageUrl,
+      callToActionUrl: payload.callToActionUrl.trim() || null,
+      hostNotes: hostNotes || null,
+      scheduleEntries: normalizedEntries,
+    });
+
+    const { data: insertedEvent, error: insertEventError } = await this.adminSupabase
+      .from('tjs_events')
+      .insert({
+        title: payload.title.trim() || 'Untitled Event',
+        description: payload.description.trim() || payload.teaser.trim() || null,
+        event_type: 'EVENT_INSTANCE',
+        status: payload.isPublished ? 'APPROVED' : 'SELECTED',
+        origin_website: 'TJS',
+        visibility_scope: this.buildEventVisibilityScope(payload.isMemberOnly),
+        parent_event_id: null,
+        created_by: createdBy,
+        proposed_dates: null,
+        department: null,
+        city: normalizedEntries[0]?.locationLabel || null,
+        source: 'TJS',
+        created_at: timestamp,
+        updated_at: timestamp,
+      })
+      .select('id')
+      .single();
+
+    if (insertEventError || !insertedEvent?.id) {
+      if (insertEventError && this.isMissingSchemaError(insertEventError)) {
+        return {
+          eventId: null,
+          error: 'Host event tables are missing in the database. Run db/023_host_event_tables.sql and try again.',
+        };
+      }
+
+      return { eventId: null, error: insertEventError?.message ?? 'Event could not be created.' };
+    }
+
+    const { error: hostAssignmentError } = await this.adminSupabase
+      .from('tjs_event_hosts')
+      .insert({
+        event_id: insertedEvent.id,
+        host_id: payload.hostId,
+        selected_dates: selectedDates,
+        location_id: persistedLocationId,
+        host_status: 'CONFIRMED',
+        selected_at: timestamp,
+        notes: eventNotes || null,
+      });
+
+    if (hostAssignmentError) {
+      if (this.isMissingSchemaError(hostAssignmentError)) {
+        return {
+          eventId: null,
+          error: 'Host event tables are missing in the database. Run db/023_host_event_tables.sql and try again.',
+        };
+      }
+
+      return { eventId: null, error: hostAssignmentError.message };
     }
 
     return { eventId: insertedEvent.id, error: null };
@@ -10688,6 +12070,34 @@ export class SupabaseService {
       });
   }
 
+  private extractExternalArtistEntriesFromNotes(notes: string | null | undefined): Array<{
+    id?: string;
+    display_name: string;
+    image_url: string | null;
+  }> {
+    const lines = (notes ?? '')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const headerIndex = lines.findIndex((line) => line === 'External Artists:');
+    if (headerIndex < 0) {
+      return [];
+    }
+
+    return lines
+      .slice(headerIndex + 1)
+      .filter((line) => line.startsWith('- '))
+      .map((line) => line.replace(/^- /, '').trim())
+      .map((line, index) => {
+        const [displayName, imageUrl] = line.split('|').map((item) => item.trim());
+        return {
+          id: `external-${index}`,
+          display_name: displayName || 'Unknown artist',
+          image_url: imageUrl && imageUrl !== 'No image' ? imageUrl : null,
+        };
+      });
+  }
+
   private normalizeLocationComparisonValue(value: string | null | undefined): string | null {
     const normalized = value?.trim().toLowerCase() ?? '';
     return normalized || null;
@@ -10741,6 +12151,7 @@ export class SupabaseService {
         const trimmed = line.trim();
         return !!trimmed
           && !trimmed.startsWith('Event Domain:')
+          && !trimmed.startsWith('Event Teaser:')
           && !trimmed.startsWith('Edition:')
           && !trimmed.startsWith('Event Type:')
           && !trimmed.startsWith('Show Time:')
@@ -10760,6 +12171,7 @@ export class SupabaseService {
     existingNotes: string | null | undefined,
     values: {
       eventDomain?: string | null;
+      eventTeaser?: string | null;
       edition: string | null;
       eventType: string | null;
       showTime: string | null;
@@ -10777,6 +12189,7 @@ export class SupabaseService {
     const filteredLines = existingLines
       .filter((line) =>
         !line.startsWith('Event Domain:')
+        && !line.startsWith('Event Teaser:')
         && !line.startsWith('Edition:')
         && !line.startsWith('Event Type:')
         && !line.startsWith('Show Time:')
@@ -10788,6 +12201,7 @@ export class SupabaseService {
 
     const structuredLines = [
       values.eventDomain ? `Event Domain: ${values.eventDomain}` : null,
+      values.eventTeaser ? `Event Teaser: ${values.eventTeaser}` : null,
       values.edition ? `Edition: ${values.edition}` : null,
       values.eventType ? `Event Type: ${values.eventType}` : null,
       values.showTime ? `Show Time: ${values.showTime}` : null,

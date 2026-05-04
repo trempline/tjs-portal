@@ -190,11 +190,13 @@ export class AuthService {
         ? '/member-login'
       : this.isHostManager
         ? '/host-manager-login'
-        : this.hasAnyRole(['Host', 'Host+'])
-          ? '/host-login'
-          : this.isArtist
-            ? '/artist-login'
-            : '/admin';
+        : this.hasRole('Host+')
+          ? '/host-plus-login'
+          : this.hasRole('Host')
+            ? '/host-login'
+            : this.isArtist
+              ? '/artist-login'
+              : '/admin';
 
     await this.supabaseService.signOut();
     this.router.navigate([logoutRoute]);
@@ -221,7 +223,11 @@ export class AuthService {
       return '/backoffice/host-manager';
     }
 
-    if (roleNames.includes('host') || roleNames.includes('host+')) {
+    if (roleNames.includes('host+')) {
+      return '/backoffice/host-plus/home';
+    }
+
+    if (roleNames.includes('host')) {
       return '/backoffice/host/dashboard';
     }
 

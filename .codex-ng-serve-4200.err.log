@@ -1,0 +1,218 @@
+[1m[31m[31mX [41;31m[[41;97mERROR[41;31m][0m [1mTS2345: Argument of type '{ hostId: number; externalEventId: string; externalSourceTable: "events" | "tjs_events"; externalDatabaseLabel: string; title: string; eventDomainId: number | null; eventDomainName: string | null; ... 11 more ...; notes: string; }' is not assignable to parameter of type 'CreateHostPlusTjsEventPayload'.
+  Property 'externalArtists' is missing in type '{ hostId: number; externalEventId: string; externalSourceTable: "events" | "tjs_events"; externalDatabaseLabel: string; title: string; eventDomainId: number | null; eventDomainName: string | null; ... 11 more ...; notes: string; }' but required in type 'CreateHostPlusTjsEventPayload'.[0m [1m[35m[plugin angular-compiler][0m
+
+    src/app/backoffice/host-plus-create-tjs-event/host-plus-create-tjs-event.ts:251:73:
+[37m      251 │ ... result = await this.supabase.createHostPlusTjsEvent(profileId, [32m{[37m
+          ╵                                                                    [32m^[0m
+
+  'externalArtists' is declared here.
+
+    src/app/services/supabase.service.ts:677:2:
+[37m      677 │   [32mexternalArtists[37m: Array<{
+          ╵   [32m~~~~~~~~~~~~~~~[0m
+
+
+[31mX [41;31m[[41;97mERROR[41;31m][0m [1mTS2322: Type '{ id: string; title: string; teaser: string | null; description: string | null; event_domain_name: string | null; event_type_name: string | null; edition_name: string | null; host_name: string | null; ... 10 more ...; source_table: "events"; }[]' is not assignable to type 'HostPlusExternalEventItem[]'.
+  Property 'artists' is missing in type '{ id: string; title: string; teaser: string | null; description: string | null; event_domain_name: string | null; event_type_name: string | null; edition_name: string | null; host_name: string | null; ... 10 more ...; source_table: "events"; }' but required in type 'HostPlusExternalEventItem'.[0m [1m[35m[plugin angular-compiler][0m
+
+    src/app/services/supabase.service.ts:8324:6:
+[37m      8324 │       [32mitems[37m: eventRows.map((row) => {
+           ╵       [32m~~~~~[0m
+
+  'artists' is declared here.
+
+    src/app/services/supabase.service.ts:404:2:
+[37m      404 │   [32martists[37m: HostPlusExternalEventArtistItem[];
+          ╵   [32m~~~~~~~[0m
+
+  The expected type comes from property 'items' which is declared here on type '{ items: HostPlusExternalEventItem[]; error: any; }'
+
+    src/app/services/supabase.service.ts:8208:15:
+[37m      8208 │   ): Promise<{ [32mitems[37m: HostPlusExternalEventItem[]; error: any | ...
+           ╵                [32m~~~~~[0m
+
+
+[31mX [41;31m[[41;97mERROR[41;31m][0m [1mTS2322: Type '{ id: string; title: string; teaser: null; description: string | null; event_domain_name: null; event_type_name: string; edition_name: null; host_name: string | null; booking_url: null; photo_url: null; ... 8 more ...; source_table: "tjs_events"; }[]' is not assignable to type 'HostPlusExternalEventItem[]'.
+  Property 'artists' is missing in type '{ id: string; title: string; teaser: null; description: string | null; event_domain_name: null; event_type_name: string; edition_name: null; host_name: string | null; booking_url: null; photo_url: null; ... 8 more ...; source_table: "tjs_events"; }' but required in type 'HostPlusExternalEventItem'.[0m [1m[35m[plugin angular-compiler][0m
+
+    src/app/services/supabase.service.ts:8419:6:
+[37m      8419 │       [32mitems[37m: eventRows.map((row) => {
+           ╵       [32m~~~~~[0m
+
+  'artists' is declared here.
+
+    src/app/services/supabase.service.ts:404:2:
+[37m      404 │   [32martists[37m: HostPlusExternalEventArtistItem[];
+          ╵   [32m~~~~~~~[0m
+
+  The expected type comes from property 'items' which is declared here on type '{ items: HostPlusExternalEventItem[]; error: any; }'
+
+    src/app/services/supabase.service.ts:8364:15:
+[37m      8364 │   ): Promise<{ [32mitems[37m: HostPlusExternalEventItem[]; error: any | ...
+           ╵                [32m~~~~~[0m
+
+[39m[22m
+[1m[31m[31mX [41;31m[[41;97mERROR[41;31m][0m [1mTS2345: Argument of type '{ hostId: number; externalEventId: string; externalSourceTable: "events" | "tjs_events"; externalDatabaseLabel: string; title: string; eventDomainId: number | null; eventDomainName: string | null; ... 11 more ...; notes: string; }' is not assignable to parameter of type 'CreateHostPlusTjsEventPayload'.
+  Property 'externalArtists' is missing in type '{ hostId: number; externalEventId: string; externalSourceTable: "events" | "tjs_events"; externalDatabaseLabel: string; title: string; eventDomainId: number | null; eventDomainName: string | null; ... 11 more ...; notes: string; }' but required in type 'CreateHostPlusTjsEventPayload'.[0m [1m[35m[plugin angular-compiler][0m
+
+    src/app/backoffice/host-plus-create-tjs-event/host-plus-create-tjs-event.ts:251:73:
+[37m      251 │ ... result = await this.supabase.createHostPlusTjsEvent(profileId, [32m{[37m
+          ╵                                                                    [32m^[0m
+
+  'externalArtists' is declared here.
+
+    src/app/services/supabase.service.ts:677:2:
+[37m      677 │   [32mexternalArtists[37m: Array<{
+          ╵   [32m~~~~~~~~~~~~~~~[0m
+
+
+[31mX [41;31m[[41;97mERROR[41;31m][0m [1mTS2551: Property 'mapHostPlusLegacyEventArtist' does not exist on type 'SupabaseService'. Did you mean 'mapHostPlusLegacyArtist'?[0m [1m[35m[plugin angular-compiler][0m
+
+    src/app/services/supabase.service.ts:8364:30:
+[37m      8364 │ ...yId.set(id, this.[32mmapHostPlusLegacyEventArtist[37m(row, mediaImage...
+           ╵                     [32m~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+
+  'mapHostPlusLegacyArtist' is declared here.
+
+    src/app/services/supabase.service.ts:8597:10:
+[37m      8597 │   private [32mmapHostPlusLegacyArtist[37m(row: any): HostPlusExternalArt...
+           ╵           [32m~~~~~~~~~~~~~~~~~~~~~~~[0m
+
+
+[31mX [41;31m[[41;97mERROR[41;31m][0m [1mTS2322: Type '{ id: string; title: string; teaser: null; description: string | null; event_domain_name: null; event_type_name: string; edition_name: null; host_name: string | null; booking_url: null; photo_url: null; ... 8 more ...; source_table: "tjs_events"; }[]' is not assignable to type 'HostPlusExternalEventItem[]'.
+  Property 'artists' is missing in type '{ id: string; title: string; teaser: null; description: string | null; event_domain_name: null; event_type_name: string; edition_name: null; host_name: string | null; booking_url: null; photo_url: null; ... 8 more ...; source_table: "tjs_events"; }' but required in type 'HostPlusExternalEventItem'.[0m [1m[35m[plugin angular-compiler][0m
+
+    src/app/services/supabase.service.ts:8480:6:
+[37m      8480 │       [32mitems[37m: eventRows.map((row) => {
+           ╵       [32m~~~~~[0m
+
+  'artists' is declared here.
+
+    src/app/services/supabase.service.ts:404:2:
+[37m      404 │   [32martists[37m: HostPlusExternalEventArtistItem[];
+          ╵   [32m~~~~~~~[0m
+
+  The expected type comes from property 'items' which is declared here on type '{ items: HostPlusExternalEventItem[]; error: any; }'
+
+    src/app/services/supabase.service.ts:8425:15:
+[37m      8425 │   ): Promise<{ [32mitems[37m: HostPlusExternalEventItem[]; error: any | ...
+           ╵                [32m~~~~~[0m
+
+[39m[22m
+[1m[31m[31mX [41;31m[[41;97mERROR[41;31m][0m [1mTS2345: Argument of type '{ hostId: number; externalEventId: string; externalSourceTable: "events" | "tjs_events"; externalDatabaseLabel: string; title: string; eventDomainId: number | null; eventDomainName: string | null; ... 11 more ...; notes: string; }' is not assignable to parameter of type 'CreateHostPlusTjsEventPayload'.
+  Property 'externalArtists' is missing in type '{ hostId: number; externalEventId: string; externalSourceTable: "events" | "tjs_events"; externalDatabaseLabel: string; title: string; eventDomainId: number | null; eventDomainName: string | null; ... 11 more ...; notes: string; }' but required in type 'CreateHostPlusTjsEventPayload'.[0m [1m[35m[plugin angular-compiler][0m
+
+    src/app/backoffice/host-plus-create-tjs-event/host-plus-create-tjs-event.ts:251:73:
+[37m      251 │ ... result = await this.supabase.createHostPlusTjsEvent(profileId, [32m{[37m
+          ╵                                                                    [32m^[0m
+
+  'externalArtists' is declared here.
+
+    src/app/services/supabase.service.ts:677:2:
+[37m      677 │   [32mexternalArtists[37m: Array<{
+          ╵   [32m~~~~~~~~~~~~~~~[0m
+
+
+[31mX [41;31m[[41;97mERROR[41;31m][0m [1mTS2551: Property 'mapHostPlusLegacyEventArtist' does not exist on type 'SupabaseService'. Did you mean 'mapHostPlusLegacyArtist'?[0m [1m[35m[plugin angular-compiler][0m
+
+    src/app/services/supabase.service.ts:8364:30:
+[37m      8364 │ ...yId.set(id, this.[32mmapHostPlusLegacyEventArtist[37m(row, mediaImage...
+           ╵                     [32m~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+
+  'mapHostPlusLegacyArtist' is declared here.
+
+    src/app/services/supabase.service.ts:8653:10:
+[37m      8653 │   private [32mmapHostPlusLegacyArtist[37m(row: any): HostPlusExternalArt...
+           ╵           [32m~~~~~~~~~~~~~~~~~~~~~~~[0m
+
+
+[31mX [41;31m[[41;97mERROR[41;31m][0m [1mTS2551: Property 'mapHostPlusTjsEventArtist' does not exist on type 'SupabaseService'. Did you mean 'mapHostPlusTjsArtist'?[0m [1m[35m[plugin angular-compiler][0m
+
+    src/app/services/supabase.service.ts:8515:30:
+[37m      8515 │ ...ById.set(id, this.[32mmapHostPlusTjsEventArtist[37m(row, profileId ? ...
+           ╵                      [32m~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+
+  'mapHostPlusTjsArtist' is declared here.
+
+    src/app/services/supabase.service.ts:8678:10:
+[37m      8678 │   private [32mmapHostPlusTjsArtist[37m(row: any, profile: any | null): H...
+           ╵           [32m~~~~~~~~~~~~~~~~~~~~[0m
+
+[39m[22m
+[1m[31m[31mX [41;31m[[41;97mERROR[41;31m][0m [1mTS2345: Argument of type '{ hostId: number; externalEventId: string; externalSourceTable: "events" | "tjs_events"; externalDatabaseLabel: string; title: string; eventDomainId: number | null; eventDomainName: string | null; ... 11 more ...; notes: string; }' is not assignable to parameter of type 'CreateHostPlusTjsEventPayload'.
+  Property 'externalArtists' is missing in type '{ hostId: number; externalEventId: string; externalSourceTable: "events" | "tjs_events"; externalDatabaseLabel: string; title: string; eventDomainId: number | null; eventDomainName: string | null; ... 11 more ...; notes: string; }' but required in type 'CreateHostPlusTjsEventPayload'.[0m [1m[35m[plugin angular-compiler][0m
+
+    src/app/backoffice/host-plus-create-tjs-event/host-plus-create-tjs-event.ts:251:73:
+[37m      251 │ ... result = await this.supabase.createHostPlusTjsEvent(profileId, [32m{[37m
+          ╵                                                                    [32m^[0m
+
+  'externalArtists' is declared here.
+
+    src/app/services/supabase.service.ts:677:2:
+[37m      677 │   [32mexternalArtists[37m: Array<{
+          ╵   [32m~~~~~~~~~~~~~~~[0m
+
+[39m[22m
+[1m[31m[31mX [41;31m[[41;97mERROR[41;31m][0m [1mTS2345: Argument of type '{ hostId: number; externalEventId: string; externalSourceTable: "events" | "tjs_events"; externalDatabaseLabel: string; title: string; eventDomainId: number | null; eventDomainName: string | null; ... 11 more ...; notes: string; }' is not assignable to parameter of type 'CreateHostPlusTjsEventPayload'.
+  Property 'externalArtists' is missing in type '{ hostId: number; externalEventId: string; externalSourceTable: "events" | "tjs_events"; externalDatabaseLabel: string; title: string; eventDomainId: number | null; eventDomainName: string | null; ... 11 more ...; notes: string; }' but required in type 'CreateHostPlusTjsEventPayload'.[0m [1m[35m[plugin angular-compiler][0m
+
+    src/app/backoffice/host-plus-create-tjs-event/host-plus-create-tjs-event.ts:251:73:
+[37m      251 │ ... result = await this.supabase.createHostPlusTjsEvent(profileId, [32m{[37m
+          ╵                                                                    [32m^[0m
+
+  'externalArtists' is declared here.
+
+    src/app/services/supabase.service.ts:677:2:
+[37m      677 │   [32mexternalArtists[37m: Array<{
+          ╵   [32m~~~~~~~~~~~~~~~[0m
+
+[39m[22m
+[1m[31m[31mX [41;31m[[41;97mERROR[41;31m][0m [1mTS2339: Property 'extractExternalArtistEntriesFromNotes' does not exist on type 'SupabaseService'.[0m [1m[35m[plugin angular-compiler][0m
+
+    src/app/services/supabase.service.ts:4292:37:
+[37m      4292 │ ...rnalArtists = this.[32mextractExternalArtistEntriesFromNotes[37m(notes);
+           ╵                       [32m~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+
+
+[31mX [41;31m[[41;97mERROR[41;31m][0m [1mTS7006: Parameter 'artist' implicitly has an 'any' type.[0m [1m[35m[plugin angular-compiler][0m
+
+    src/app/services/supabase.service.ts:4295:33:
+[37m      4295 │           : externalArtists.map(([32martist[37m) => artist.display_name);
+           ╵                                  [32m~~~~~~[0m
+
+[39m[22m
+[1m[31m[31mX [41;31m[[41;97mERROR[41;31m][0m [1mTS2339: Property 'extractExternalArtistEntriesFromNotes' does not exist on type 'SupabaseService'.[0m [1m[35m[plugin angular-compiler][0m
+
+    src/app/services/supabase.service.ts:4292:37:
+[37m      4292 │ ...rnalArtists = this.[32mextractExternalArtistEntriesFromNotes[37m(notes);
+           ╵                       [32m~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+
+
+[31mX [41;31m[[41;97mERROR[41;31m][0m [1mTS7006: Parameter 'artist' implicitly has an 'any' type.[0m [1m[35m[plugin angular-compiler][0m
+
+    src/app/services/supabase.service.ts:4295:33:
+[37m      4295 │           : externalArtists.map(([32martist[37m) => artist.display_name);
+           ╵                                  [32m~~~~~~[0m
+
+
+[31mX [41;31m[[41;97mERROR[41;31m][0m [1mTS2339: Property 'extractExternalArtistEntriesFromNotes' does not exist on type 'SupabaseService'.[0m [1m[35m[plugin angular-compiler][0m
+
+    src/app/services/supabase.service.ts:4981:33:
+[37m      4981 │ ...rnalArtists = this.[32mextractExternalArtistEntriesFromNotes[37m(notes);
+           ╵                       [32m~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+
+
+[31mX [41;31m[[41;97mERROR[41;31m][0m [1mTS7006: Parameter 'artist' implicitly has an 'any' type.[0m [1m[35m[plugin angular-compiler][0m
+
+    src/app/services/supabase.service.ts:4984:29:
+[37m      4984 │       : externalArtists.map(([32martist[37m) => artist.display_name);
+           ╵                              [32m~~~~~~[0m
+
+
+[31mX [41;31m[[41;97mERROR[41;31m][0m [1mTS7006: Parameter 'artist' implicitly has an 'any' type.[0m [1m[35m[plugin angular-compiler][0m
+
+    src/app/services/supabase.service.ts:5082:32:
+[37m      5082 │       }) : externalArtists.map(([32martist[37m) => ({
+           ╵                                 [32m~~~~~~[0m
+
+[39m[22m

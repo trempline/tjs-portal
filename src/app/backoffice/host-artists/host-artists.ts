@@ -22,7 +22,18 @@ export class HostArtists implements OnInit {
   }
 
   async openArtist(artist: TjsArtist) {
-    await this.router.navigate(['/backoffice/host/artists', artist.id]);
+    const baseRoute = this.router.url.startsWith('/backoffice/host-plus/artists')
+      ? '/backoffice/host-plus/artists'
+      : '/backoffice/host/artists';
+    await this.router.navigate([baseRoute, artist.id]);
+  }
+
+  get pageTitle(): string {
+    return this.router.url.startsWith('/backoffice/host-plus/artists') ? 'Host+ Artists' : 'TJS Artists';
+  }
+
+  get pageDescription(): string {
+    return 'Browse all TJS artists and open their full profile details.';
   }
 
   displayName(artist: TjsArtist): string {

@@ -1,10 +1,12 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { NgFor, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import {
   SupabaseService,
   TjsHost,
+  TjsHostPlusDatabaseSettings,
   SysHostType,
   TjsHostMember,
   TjsProfile,
@@ -32,6 +34,15 @@ interface HostForm {
   manager_user_id: string | null;
 }
 
+interface HostPlusDatabaseSettingsForm {
+  database_label: string;
+  supabase_url: string;
+  supabase_anon_key: string;
+  schema_name: string;
+  is_active: boolean;
+  notes: string;
+}
+
 @Component({
   selector: 'app-hosts',
   standalone: true,
@@ -39,6 +50,8 @@ interface HostForm {
   templateUrl: './hosts.html',
 })
 export class Hosts implements OnInit {
+  private route = inject(ActivatedRoute);
+  private router = inject(Router);
   private authService = inject(AuthService);
   private supabase = inject(SupabaseService);
 
@@ -51,6 +64,7 @@ export class Hosts implements OnInit {
   hosts: TjsHost[] = [];
   hostTypes: SysHostType[] = [];
   searchQuery = '';
+  isHostPlusPage = false;
 
   // Modals
   showCreateModal = false;
@@ -61,6 +75,8 @@ export class Hosts implements OnInit {
 
   selectedHost: TjsHost | null = null;
   hostForm: HostForm = this.blankForm();
+  hostPlusSettingsForm: HostPlusDatabaseSettingsForm = this.blankHostPlusSettingsForm();
+  selectedHostPlusSettings: TjsHostPlusDatabaseSettings | null = null;
 
   // Members modal
   hostMembers: TjsHostMember[] = [];
@@ -70,6 +86,46 @@ export class Hosts implements OnInit {
   isLoadingMembers = false;
 
   // ── Computed ───────────────────────────────────────────────────────────
+
+  get pageTitle(): string {
+    return this.isHostPlusPage ? 'Host+' : 'Hôtes';
+  }
+
+  get pageDescription(): string {
+    return this.isHostPlusPage
+      ? 'Gérez les Host+ et leurs paramètres de base de données.'
+      : 'Gérez les hôtes qui accueillent des concerts à domicile.';
+  }
+
+  get createButtonLabel(): string {
+    return this.isHostPlusPage ? 'Ajouter un Host+' : 'Ajouter un hôte';
+  }
+
+  get createSubmitLabel(): string {
+    return this.isHostPlusPage ? 'Créer le Host+' : 'Créer l\'hôte';
+  }
+
+  get editModalTitle(): string {
+    return this.isHostPlusPage ? 'Modifier le Host+' : 'Modifier l\'hôte';
+  }
+
+  get createModalTitle(): string {
+    return this.isHostPlusPage ? 'Ajouter un Host+' : 'Ajouter un hôte';
+  }
+
+  get emptyTitle(): string {
+    return this.isHostPlusPage ? 'Aucun Host+' : 'Aucun hôte';
+  }
+
+  get emptyDescription(): string {
+    return this.isHostPlusPage
+      ? 'Il n\'y a pas encore de Host+ enregistré.'
+      : 'Il n\'y a pas encore d\'hôtes enregistrés.';
+  }
+
+  get showHostPlusDatabaseSettings(): boolean {
+    return this.isHostPlusPage || this.hostForm.is_host_plus;
+  }
 
   get filteredHosts(): TjsHost[] {
     if (!this.searchQuery.trim()) return this.hosts;
@@ -108,6 +164,14 @@ export class Hosts implements OnInit {
     return this.hosts.filter((h) => h.id_host_type === typeId).length;
   }
 
+  async openHostPlusEvents(host: TjsHost) {
+    if (!host.is_host_plus) {
+      return;
+    }
+
+    await this.router.navigate(['/backoffice/host-plus', host.id, 'events']);
+  }
+
   get currentUserId(): string {
     return this.authService.currentUser?.id ?? '';
   }
@@ -115,6 +179,7 @@ export class Hosts implements OnInit {
   // ── Lifecycle ──────────────────────────────────────────────────────────
 
   async ngOnInit() {
+    this.isHostPlusPage = this.route.snapshot.data['hostPlus'] === true;
     await this.loadData();
   }
 
@@ -126,7 +191,9 @@ export class Hosts implements OnInit {
       this.supabase.getHostTypes(),
       this.supabase.listAllUsersWithRoles(),
     ]);
-    this.hosts = hosts;
+    this.hosts = hosts.filter((host) =>
+      this.isHostPlusPage ? !!host.is_host_plus : !host.is_host_plus
+    );
     this.hostTypes = hostTypes;
     this.hostManagers = users.filter((user) =>
       user.roles.some((role) => role.name.toLowerCase() === 'host manager')
@@ -138,6 +205,8 @@ export class Hosts implements OnInit {
 
   openCreateModal() {
     this.hostForm = this.blankForm();
+    this.hostPlusSettingsForm = this.blankHostPlusSettingsForm();
+    this.selectedHostPlusSettings = null;
     this.error = '';
     this.successMessage = '';
     this.showCreateModal = true;
@@ -156,7 +225,7 @@ export class Hosts implements OnInit {
     this.isSaving = true;
     this.error = '';
 
-    const { error } = await this.supabase.createHost({
+    const { id: hostId, error } = await this.supabase.createHost({
       name: this.hostForm.name,
       public_name: this.hostForm.public_name || null,
       address: this.hostForm.address || null,
@@ -174,7 +243,7 @@ export class Hosts implements OnInit {
       contact_email: this.hostForm.contact_email || null,
       comment: this.hostForm.comment || null,
       web_url: this.hostForm.web_url || null,
-      is_host_plus: this.hostForm.is_host_plus,
+      is_host_plus: this.isHostPlusPage ? true : this.hostForm.is_host_plus,
       photo: null,
       photo_credit: null,
       created_by: this.hostForm.manager_user_id || this.currentUserId,
@@ -187,7 +256,18 @@ export class Hosts implements OnInit {
       return;
     }
 
-    this.successMessage = `Hôte « ${this.hostForm.name} » créé avec succès !`;
+    if (this.isHostPlusPage && hostId) {
+      const settingsError = await this.saveHostPlusDatabaseSettings(hostId);
+      if (settingsError) {
+        this.error = settingsError;
+        this.isSaving = false;
+        return;
+      }
+    }
+
+    this.successMessage = this.isHostPlusPage
+      ? `Host+ "${this.hostForm.name}" créé avec succès !`
+      : `Hôte « ${this.hostForm.name} » créé avec succès !`;
     this.showCreateModal = false;
     this.isSaving = false;
     await this.loadData();
@@ -198,11 +278,17 @@ export class Hosts implements OnInit {
 
   async openViewModal(host: TjsHost) {
     this.selectedHost = host;
+    this.selectedHostPlusSettings = null;
     this.error = '';
     this.isLoadingMembers = true;
     this.showViewModal = true;
 
-    this.hostMembers = await this.supabase.getHostMembers(host.id);
+    const [members, settings] = await Promise.all([
+      this.supabase.getHostMembers(host.id),
+      host.is_host_plus ? this.supabase.getHostPlusDatabaseSettings(host.id) : Promise.resolve(null),
+    ]);
+    this.hostMembers = members;
+    this.selectedHostPlusSettings = settings;
     this.isLoadingMembers = false;
   }
 
@@ -210,11 +296,12 @@ export class Hosts implements OnInit {
     this.showViewModal = false;
     this.selectedHost = null;
     this.hostMembers = [];
+    this.selectedHostPlusSettings = null;
   }
 
   // ── Edit ───────────────────────────────────────────────────────────────
 
-  openEditModal(host: TjsHost) {
+  async openEditModal(host: TjsHost) {
     this.selectedHost = host;
     this.hostForm = {
       name: host.name ?? '',
@@ -237,13 +324,21 @@ export class Hosts implements OnInit {
       is_host_plus: host.is_host_plus ?? false,
       manager_user_id: host.created_by,
     };
+    this.hostPlusSettingsForm = this.blankHostPlusSettingsForm();
+    this.selectedHostPlusSettings = null;
     this.error = '';
     this.showEditModal = true;
+    if (host.is_host_plus) {
+      const settings = await this.supabase.getHostPlusDatabaseSettings(host.id);
+      this.selectedHostPlusSettings = settings;
+      this.hostPlusSettingsForm = this.settingsFormFromRecord(settings);
+    }
   }
 
   closeEditModal() {
     this.showEditModal = false;
     this.selectedHost = null;
+    this.selectedHostPlusSettings = null;
   }
 
   async submitEdit() {
@@ -274,7 +369,7 @@ export class Hosts implements OnInit {
       contact_email: this.hostForm.contact_email || null,
       comment: this.hostForm.comment || null,
       web_url: this.hostForm.web_url || null,
-      is_host_plus: this.hostForm.is_host_plus,
+      is_host_plus: this.isHostPlusPage ? true : this.hostForm.is_host_plus,
       created_by: this.hostForm.manager_user_id || this.currentUserId,
       updated_by: this.currentUserId,
     });
@@ -282,7 +377,18 @@ export class Hosts implements OnInit {
     if (err) {
       this.error = err;
     } else {
-      this.successMessage = 'Hôte mis à jour avec succès.';
+      if (this.isHostPlusPage || this.hostForm.is_host_plus) {
+        const settingsError = await this.saveHostPlusDatabaseSettings(this.selectedHost.id);
+        if (settingsError) {
+          this.error = settingsError;
+          this.isSaving = false;
+          return;
+        }
+      }
+
+      this.successMessage = this.isHostPlusPage
+        ? 'Host+ mis à jour avec succès.'
+        : 'Hôte mis à jour avec succès.';
       this.showEditModal = false;
       this.selectedHost = null;
       await this.loadData();
@@ -312,7 +418,9 @@ export class Hosts implements OnInit {
     if (err) {
       this.error = err;
     } else {
-      this.successMessage = `Hôte « ${this.selectedHost.name} » supprimé.`;
+      this.successMessage = this.isHostPlusPage
+        ? `Host+ "${this.selectedHost.name}" supprimé.`
+        : `Hôte « ${this.selectedHost.name} » supprimé.`;
       await this.loadData();
       setTimeout(() => (this.successMessage = ''), 4000);
     }
@@ -353,7 +461,9 @@ export class Hosts implements OnInit {
 
     const err = await this.supabase.assignHostMember(
       this.selectedHost.id,
-      profile.id
+      profile.id,
+      'member',
+      this.currentUserId
     );
     if (err) {
       this.error = err;
@@ -386,6 +496,55 @@ export class Hosts implements OnInit {
     return name ? name.charAt(0).toUpperCase() : '?';
   }
 
+  maskSettingValue(value: string | null | undefined): string {
+    if (!value) {
+      return '-';
+    }
+
+    if (value.length <= 12) {
+      return '****';
+    }
+
+    return `${value.slice(0, 6)}...${value.slice(-4)}`;
+  }
+
+  private async saveHostPlusDatabaseSettings(hostId: number): Promise<string | null> {
+    return this.supabase.upsertHostPlusDatabaseSettings(
+      hostId,
+      {
+        database_label: this.hostPlusSettingsForm.database_label.trim() || null,
+        supabase_url: this.hostPlusSettingsForm.supabase_url.trim() || null,
+        supabase_anon_key: this.hostPlusSettingsForm.supabase_anon_key.trim() || null,
+        schema_name: this.hostPlusSettingsForm.schema_name.trim() || 'public',
+        is_active: this.hostPlusSettingsForm.is_active,
+        notes: this.hostPlusSettingsForm.notes.trim() || null,
+      },
+      this.currentUserId
+    );
+  }
+
+  private settingsFormFromRecord(settings: TjsHostPlusDatabaseSettings | null): HostPlusDatabaseSettingsForm {
+    return {
+      database_label: settings?.database_label ?? '',
+      supabase_url: settings?.supabase_url ?? '',
+      supabase_anon_key: settings?.supabase_anon_key ?? '',
+      schema_name: settings?.schema_name ?? 'public',
+      is_active: settings?.is_active ?? true,
+      notes: settings?.notes ?? '',
+    };
+  }
+
+  private blankHostPlusSettingsForm(): HostPlusDatabaseSettingsForm {
+    return {
+      database_label: '',
+      supabase_url: '',
+      supabase_anon_key: '',
+      schema_name: 'public',
+      is_active: true,
+      notes: '',
+    };
+  }
+
   private blankForm(): HostForm {
     return {
       name: '',
@@ -405,7 +564,7 @@ export class Hosts implements OnInit {
       contact_email: '',
       comment: '',
       web_url: '',
-      is_host_plus: false,
+      is_host_plus: this.isHostPlusPage,
       manager_user_id: null,
     };
   }

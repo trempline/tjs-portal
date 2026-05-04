@@ -342,7 +342,7 @@ export class HostManagerHosts implements OnInit {
     this.isSaving = true;
     this.error = '';
 
-    const error = await this.supabase.assignHostMember(this.selectedHost.id, profile.id);
+    const error = await this.supabase.assignHostMember(this.selectedHost.id, profile.id, 'member', this.currentUserId);
     if (error) {
       this.error = error;
       this.isSaving = false;
@@ -405,8 +405,9 @@ export class HostManagerHosts implements OnInit {
       return;
     }
 
-    if (!this.hostRoleId) {
-      this.error = 'Host role not found.';
+    const assignedRoleId = this.selectedHost.is_host_plus ? this.hostPlusRoleId : this.hostRoleId;
+    if (!assignedRoleId) {
+      this.error = this.selectedHost.is_host_plus ? 'Host+ role not found.' : 'Host role not found.';
       return;
     }
 
@@ -439,14 +440,14 @@ export class HostManagerHosts implements OnInit {
       return;
     }
 
-    const roleError = await this.supabase.assignRole(userId, this.hostRoleId, this.currentUserId);
+    const roleError = await this.supabase.assignRole(userId, assignedRoleId, this.currentUserId);
     if (roleError) {
       this.error = roleError;
       this.isSaving = false;
       return;
     }
 
-    const assignError = await this.supabase.assignHostMember(this.selectedHost.id, userId);
+    const assignError = await this.supabase.assignHostMember(this.selectedHost.id, userId, 'member', this.currentUserId);
     if (assignError) {
       this.error = assignError;
       this.isSaving = false;
