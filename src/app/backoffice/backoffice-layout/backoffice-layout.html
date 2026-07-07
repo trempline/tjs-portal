@@ -910,6 +910,20 @@
     </nav>
 
     <div class="space-y-1 border-t border-zinc-700 px-2 py-3">
+      <a
+        [routerLink]="visitorSiteRoute"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-zinc-300 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+        [attr.title]="visitorSiteLabel"
+      >
+        <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+          <polyline points="15 3 21 3 21 9"/>
+          <line x1="10" y1="14" x2="21" y2="3"/>
+        </svg>
+        <span *ngIf="!sidebarCollapsed">{{ visitorSiteLabel }}</span>
+      </a>
       <button
         type="button"
         (click)="toggleSidebar()"
@@ -940,6 +954,20 @@
         <span class="text-sm text-zinc-500">Tremplin Jeunes Solistes - {{ workspaceHeaderLabel }}</span>
       </div>
       <div class="flex items-center gap-3">
+        <a
+          [routerLink]="visitorSiteRoute"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-700"
+          [attr.title]="visitorSiteLabel"
+        >
+          <svg class="h-4 w-4 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+            <polyline points="15 3 21 3 21 9"/>
+            <line x1="10" y1="14" x2="21" y2="3"/>
+          </svg>
+          <span class="hidden sm:inline">{{ visitorSiteLabel }}</span>
+        </a>
         <div *ngFor="let role of userRoles" class="hidden rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 md:inline-flex">
           {{ role }}
         </div>

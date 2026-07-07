@@ -129,6 +129,51 @@ export class BackofficeLayout implements OnInit, OnDestroy {
     return 'Host Workspace';
   }
 
+  get visitorSiteRoute(): string {
+    if (this.isAdmin) {
+      return '/';
+    }
+
+    if (this.isCommitteeMember) {
+      return '/artists';
+    }
+
+    if (this.isHostManager) {
+      return '/locations';
+    }
+
+    if (this.isHostPlus || this.hasPlainHostRole) {
+      return '/events';
+    }
+
+    if (this.isArtist) {
+      return '/artists';
+    }
+
+    if (this.authService.isPublicMember) {
+      return '/events';
+    }
+
+    return '/';
+  }
+
+  get visitorSiteLabel(): string {
+    switch (this.visitorSiteRoute) {
+      case '/artists':
+        return 'View public artists';
+      case '/events':
+        return 'View public events';
+      case '/locations':
+        return 'View public locations';
+      default:
+        return 'View public homepage';
+    }
+  }
+
+  private get hasPlainHostRole(): boolean {
+    return this.userRoles.some((role) => role === 'Host');
+  }
+
   get workspaceHeaderLabel(): string {
     if (this.isAdmin) {
       return 'Administration';
