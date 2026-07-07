@@ -3,6 +3,7 @@ import { DatePipe, NgClass, NgFor, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../services/auth.service';
 import { SupabaseService, TjsRole, TjsUserWithRoles } from '../../services/supabase.service';
+import { WorkspaceEditButton } from '../../shared/workspace-edit/workspace-edit-button';
 
 type UserTab = 'all' | 'admins' | 'committee' | 'hostManagers' | 'members';
 
@@ -16,7 +17,7 @@ interface InviteForm {
 @Component({
   selector: 'app-user-management',
   standalone: true,
-  imports: [NgIf, NgFor, NgClass, FormsModule, DatePipe],
+  imports: [NgIf, NgFor, NgClass, FormsModule, DatePipe, WorkspaceEditButton],
   templateUrl: './user-management.html',
 })
 export class UserManagement implements OnInit {

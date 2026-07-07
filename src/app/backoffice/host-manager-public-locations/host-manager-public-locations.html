@@ -269,7 +269,11 @@
             <td class="px-5 py-4 text-right">
               <div class="flex justify-end gap-3">
                 <a [routerLink]="[detailRoutePrefix, location.id]" class="text-sm font-medium text-zinc-700 hover:text-zinc-900">View</a>
-                <button *ngIf="canManageLocation(location)" type="button" (click)="openEditForm(location)" class="text-sm font-medium text-blue-600 hover:text-blue-700">Edit</button>
+                <app-workspace-edit-button
+                  *ngIf="canManageLocation(location)"
+                  variant="table"
+                  (clicked)="openEditForm(location)"
+                />
                 <button *ngIf="canManageLocation(location)" type="button" (click)="deleteLocation(location)" class="text-sm font-medium text-red-600 hover:text-red-700">Delete</button>
               </div>
             </td>

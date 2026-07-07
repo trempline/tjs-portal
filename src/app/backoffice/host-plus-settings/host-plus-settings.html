@@ -19,14 +19,10 @@
           <h2 class="text-lg font-semibold text-zinc-900">Change Password</h2>
           <p class="mt-1 text-sm text-zinc-500">Update the password used to sign in to this Host+ workspace.</p>
         </div>
-        <button
+        <app-workspace-edit-button
           *ngIf="!isEditingPassword"
-          type="button"
-          (click)="startPasswordEdit()"
-          class="inline-flex w-fit items-center rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50"
-        >
-          Edit
-        </button>
+          (clicked)="startPasswordEdit()"
+        />
       </div>
 
       <div *ngIf="passwordError" class="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -59,26 +55,16 @@
             />
           </div>
         </fieldset>
-        <div *ngIf="isEditingPassword" class="mt-4 flex flex-wrap gap-2">
-          <button
-            type="button"
-            (click)="cancelPasswordEdit()"
+        <div *ngIf="isEditingPassword" class="mt-4 flex flex-wrap gap-3">
+          <app-workspace-cancel-button
             [disabled]="isSavingPassword"
-            class="inline-flex items-center rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50 disabled:opacity-60"
-          >
-            Cancel
-          </button>
-          <button
+            (clicked)="cancelPasswordEdit()"
+          />
+          <app-workspace-save-button
+            label="Update password"
+            [isSaving]="isSavingPassword"
             type="submit"
-            [disabled]="isSavingPassword"
-            class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-60"
-          >
-            <svg *ngIf="isSavingPassword" class="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-            </svg>
-            {{ isSavingPassword ? 'Saving...' : 'Update password' }}
-          </button>
+          />
         </div>
       </form>
     </section>
@@ -99,14 +85,10 @@
           >
             {{ databaseForm.is_active ? 'Active' : 'Inactive' }}
           </span>
-          <button
+          <app-workspace-edit-button
             *ngIf="!isEditingDatabase"
-            type="button"
-            (click)="startDatabaseEdit()"
-            class="inline-flex items-center rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50"
-          >
-            Edit
-          </button>
+            (clicked)="startDatabaseEdit()"
+          />
         </div>
       </div>
 
@@ -146,26 +128,16 @@
             </label>
           </div>
         </fieldset>
-        <div *ngIf="isEditingDatabase" class="mt-4 flex flex-wrap gap-2">
-          <button
-            type="button"
-            (click)="cancelDatabaseEdit()"
+        <div *ngIf="isEditingDatabase" class="mt-4 flex flex-wrap gap-3">
+          <app-workspace-cancel-button
             [disabled]="isSavingDatabase"
-            class="inline-flex items-center rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50 disabled:opacity-60"
-          >
-            Cancel
-          </button>
-          <button
+            (clicked)="cancelDatabaseEdit()"
+          />
+          <app-workspace-save-button
+            label="Save database settings"
+            [isSaving]="isSavingDatabase"
             type="submit"
-            [disabled]="isSavingDatabase"
-            class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-60"
-          >
-            <svg *ngIf="isSavingDatabase" class="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-            </svg>
-            {{ isSavingDatabase ? 'Saving...' : 'Save database settings' }}
-          </button>
+          />
         </div>
       </form>
     </section>

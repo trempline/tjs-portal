@@ -14,6 +14,7 @@ import {
   TjsPrivateLocation,
   TjsUserWithRoles,
 } from '../../services/supabase.service';
+import { WorkspaceEditButton } from '../../shared/workspace-edit/workspace-edit-button';
 
 interface LocationForm {
   name: string;
@@ -47,7 +48,7 @@ interface InviteHostUserForm {
 @Component({
   selector: 'app-host-manager-host-detail',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, WorkspaceEditButton],
   templateUrl: './host-manager-host-detail.html',
   styleUrl: './host-manager-host-detail.scss'
 })

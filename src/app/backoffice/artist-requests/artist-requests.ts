@@ -1,4 +1,5 @@
 import { Component, OnInit, inject } from '@angular/core';
+import { WorkspaceEditActions } from '../../shared/workspace-edit/workspace-edit-actions';
 import { DatePipe, NgClass, NgFor, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -26,7 +27,7 @@ interface HostProposalSummary {
 @Component({
   selector: 'app-artist-requests',
   standalone: true,
-  imports: [NgIf, NgFor, NgClass, FormsModule, DatePipe, RouterLink],
+  imports: [NgIf, NgFor, NgClass, FormsModule, DatePipe, RouterLink, WorkspaceEditActions],
   templateUrl: './artist-requests.html',
 })
 export class ArtistRequests implements OnInit {

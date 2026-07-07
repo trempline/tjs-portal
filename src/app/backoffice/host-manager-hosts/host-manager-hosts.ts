@@ -14,6 +14,7 @@ import {
   TjsRole,
   TjsUserWithRoles,
 } from '../../services/supabase.service';
+import { WorkspaceEditButton } from '../../shared/workspace-edit/workspace-edit-button';
 
 interface HostForm {
   name: string;
@@ -45,7 +46,7 @@ interface InviteHostUserForm {
 @Component({
   selector: 'app-host-manager-hosts',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, WorkspaceEditButton],
   templateUrl: './host-manager-hosts.html',
   styleUrl: './host-manager-hosts.scss'
 })

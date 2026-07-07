@@ -289,7 +289,10 @@
                 >
                   {{ location.is_active ? 'Set Inactive' : 'Set Active' }}
                 </button>
-                <button type="button" (click)="openEditForm(location)" class="text-sm font-medium text-blue-600 hover:text-blue-700">Edit</button>
+                <app-workspace-edit-button
+                  variant="table"
+                  (clicked)="openEditForm(location)"
+                />
                 <button type="button" (click)="deleteLocation(location)" class="text-sm font-medium text-red-600 hover:text-red-700">Delete</button>
               </div>
             </td>

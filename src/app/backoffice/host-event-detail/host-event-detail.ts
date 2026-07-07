@@ -1,5 +1,6 @@
 import { DatePipe, Location, NgClass, NgFor, NgIf } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
+import { WorkspaceEditActions } from '../../shared/workspace-edit/workspace-edit-actions';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
@@ -49,7 +50,7 @@ interface StandaloneEventCommentEntry {
 @Component({
   selector: 'app-host-event-detail',
   standalone: true,
-  imports: [NgIf, NgFor, NgClass, DatePipe, FormsModule],
+  imports: [NgIf, NgFor, NgClass, DatePipe, FormsModule, WorkspaceEditActions],
   templateUrl: './host-event-detail.html',
 })
 export class HostEventDetail implements OnInit {

@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { WorkspaceEditButton } from '../../shared/workspace-edit/workspace-edit-button';
 import { AuthService } from '../../services/auth.service';
 import {
   LocationLookupOption,
@@ -37,7 +38,7 @@ interface LocationForm {
 @Component({
   selector: 'app-host-private-locations',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, WorkspaceEditButton],
   templateUrl: './host-private-locations.html',
 })
 export class HostPrivateLocations implements OnInit {

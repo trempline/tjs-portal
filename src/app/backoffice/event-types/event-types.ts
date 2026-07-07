@@ -2,6 +2,7 @@ import { Component, OnInit, inject } from '@angular/core';
 import { NgFor, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { EventTypeOption, SupabaseService } from '../../services/supabase.service';
+import { WorkspaceEditButton } from '../../shared/workspace-edit/workspace-edit-button';
 
 interface EventTypeForm {
   name: string;
@@ -10,7 +11,7 @@ interface EventTypeForm {
 @Component({
   selector: 'app-event-types',
   standalone: true,
-  imports: [NgIf, NgFor, FormsModule],
+  imports: [NgIf, NgFor, FormsModule, WorkspaceEditButton],
   templateUrl: './event-types.html',
 })
 export class EventTypes implements OnInit {

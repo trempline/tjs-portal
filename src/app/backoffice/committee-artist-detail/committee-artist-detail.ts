@@ -1,4 +1,5 @@
 import { Component, OnInit, inject } from '@angular/core';
+import { WorkspaceEditActions } from '../../shared/workspace-edit/workspace-edit-actions';
 import { DatePipe, NgClass, NgFor, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -26,7 +27,7 @@ type CommitteeArtistDetailTab = 'profile' | 'instruments' | 'media' | 'availabil
 @Component({
   selector: 'app-committee-artist-detail',
   standalone: true,
-  imports: [NgIf, NgFor, NgClass, DatePipe, RouterLink, FormsModule],
+  imports: [NgIf, NgFor, NgClass, DatePipe, RouterLink, FormsModule, WorkspaceEditActions],
   templateUrl: './committee-artist-detail.html',
 })
 export class CommitteeArtistDetail implements OnInit {

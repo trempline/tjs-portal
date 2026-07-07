@@ -95,15 +95,15 @@
       <ng-container *ngIf="!isLoading && (artist || pagProfile)">
         <div *ngIf="activeTab === 'profile'" class="space-y-6">
           <div *ngIf="canEditTjsArtist && !isPagOnlyProfile" class="flex justify-end">
-            <div *ngIf="!isProfileEditing; else profileEditActions">
-              <button type="button" (click)="startEditingProfile()" class="rounded-2xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-zinc-800">Edit Profile</button>
-            </div>
-            <ng-template #profileEditActions>
-              <div class="flex gap-3">
-                <button type="button" (click)="cancelEditingProfile()" class="rounded-2xl border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50">Cancel</button>
-                <button type="button" (click)="saveProfile()" [disabled]="isSavingSection" class="rounded-2xl bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60">{{ isSavingSection ? 'Saving...' : 'Save Profile' }}</button>
-              </div>
-            </ng-template>
+            <app-workspace-edit-actions
+              [isEditing]="isProfileEditing"
+              [isSaving]="isSavingSection"
+              editLabel="Edit Profile"
+              saveLabel="Save Profile"
+              (edit)="startEditingProfile()"
+              (cancel)="cancelEditingProfile()"
+              (save)="saveProfile()"
+            />
           </div>
 
           <div *ngIf="isProfileEditing && editableProfile" class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
@@ -506,17 +506,16 @@
         <div *ngIf="activeTab === 'instruments' && !isPagOnlyProfile" class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
           <div class="flex items-center justify-between gap-4">
           <h3 class="text-lg font-semibold text-zinc-900">Instruments</h3>
-            <div *ngIf="canEditTjsArtist">
-              <div *ngIf="!isInstrumentEditing; else instrumentActions">
-                <button type="button" (click)="startEditingInstruments()" class="rounded-2xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800">Edit Instruments</button>
-              </div>
-              <ng-template #instrumentActions>
-                <div class="flex gap-3">
-                  <button type="button" (click)="cancelEditingInstruments()" class="rounded-2xl border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">Cancel</button>
-                  <button type="button" (click)="saveInstruments()" [disabled]="isSavingSection" class="rounded-2xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60">{{ isSavingSection ? 'Saving...' : 'Save' }}</button>
-                </div>
-              </ng-template>
-            </div>
+            <app-workspace-edit-actions
+              *ngIf="canEditTjsArtist"
+              [isEditing]="isInstrumentEditing"
+              [isSaving]="isSavingSection"
+              editLabel="Edit Instruments"
+              saveLabel="Save Instruments"
+              (edit)="startEditingInstruments()"
+              (cancel)="cancelEditingInstruments()"
+              (save)="saveInstruments()"
+            />
           </div>
           <div *ngIf="isInstrumentEditing; else instrumentReadOnly" class="mt-5 space-y-4">
             <div class="flex gap-2">
@@ -559,15 +558,15 @@
 
         <div *ngIf="activeTab === 'media' && !isPagOnlyProfile" class="space-y-6">
           <div *ngIf="canEditTjsArtist" class="flex justify-end">
-            <div *ngIf="!isMediaEditing; else mediaActions">
-              <button type="button" (click)="startEditingMedia()" class="rounded-2xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800">Edit Media</button>
-            </div>
-            <ng-template #mediaActions>
-              <div class="flex gap-3">
-                <button type="button" (click)="cancelEditingMedia()" class="rounded-2xl border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">Cancel</button>
-                <button type="button" (click)="saveMedia()" [disabled]="isSavingSection" class="rounded-2xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60">{{ isSavingSection ? 'Saving...' : 'Save Media' }}</button>
-              </div>
-            </ng-template>
+            <app-workspace-edit-actions
+              [isEditing]="isMediaEditing"
+              [isSaving]="isSavingSection"
+              editLabel="Edit Media"
+              saveLabel="Save Media"
+              (edit)="startEditingMedia()"
+              (cancel)="cancelEditingMedia()"
+              (save)="saveMedia()"
+            />
           </div>
           <div *ngIf="isMediaEditing" class="grid gap-6 lg:grid-cols-2">
             <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
@@ -736,17 +735,16 @@
         <div *ngIf="activeTab === 'availability' && !isPagOnlyProfile" class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
           <div class="flex items-center justify-between gap-4">
             <h3 class="text-lg font-semibold text-zinc-900">Availability</h3>
-            <div *ngIf="canEditTjsArtist">
-              <div *ngIf="!isAvailabilityEditing; else availabilityActions">
-                <button type="button" (click)="startEditingAvailability()" class="rounded-2xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800">Edit Availability</button>
-              </div>
-              <ng-template #availabilityActions>
-                <div class="flex gap-3">
-                  <button type="button" (click)="cancelEditingAvailability()" class="rounded-2xl border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">Cancel</button>
-                  <button type="button" (click)="saveAvailability()" [disabled]="isSavingSection" class="rounded-2xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60">{{ isSavingSection ? 'Saving...' : 'Save' }}</button>
-                </div>
-              </ng-template>
-            </div>
+            <app-workspace-edit-actions
+              *ngIf="canEditTjsArtist"
+              [isEditing]="isAvailabilityEditing"
+              [isSaving]="isSavingSection"
+              editLabel="Edit Availability"
+              saveLabel="Save Availability"
+              (edit)="startEditingAvailability()"
+              (cancel)="cancelEditingAvailability()"
+              (save)="saveAvailability()"
+            />
           </div>
           <div *ngIf="isAvailabilityEditing" class="mt-5 space-y-4">
             <div *ngFor="let entry of editableAvailability; let i = index; trackBy: trackByIndex" class="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">

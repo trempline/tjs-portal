@@ -1,4 +1,5 @@
 import { Component, OnInit, inject } from '@angular/core';
+import { WorkspaceEditActions } from '../../shared/workspace-edit/workspace-edit-actions';
 import { NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../services/auth.service';
@@ -10,7 +11,7 @@ import {
 @Component({
   selector: 'app-artist-requirements',
   standalone: true,
-  imports: [NgIf, FormsModule],
+  imports: [NgIf, FormsModule, WorkspaceEditActions],
   templateUrl: './artist-requirements.html',
 })
 export class ArtistRequirements implements OnInit {

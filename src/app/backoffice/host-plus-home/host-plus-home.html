@@ -45,37 +45,14 @@
           <h2 class="text-lg font-semibold text-zinc-900">Host+ Details</h2>
           <p class="mt-1 text-sm text-zinc-500">Edit the core information for this Host+ account.</p>
         </div>
-        <div class="flex shrink-0 items-center gap-2">
-          <button
-            *ngIf="!isEditing"
-            type="button"
-            (click)="startEditing()"
-            class="inline-flex items-center rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50"
-          >
-            Edit
-          </button>
-          <button
-            *ngIf="isEditing"
-            type="button"
-            (click)="cancelEditing()"
-            [disabled]="isSaving"
-            class="inline-flex items-center rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50 disabled:opacity-60"
-          >
-            Cancel
-          </button>
-          <button
-            *ngIf="isEditing"
-            type="submit"
-            [disabled]="isSaving"
-            class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-60"
-          >
-            <svg *ngIf="isSaving" class="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-            </svg>
-            {{ isSaving ? 'Saving...' : 'Save changes' }}
-          </button>
-        </div>
+        <app-workspace-edit-actions
+          [isEditing]="isEditing"
+          [isSaving]="isSaving"
+          saveLabel="Save changes"
+          saveType="submit"
+          (edit)="startEditing()"
+          (cancel)="cancelEditing()"
+        />
       </div>
 
       <fieldset [disabled]="!isEditing || isSaving" class="mt-5 grid gap-4 md:grid-cols-2 disabled:opacity-75">

@@ -5,34 +5,15 @@
       <p class="mt-0.5 text-sm text-zinc-500">Maintain the instruments connected to your artist profile.</p>
     </div>
 
-    <div *ngIf="!isLoading" class="flex items-center gap-3">
-      <button
-        *ngIf="!isEditing"
-        type="button"
-        (click)="startEditing()"
-        class="rounded-xl bg-zinc-900 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-800"
-      >
-        Edit
-      </button>
-
-      <ng-container *ngIf="isEditing">
-        <button
-          type="button"
-          (click)="cancelEditing()"
-          class="rounded-xl border border-zinc-300 px-5 py-2.5 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50"
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          (click)="save()"
-          [disabled]="isSaving"
-          class="rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {{ isSaving ? 'Saving...' : 'Save Instruments' }}
-        </button>
-      </ng-container>
-    </div>
+    <app-workspace-edit-actions
+      *ngIf="!isLoading"
+      [isEditing]="isEditing"
+      [isSaving]="isSaving"
+      saveLabel="Save Instruments"
+      (edit)="startEditing()"
+      (cancel)="cancelEditing()"
+      (save)="save()"
+    />
   </div>
 
   <div *ngIf="successMessage" class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">

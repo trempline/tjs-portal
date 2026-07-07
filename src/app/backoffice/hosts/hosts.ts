@@ -11,6 +11,7 @@ import {
   TjsHostMember,
   TjsProfile,
 } from '../../services/supabase.service';
+import { WorkspaceEditButton } from '../../shared/workspace-edit/workspace-edit-button';
 
 interface HostForm {
   name: string;
@@ -46,7 +47,7 @@ interface HostPlusDatabaseSettingsForm {
 @Component({
   selector: 'app-hosts',
   standalone: true,
-  imports: [NgFor, NgIf, FormsModule],
+  imports: [NgFor, NgIf, FormsModule, WorkspaceEditButton],
   templateUrl: './hosts.html',
 })
 export class Hosts implements OnInit {

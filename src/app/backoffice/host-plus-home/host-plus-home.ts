@@ -1,5 +1,6 @@
 import { NgIf } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
+import { WorkspaceEditActions } from '../../shared/workspace-edit/workspace-edit-actions';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
@@ -27,7 +28,7 @@ interface HostPlusHomeForm {
 @Component({
   selector: 'app-host-plus-home',
   standalone: true,
-  imports: [NgIf, FormsModule, RouterLink],
+  imports: [NgIf, FormsModule, RouterLink, WorkspaceEditActions],
   templateUrl: './host-plus-home.html',
 })
 export class HostPlusHome implements OnInit {

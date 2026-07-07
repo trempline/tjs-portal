@@ -137,34 +137,15 @@
               <h3 class="text-lg font-semibold text-zinc-900">Event Details</h3>
               <p class="mt-1 text-sm text-zinc-500">{{ canEditEventDetails ? 'Update the event metadata and public-facing story for this event.' : 'Review the event metadata and public-facing story for this event.' }}</p>
             </div>
-            <div class="flex flex-wrap gap-3">
-              <button
-                *ngIf="!isEditingDetails && canEditEventDetails"
-                type="button"
-                (click)="startEditingDetails()"
-                class="inline-flex items-center justify-center rounded-2xl bg-zinc-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-zinc-800"
-              >
-                Edit
-              </button>
-              <button
-                *ngIf="isEditingDetails && canEditEventDetails"
-                type="button"
-                (click)="saveDetails()"
-                [disabled]="isUpdating"
-                class="inline-flex items-center justify-center rounded-2xl bg-zinc-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {{ isUpdating ? 'Updating...' : 'Update' }}
-              </button>
-              <button
-                *ngIf="isEditingDetails && canEditEventDetails"
-                type="button"
-                (click)="cancelEditingDetails()"
-                [disabled]="isUpdating"
-                class="inline-flex items-center justify-center rounded-2xl border border-zinc-200 bg-white px-5 py-3 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Cancel
-              </button>
-            </div>
+            <app-workspace-edit-actions
+              *ngIf="canEditEventDetails"
+              [isEditing]="isEditingDetails"
+              [isSaving]="isUpdating"
+              saveLabel="Save Details"
+              (edit)="startEditingDetails()"
+              (cancel)="cancelEditingDetails()"
+              (save)="saveDetails()"
+            />
           </div>
 
           <div class="mt-6 grid gap-5 md:grid-cols-2">
@@ -237,34 +218,15 @@
               <h3 class="text-lg font-semibold text-zinc-900">Host Notes</h3>
               <p class="mt-1 text-sm text-zinc-500">Private notes for the host assignment are stored separately from the event details.</p>
             </div>
-            <div class="flex flex-wrap gap-3">
-              <button
-                *ngIf="!isEditingHostNotes && canEditEvent"
-                type="button"
-                (click)="startEditingHostNotes()"
-                class="inline-flex items-center justify-center rounded-2xl bg-zinc-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-zinc-800"
-              >
-                Edit
-              </button>
-              <button
-                *ngIf="isEditingHostNotes && canEditEvent"
-                type="button"
-                (click)="saveDetails()"
-                [disabled]="isUpdating"
-                class="inline-flex items-center justify-center rounded-2xl bg-zinc-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {{ isUpdating ? 'Updating...' : 'Update' }}
-              </button>
-              <button
-                *ngIf="isEditingHostNotes && canEditEvent"
-                type="button"
-                (click)="cancelEditingHostNotes()"
-                [disabled]="isUpdating"
-                class="inline-flex items-center justify-center rounded-2xl border border-zinc-200 bg-white px-5 py-3 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Cancel
-              </button>
-            </div>
+            <app-workspace-edit-actions
+              *ngIf="canEditEvent"
+              [isEditing]="isEditingHostNotes"
+              [isSaving]="isUpdating"
+              saveLabel="Save Notes"
+              (edit)="startEditingHostNotes()"
+              (cancel)="cancelEditingHostNotes()"
+              (save)="saveDetails()"
+            />
           </div>
 
           <div class="mt-6 space-y-5">
@@ -322,34 +284,15 @@
                 <h3 class="text-lg font-semibold text-zinc-900">Show Dates</h3>
                 <p class="mt-1 text-sm text-zinc-500">{{ canEditEvent ? 'Manage event dates, show time, and location for this host event.' : 'Review event dates, show time, and location for this event.' }}</p>
               </div>
-              <div class="flex flex-wrap gap-3">
-                <button
-                  *ngIf="!isEditingSchedule && canEditEvent"
-                  type="button"
-                  (click)="startEditingSchedule()"
-                  class="inline-flex items-center justify-center rounded-2xl bg-zinc-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-zinc-800"
-                >
-                  Edit
-                </button>
-                <button
-                  *ngIf="isEditingSchedule && canEditEvent"
-                  type="button"
-                  (click)="saveSchedule()"
-                  [disabled]="isUpdating"
-                  class="inline-flex items-center justify-center rounded-2xl bg-zinc-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {{ isUpdating ? 'Updating...' : 'Update' }}
-                </button>
-                <button
-                  *ngIf="isEditingSchedule && canEditEvent"
-                  type="button"
-                  (click)="cancelEditingSchedule()"
-                  [disabled]="isUpdating"
-                  class="inline-flex items-center justify-center rounded-2xl border border-zinc-200 bg-white px-5 py-3 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  Cancel
-                </button>
-              </div>
+              <app-workspace-edit-actions
+                *ngIf="canEditEvent"
+                [isEditing]="isEditingSchedule"
+                [isSaving]="isUpdating"
+                saveLabel="Save Schedule"
+                (edit)="startEditingSchedule()"
+                (cancel)="cancelEditingSchedule()"
+                (save)="saveSchedule()"
+              />
             </div>
 
             <div *ngIf="!isEditingSchedule && event.all_dates.length === 0" class="mt-5 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-10 text-center text-sm text-zinc-500">
@@ -493,50 +436,33 @@
               <h3 class="text-lg font-semibold text-zinc-900">Media</h3>
               <p class="mt-1 text-sm text-zinc-500">Manage event media shown with this event.</p>
             </div>
-            <div *ngIf="canEditEventMedia" class="flex flex-wrap gap-3">
-              <button
-                *ngIf="!isEditingMedia"
-                type="button"
-                (click)="startEditingMedia()"
-                class="inline-flex items-center justify-center rounded-2xl bg-zinc-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-zinc-800"
-              >
-                Edit
-              </button>
-              <button
-                *ngIf="isEditingMedia"
-                type="button"
-                (click)="addMedia('Video')"
-                class="inline-flex items-center justify-center rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50"
-              >
-                Add Video
-              </button>
-              <button
-                *ngIf="isEditingMedia"
-                type="button"
-                (click)="addMedia('CD')"
-                class="inline-flex items-center justify-center rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50"
-              >
-                Add CD
-              </button>
-              <button
-                *ngIf="isEditingMedia"
-                type="button"
-                (click)="saveMedia()"
-                [disabled]="isUpdating || isImageUploading"
-                class="inline-flex items-center justify-center rounded-2xl bg-zinc-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {{ isUpdating ? 'Updating...' : 'Update' }}
-              </button>
-              <button
-                *ngIf="isEditingMedia"
-                type="button"
-                (click)="cancelEditingMedia()"
-                [disabled]="isUpdating"
-                class="inline-flex items-center justify-center rounded-2xl border border-zinc-200 bg-white px-5 py-3 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Cancel
-              </button>
-            </div>
+            <app-workspace-edit-actions
+              *ngIf="canEditEventMedia"
+              [isEditing]="isEditingMedia"
+              [isSaving]="isUpdating"
+              [saveDisabled]="isImageUploading"
+              saveLabel="Save Media"
+              (edit)="startEditingMedia()"
+              (cancel)="cancelEditingMedia()"
+              (save)="saveMedia()"
+            >
+              <div editActionsExtra class="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  (click)="addMedia('Video')"
+                  class="inline-flex items-center justify-center rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50"
+                >
+                  Add Video
+                </button>
+                <button
+                  type="button"
+                  (click)="addMedia('CD')"
+                  class="inline-flex items-center justify-center rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50"
+                >
+                  Add CD
+                </button>
+              </div>
+            </app-workspace-edit-actions>
           </div>
 
           <div *ngIf="isEditingMedia; else mediaReadOnly" class="mt-5">

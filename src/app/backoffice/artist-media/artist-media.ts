@@ -1,4 +1,5 @@
 import { Component, OnInit, inject } from '@angular/core';
+import { WorkspaceEditActions } from '../../shared/workspace-edit/workspace-edit-actions';
 import { NgFor, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../services/auth.service';
@@ -11,7 +12,7 @@ import {
 @Component({
   selector: 'app-artist-media',
   standalone: true,
-  imports: [NgIf, NgFor, FormsModule],
+  imports: [NgIf, NgFor, FormsModule, WorkspaceEditActions],
   templateUrl: './artist-media.html',
 })
 export class ArtistMedia implements OnInit {

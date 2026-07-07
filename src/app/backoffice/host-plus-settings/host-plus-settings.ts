@@ -1,5 +1,8 @@
 import { NgIf } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
+import { WorkspaceEditButton } from '../../shared/workspace-edit/workspace-edit-button';
+import { WorkspaceCancelButton } from '../../shared/workspace-edit/workspace-cancel-button';
+import { WorkspaceSaveButton } from '../../shared/workspace-edit/workspace-save-button';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../services/auth.service';
 import {
@@ -21,7 +24,7 @@ interface HostPlusDatabaseSettingsForm {
 @Component({
   selector: 'app-host-plus-settings',
   standalone: true,
-  imports: [NgIf, FormsModule],
+  imports: [NgIf, FormsModule, WorkspaceEditButton, WorkspaceCancelButton, WorkspaceSaveButton],
   templateUrl: './host-plus-settings.html',
 })
 export class HostPlusSettings implements OnInit {

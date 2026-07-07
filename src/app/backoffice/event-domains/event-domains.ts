@@ -2,6 +2,7 @@ import { Component, OnInit, inject } from '@angular/core';
 import { NgFor, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { SupabaseService } from '../../services/supabase.service';
+import { WorkspaceEditButton } from '../../shared/workspace-edit/workspace-edit-button';
 
 interface DomainForm {
   name: string;
@@ -10,7 +11,7 @@ interface DomainForm {
 @Component({
   selector: 'app-event-domains',
   standalone: true,
-  imports: [NgIf, NgFor, FormsModule],
+  imports: [NgIf, NgFor, FormsModule, WorkspaceEditButton],
   templateUrl: './event-domains.html',
 })
 export class EventDomains implements OnInit {

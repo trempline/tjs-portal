@@ -1,6 +1,7 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { NgFor, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { WorkspaceEditActions } from '../../shared/workspace-edit/workspace-edit-actions';
 import {
   ArtistAwardEntry,
   ArtistEducationEntry,
@@ -13,7 +14,7 @@ import { AuthService } from '../../services/auth.service';
 @Component({
   selector: 'app-artist-profile',
   standalone: true,
-  imports: [NgIf, NgFor, FormsModule],
+  imports: [NgIf, NgFor, FormsModule, WorkspaceEditActions],
   templateUrl: './artist-profile.html',
 })
 export class ArtistProfile implements OnInit {

@@ -3,6 +3,7 @@ import { CommonModule, NgFor, NgIf, DatePipe, NgClass } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../services/auth.service';
 import { SupabaseService, TjsUserWithRoles, TjsRole, TjsArtist, TjsArtistAuditLog } from '../../services/supabase.service';
+import { WorkspaceEditButton } from '../../shared/workspace-edit/workspace-edit-button';
 
 interface CommitteeMemberForm {
   email: string;
@@ -14,7 +15,7 @@ interface CommitteeMemberForm {
 @Component({
   selector: 'app-committee-members',
   standalone: true,
-  imports: [CommonModule, NgFor, NgIf, DatePipe, NgClass, FormsModule],
+  imports: [CommonModule, NgFor, NgIf, DatePipe, NgClass, FormsModule, WorkspaceEditButton],
   templateUrl: './committee-members.html',
 })
 export class CommitteeMembers implements OnInit {
