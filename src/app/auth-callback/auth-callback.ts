@@ -30,7 +30,7 @@ export class AuthCallback implements OnInit {
   confirmPassword = '';
 
   get loginRoute(): string {
-    return this.route.snapshot.data['loginRoute'] ?? '/admin';
+    return this.route.snapshot.data['loginRoute'] ?? '/login';
   }
 
   get successRoute(): string | null {
@@ -161,6 +161,12 @@ export class AuthCallback implements OnInit {
   }
 
   goToLogin() {
+    const role = this.route.snapshot.data['defaultRole'];
+    if (role) {
+      this.router.navigate(['/login'], { queryParams: { role } });
+      return;
+    }
+
     this.router.navigate([this.loginRoute]);
   }
 

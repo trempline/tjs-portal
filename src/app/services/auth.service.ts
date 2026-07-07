@@ -184,22 +184,25 @@ export class AuthService {
   }
 
   async signOut(): Promise<void> {
-    const logoutRoute = this.isCommitteeMember
-      ? '/committee-login'
-      : this.isPublicMember
-        ? '/member-login'
-      : this.isHostManager
-        ? '/host-manager-login'
-        : this.hasRole('Host+')
-          ? '/host-plus-login'
-          : this.hasRole('Host')
-            ? '/host-login'
-            : this.isArtist
-              ? '/artist-login'
-              : '/admin';
+    if (this.isPublicMember) {
+      await this.supabaseService.signOut();
+      this.router.navigate(['/member-login']);
+      return;
+    }
 
+    const role = this.getLoginRoleForSignOut();
     await this.supabaseService.signOut();
-    this.router.navigate([logoutRoute]);
+    this.router.navigate(['/login'], role ? { queryParams: { role } } : undefined);
+  }
+
+  private getLoginRoleForSignOut(): string | null {
+    if (this.isAdmin) return 'admin';
+    if (this.isCommitteeMember) return 'committee';
+    if (this.isHostManager) return 'host-manager';
+    if (this.hasRole('Host+')) return 'host-plus';
+    if (this.hasRole('Host')) return 'host';
+    if (this.isArtist) return 'artist';
+    return null;
   }
 
   async waitForAuthReady(maxAttempts = 50, delayMs = 100): Promise<void> {

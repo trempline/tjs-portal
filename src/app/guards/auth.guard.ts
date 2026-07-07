@@ -20,7 +20,7 @@ export const authGuard: CanActivateFn = async () => {
     return true;
   }
 
-  return router.createUrlTree(['/admin']);
+  return router.createUrlTree(['/login']);
 };
 
 export function roleGuard(allowedRoles: string[]): CanActivateFn {
@@ -31,7 +31,7 @@ export function roleGuard(allowedRoles: string[]): CanActivateFn {
     await waitForAuthReady(authService);
 
     if (!authService.isAuthenticated) {
-      return router.createUrlTree(['/admin']);
+      return router.createUrlTree(['/login']);
     }
 
     if (authService.hasAnyRole(allowedRoles)) {

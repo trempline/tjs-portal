@@ -3,11 +3,7 @@ import { Home } from './home/home';
 import { Nous } from './nous/nous';
 import { Entreprises } from './entreprises/entreprises';
 import { About } from './about/about';
-import { AdminLogin } from './admin-login/admin-login';
-import { ArtistLogin } from './artist-login/artist-login';
-import { CommitteeLogin } from './committee-login/committee-login';
-import { HostManagerLogin } from './host-manager-login/host-manager-login';
-import { HostLogin } from './host-login/host-login';
+import { Login } from './login/login';
 import { MemberLogin } from './member-login/member-login';
 import { BackofficeLayout } from './backoffice/backoffice-layout/backoffice-layout';
 import { Dashboard } from './backoffice/dashboard/dashboard';
@@ -102,29 +98,38 @@ export const routes: Routes = [
         component: PublicEventDetailComponent,
     },
     {
+        path: 'login',
+        component: Login,
+    },
+    {
         path: 'admin',
-        component: AdminLogin,
+        component: Login,
+        data: { defaultRole: 'admin' },
     },
     {
         path: 'artist-login',
-        component: ArtistLogin,
+        component: Login,
+        data: { defaultRole: 'artist' },
     },
     {
         path: 'committee-login',
-        component: CommitteeLogin,
+        component: Login,
+        data: { defaultRole: 'committee' },
     },
     {
         path: 'host-manager-login',
-        component: HostManagerLogin,
+        component: Login,
+        data: { defaultRole: 'host-manager' },
     },
     {
         path: 'host-login',
-        component: HostLogin,
+        component: Login,
+        data: { defaultRole: 'host' },
     },
     {
         path: 'host-plus-login',
-        component: HostLogin,
-        data: { hostPlusLogin: true },
+        component: Login,
+        data: { defaultRole: 'host-plus' },
     },
     {
         path: 'member-login',
@@ -139,7 +144,8 @@ export const routes: Routes = [
         path: 'artist/auth/callback',
         component: AuthCallback,
         data: {
-            loginRoute: '/artist-login',
+            loginRoute: '/login',
+            defaultRole: 'artist',
             successRoute: '/backoffice/artist-dashboard',
             activationTitle: 'Activate Artist Account',
         },
