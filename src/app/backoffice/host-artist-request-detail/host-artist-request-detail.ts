@@ -14,6 +14,12 @@ import {
   TjsLocation,
 } from '../../services/supabase.service';
 import { AuthService } from '../../services/auth.service';
+import { ImageCopyrightTag } from '../../shared/image-copyright/image-copyright-tag';
+import {
+  getCompleteHostProposedDates,
+  validateArtistRequestDates,
+  validateHostProposedDates,
+} from '../../shared/request-dates/request-dates.util';
 
 interface HostProposedDateEntry {
   mode: 'one_day' | 'period';
@@ -26,7 +32,7 @@ interface HostProposedDateEntry {
 @Component({
   selector: 'app-host-artist-request-detail',
   standalone: true,
-  imports: [NgIf, NgFor, NgClass, DatePipe, FormsModule],
+  imports: [NgIf, NgFor, NgClass, DatePipe, FormsModule, ImageCopyrightTag],
   templateUrl: './host-artist-request-detail.html',
 })
 export class HostArtistRequestDetail implements OnInit {
@@ -257,13 +263,15 @@ export class HostArtistRequestDetail implements OnInit {
       return;
     }
 
-    const validProposals = this.proposedDates.filter((item) => {
-      if (!item.start_date || !item.show_time || !item.location_id) {
-        return false;
-      }
+    const validProposals = getCompleteHostProposedDates(this.proposedDates);
+    const artistDatesError = this.request ? validateArtistRequestDates(this.request.dates) : 'At least one proposed date is required.';
+    const hostDatesError = validateHostProposedDates(this.proposedDates);
 
-      return item.mode === 'one_day' || !!item.end_date;
-    });
+    if (validProposals.length === 0 && artistDatesError) {
+      this.error = hostDatesError ?? artistDatesError;
+      this.isSaving = false;
+      return;
+    }
 
     this.error = '';
     this.successMessage = '';
@@ -298,8 +306,24 @@ export class HostArtistRequestDetail implements OnInit {
         ...proposalSummary.map((line) => `- ${line}`),
       ];
       commentBody = acceptanceLines.join('\n');
+    } else if (!artistDatesError) {
+      const artistDateLines = this.request!.dates
+        .filter((date) => !!date.start_date?.trim())
+        .map((date) =>
+          date.request_type === 'period'
+            ? `Period | ${date.start_date} to ${date.end_date || 'TBD'}`
+            : `One Day | ${date.start_date}`
+        );
+      commentBody = [
+        '[HOST_ACCEPTED]',
+        'Host accepted the artist proposed dates.',
+        'Artist Proposed Dates:',
+        ...artistDateLines.map((line) => `- ${line}`),
+      ].join('\n');
     } else {
-      commentBody = '[HOST_ACCEPTED]\nHost accepted the artist request without proposing new dates.';
+      this.error = artistDatesError;
+      this.isSaving = false;
+      return;
     }
 
     const commentError = await this.supabase.addArtistWorkspaceRequestComment(
@@ -496,6 +520,13 @@ export class HostArtistRequestDetail implements OnInit {
 
     if (!this.selectedAdminHostId) {
       this.error = 'Select a host before accepting the request.';
+      return;
+    }
+
+    const validHostProposals = getCompleteHostProposedDates(this.proposedDates);
+    const artistDatesError = this.request ? validateArtistRequestDates(this.request.dates) : 'At least one proposed date is required.';
+    if (validHostProposals.length === 0 && artistDatesError) {
+      this.error = 'At least one proposed date is required before accepting.';
       return;
     }
 

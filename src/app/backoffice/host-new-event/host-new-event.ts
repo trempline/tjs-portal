@@ -3,6 +3,8 @@ import { Location, NgFor, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
+import { validateHostScheduleEntries } from '../../shared/request-dates/request-dates.util';
+import { ImageCopyrightTag } from '../../shared/image-copyright/image-copyright-tag';
 import {
   ArtistInstrumentOption,
   ArtistRequestMediaEntry,
@@ -40,7 +42,7 @@ interface ScheduleEntryForm {
 @Component({
   selector: 'app-host-new-event',
   standalone: true,
-  imports: [NgIf, NgFor, FormsModule],
+  imports: [NgIf, NgFor, FormsModule, ImageCopyrightTag],
   templateUrl: './host-new-event.html',
 })
 export class HostNewEvent implements OnInit {
@@ -82,6 +84,7 @@ export class HostNewEvent implements OnInit {
     teaser: '',
     description: '',
     imageUrl: null,
+    imageCopyright: '',
     editionId: null,
     eventTypeId: null,
     entries: [],
@@ -358,26 +361,10 @@ export class HostNewEvent implements OnInit {
         locationLabel: this.resolveLocationLabel(entry.locationId),
       }));
 
-    if (entries.length === 0) {
-      this.error = 'At least one proposed date is required.';
+    const scheduleValidationError = validateHostScheduleEntries(entries);
+    if (scheduleValidationError) {
+      this.error = scheduleValidationError;
       return;
-    }
-
-    for (const [index, entry] of entries.entries()) {
-      if (entry.mode === 'period' && !entry.endDate) {
-        this.error = `Schedule entry ${index + 1} requires an end date.`;
-        return;
-      }
-
-      if (!entry.showTime) {
-        this.error = `Schedule entry ${index + 1} requires a time.`;
-        return;
-      }
-
-      if (!entry.locationId) {
-        this.error = `Schedule entry ${index + 1} requires a location.`;
-        return;
-      }
     }
 
     const overlapError = this.findScheduleOverlap(entries);

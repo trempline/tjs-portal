@@ -29,11 +29,14 @@
   <ng-container *ngIf="artist && !isLoading">
     <section class="relative overflow-hidden border-b border-zinc-200 bg-zinc-950 text-white">
       <div class="absolute inset-0">
-        <img
-          *ngIf="artist.cover_url || artist.photo_url"
-          [src]="artist.cover_url || artist.photo_url"
-          [alt]="artist.display_name"
-          class="h-full w-full object-cover opacity-30" />
+        <div *ngIf="artist.cover_url || artist.photo_url" class="relative h-full w-full">
+          <img
+            [src]="artist.cover_url || artist.photo_url"
+            [alt]="artist.display_name"
+            [attr.data-preview-copyright]="artist.cover_url ? artist.cover_copyright : artist.photo_copyright"
+            class="h-full w-full object-cover opacity-30" />
+          <app-image-copyright-tag [copyrightText]="artist.cover_url ? artist.cover_copyright : artist.photo_copyright"></app-image-copyright-tag>
+        </div>
         <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(239,68,68,0.4),_transparent_35%),linear-gradient(120deg,rgba(9,9,11,0.94),rgba(39,39,42,0.8),rgba(127,29,29,0.72))]"></div>
       </div>
 
@@ -72,7 +75,9 @@
                   *ngIf="artist.photo_url"
                   [src]="artist.photo_url"
                   [alt]="artist.display_name"
+                  [attr.data-preview-copyright]="artist.photo_copyright"
                   class="h-full w-full object-cover" />
+                <app-image-copyright-tag *ngIf="artist.photo_url" [copyrightText]="artist.photo_copyright"></app-image-copyright-tag>
                 <div *ngIf="!artist.photo_url" class="flex h-full w-full items-center justify-center bg-white/10 text-4xl font-black text-white/70">
                   {{ initials(artist.display_name) }}
                 </div>

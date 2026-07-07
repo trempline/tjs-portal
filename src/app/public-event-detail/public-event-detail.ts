@@ -1,14 +1,17 @@
-import { NgFor, NgIf } from '@angular/common';
+import { NgFor, NgIf, NgTemplateOutlet } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../services/auth.service';
 import { SharedModule } from '../shared/shared-module';
+import { ImageCopyrightTag } from '../shared/image-copyright/image-copyright-tag';
 import { SupabaseService, PublicEventDetail } from '../services/supabase.service';
+import { formatFrenchPublicDatePart, parsePublicScheduleLine } from '../shared/date-format/date-format.util';
+import { hasPublicBookingUrl } from '../shared/booking-url/booking-url.util';
 
 @Component({
   selector: 'app-public-event-detail',
   standalone: true,
-  imports: [SharedModule, NgIf, NgFor],
+  imports: [SharedModule, NgIf, NgFor, NgTemplateOutlet, RouterLink, ImageCopyrightTag],
   templateUrl: './public-event-detail.html',
 })
 export class PublicEventDetailComponent implements OnInit {
@@ -86,21 +89,35 @@ export class PublicEventDetailComponent implements OnInit {
     return names.join(', ');
   }
 
+  heroArtistSeparator(index: number): string {
+    const artists = this.event?.artists ?? [];
+    if (index >= artists.length - 1) {
+      return '';
+    }
+
+    if (artists.length === 2) {
+      return ' & ';
+    }
+
+    if (index === artists.length - 2) {
+      return ' & ';
+    }
+
+    return ', ';
+  }
+
+  hasArtistProfileLink(artist: PublicEventDetail['artists'][number]): boolean {
+    return !!artist.id;
+  }
+
   private parseScheduleLine(line: string): { datePart: string; timePart: string; locationPart: string } {
-    const parts = line.split('|').map(part => part.trim());
-    const dateTimePart = parts[0] || '';
-    const locationPart = parts[1] || '';
-
-    const separatorIndex = dateTimePart.lastIndexOf(' : ');
-    const datePart = separatorIndex >= 0 ? dateTimePart.slice(0, separatorIndex).trim() : dateTimePart;
-    const timePart = separatorIndex >= 0 ? dateTimePart.slice(separatorIndex + 3).trim() : '';
-
-    return { datePart, timePart, locationPart };
+    return parsePublicScheduleLine(line);
   }
 
   formatScheduleLine(line: string): string {
-    const { datePart, timePart, locationPart } = this.parseScheduleLine(line);
-    let formatted = `📅 ${datePart}`;
+    const { datePart, timePart } = this.parseScheduleLine(line);
+    const formattedDate = formatFrenchPublicDatePart(datePart);
+    let formatted = `📅 ${formattedDate}`;
 
     if (timePart) {
       formatted += ` • 🕐 ${timePart}`;
@@ -135,7 +152,7 @@ export class PublicEventDetailComponent implements OnInit {
   }
 
   get hasCallToAction(): boolean {
-    return !!this.event?.call_to_action_url?.trim();
+    return hasPublicBookingUrl(this.event?.call_to_action_url);
   }
 
   get canAccessMemberOnlyEvents(): boolean {

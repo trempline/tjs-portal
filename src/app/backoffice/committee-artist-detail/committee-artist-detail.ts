@@ -1,5 +1,12 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { WorkspaceEditActions } from '../../shared/workspace-edit/workspace-edit-actions';
+import {
+  MAX_ARTIST_LONG_BIOGRAPHY_LENGTH,
+  MAX_ARTIST_SHORT_BIOGRAPHY_LENGTH,
+  MAX_ARTIST_TAGLINE_LENGTH,
+  remainingCharacters,
+} from '../../shared/artist-biography/artist-biography.util';
+import { ImageCopyrightTag } from '../../shared/image-copyright/image-copyright-tag';
 import { DatePipe, NgClass, NgFor, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -27,7 +34,7 @@ type CommitteeArtistDetailTab = 'profile' | 'instruments' | 'media' | 'availabil
 @Component({
   selector: 'app-committee-artist-detail',
   standalone: true,
-  imports: [NgIf, NgFor, NgClass, DatePipe, RouterLink, FormsModule, WorkspaceEditActions],
+  imports: [NgIf, NgFor, NgClass, DatePipe, RouterLink, FormsModule, WorkspaceEditActions, ImageCopyrightTag],
   templateUrl: './committee-artist-detail.html',
 })
 export class CommitteeArtistDetail implements OnInit {
@@ -56,6 +63,9 @@ export class CommitteeArtistDetail implements OnInit {
   media: ArtistMediaEntry[] = [];
   availability: ArtistAvailabilityEntry[] = [];
   editableProfile: ArtistWorkspaceProfile | null = null;
+  readonly maxTaglineLength = MAX_ARTIST_TAGLINE_LENGTH;
+  readonly maxShortBiographyLength = MAX_ARTIST_SHORT_BIOGRAPHY_LENGTH;
+  readonly maxLongBiographyLength = MAX_ARTIST_LONG_BIOGRAPHY_LENGTH;
   editableInstruments: ArtistInstrumentOption[] = [];
   editableMedia: ArtistMediaEntry[] = [];
   editableAvailability: ArtistAvailabilityEntry[] = [];
@@ -292,6 +302,10 @@ export class CommitteeArtistDetail implements OnInit {
 
   trackByPerformance(_: number, item: ArtistPerformanceType) {
     return item.id;
+  }
+
+  charsLeft(text: string | null | undefined, maxLength: number): number {
+    return remainingCharacters(text, maxLength);
   }
 
   get currentUserId(): string {

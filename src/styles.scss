@@ -21,3 +21,7 @@ select:disabled,
 textarea:disabled {
   cursor: not-allowed;
 }
+
+img:not([data-no-image-preview]) {
+  cursor: zoom-in;
+}

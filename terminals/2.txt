@@ -1,0 +1,32 @@
+---
+pid: 31936
+cwd: "c:\tjs\tjs-portal"
+command: "npx ng build --configuration development"
+started_at: 2026-07-07T10:05:11.051Z
+running_for_ms: 13715001 
+---
+> Building...
+√ Building...
+Initial chunk files | Names                      |  Raw size
+main.js             | main                       |   3.72 MB | 
+chunk-EM4CLZA6.js   | -                          |   2.07 MB | 
+chunk-5VMR4TBC.js   | -                          | 151.98 kB | 
+styles.css          | styles                     | 130.03 kB | 
+polyfills.js        | polyfills                  |  89.77 kB | 
+chunk-HEUZBAC6.js   | -                          |  12.65 kB | 
+chunk-BLZXG6I4.js   | -                          |   7.59 kB | 
+
+                    | Initial total              |   6.18 MB
+
+Lazy chunk files    | Names                      |  Raw size
+chunk-ZKVXV7HW.js   | host-plus-create-tjs-event |  71.10 kB | 
+chunk-MAWXXVBN.js   | host-plus-event-detail     |  39.42 kB | 
+chunk-MCD3WGWC.js   | host-plus-home             |  37.39 kB | 
+chunk-B5KAZBNX.js   | host-plus-events           |  36.74 kB | 
+chunk-JO7WWH6F.js   | host-plus-settings         |  34.57 kB | 
+chunk-JVMTVDRH.js   | host-plus-artists          |  20.12 kB | 
+
+Application bundle generation complete. [27.598 seconds] - 2026-07-07T10:05:42.048Z
+
+Output location: C:\tjs\tjs-portal\dist\web
+

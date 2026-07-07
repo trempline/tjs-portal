@@ -1,5 +1,21 @@
 import { Injectable } from '@angular/core';
 import { createClient, SupabaseClient, User, Session, type EmailOtpType } from '@supabase/supabase-js';
+import {
+  normalizeArtistLongBiography,
+  normalizeArtistShortBiography,
+  normalizeArtistTagline,
+} from '../shared/artist-biography/artist-biography.util';
+import {
+  normalizeArtistRequestDescription,
+  normalizeArtistRequestLongTeaser,
+  normalizeArtistRequestTeaser,
+} from '../shared/artist-request/artist-request-text.util';
+import {
+  validateArtistRequestDates,
+  validateHostScheduleEntries,
+} from '../shared/request-dates/request-dates.util';
+import { normalizePublicBookingUrl as toPublicBookingUrl } from '../shared/booking-url/booking-url.util';
+import { isPublicArtistProfileComplete } from '../shared/artist-profile/artist-public-profile.util';
 import { environment } from '../../environments/environment';
 
 export interface NewsletterMessage {
@@ -170,6 +186,7 @@ export interface PublicWebsiteEventItem {
   title: string;
   teaser: string;
   image_url: string | null;
+  image_copyright: string | null;
   event_domain_name: string | null;
   instruments: string[];
   event_type_name: string | null;
@@ -185,6 +202,7 @@ export interface PublicTjsArtistItem {
   id: string;
   display_name: string;
   photo_url: string | null;
+  photo_copyright: string | null;
   teaser: string;
   instruments: string[];
   performance_types: string[];
@@ -197,7 +215,9 @@ export interface PublicTjsArtistDetail {
   id: string;
   display_name: string;
   cover_url: string | null;
+  cover_copyright: string | null;
   photo_url: string | null;
+  photo_copyright: string | null;
   teaser: string;
   long_description: string;
   instruments: string[];
@@ -220,10 +240,16 @@ export interface PublicTjsArtistDetail {
   }>;
 }
 
+export interface PublicLocationImage {
+  image_url: string;
+  copyright_text: string | null;
+}
+
 export interface PublicLocationItem {
   id: string;
   name: string;
   image_url: string | null;
+  image_copyright: string | null;
   description: string;
   address: string | null;
   lat: number | null;
@@ -253,6 +279,7 @@ export interface PublicLocationUpcomingEvent {
 
 export interface PublicLocationDetail extends PublicLocationItem {
   image_urls: string[];
+  images: PublicLocationImage[];
   long_description: string;
   access_info: string | null;
   phone: string | null;
@@ -267,6 +294,7 @@ export interface PublicEventDetail {
   teaser: string;
   description: string;
   image_url: string | null;
+  image_copyright: string | null;
   event_domain_name: string | null;
   edition: string | null;
   event_type_name: string | null;
@@ -457,7 +485,13 @@ export interface MemberTier {
 export interface TjsLocationImage {
   id: string;
   image_url: string;
+  copyright_text: string | null;
   sort_order: number;
+}
+
+export interface LocationImageInput {
+  image_url: string;
+  copyright_text: string;
 }
 
 export interface TjsLocation {
@@ -511,7 +545,7 @@ export interface SaveTjsLocationInput {
   access_info?: string | null;
   created_by: string;
   updated_by?: string | null;
-  image_urls: string[];
+  images: LocationImageInput[];
   amenity_ids: number[];
   spec_ids: number[];
   location_type_id?: number | null;
@@ -541,7 +575,7 @@ export interface SaveTjsPrivateLocationInput {
   access_info?: string | null;
   created_by: string;
   updated_by?: string | null;
-  image_urls: string[];
+  images: LocationImageInput[];
   amenity_ids: number[];
   spec_ids: number[];
   location_type_id?: number | null;
@@ -644,6 +678,7 @@ export interface CreateStandaloneHostEventPayload {
   teaser: string;
   description: string;
   imageUrl: string | null;
+  imageCopyright: string;
   editionId: number | null;
   eventTypeId: number | null;
   entries: Array<{ mode: 'day_show' | 'period'; startDate: string; endDate: string; showTime: string; locationId: string | null; locationLabel: string }>;
@@ -708,7 +743,9 @@ export interface ArtistAwardEntry {
 export interface ArtistWorkspaceProfile {
   profile_id: string;
   banner_url: string | null;
+  banner_copyright: string;
   profile_picture_url: string | null;
+  profile_picture_copyright: string;
   first_name: string;
   last_name: string;
   tagline: string;
@@ -873,6 +910,7 @@ export interface ArtistRequestDetail {
   long_teaser: string;
   description: string;
   image_url: string | null;
+  image_copyright: string;
   status: 'new_request' | 'accepted_by_host' | 'host_proposed' | 'artist_proposed' | 'artist_accepted' | 'approved' | 'published' | 'rejected';
   dates: ArtistRequestDateEntry[];
   media: ArtistRequestMediaEntry[];
@@ -1453,7 +1491,9 @@ export class SupabaseService {
     return {
       profile_id: baseProfile.id,
       banner_url: workspaceProfile.banner_url ?? null,
+      banner_copyright: workspaceProfile.banner_copyright ?? '',
       profile_picture_url: baseProfile.avatar_url ?? null,
+      profile_picture_copyright: workspaceProfile.profile_picture_copyright ?? '',
       first_name: workspaceProfile.first_name ?? fallbackFirstName ?? '',
       last_name: workspaceProfile.last_name ?? fallbackRest.join(' '),
       tagline: workspaceProfile.tagline ?? '',
@@ -1477,7 +1517,9 @@ export class SupabaseService {
       email: profile.email,
       full_name: `${profile.first_name} ${profile.last_name}`.trim(),
       phone: profile.phone || null,
-      bio: profile.long_biography || profile.short_biography || null,
+      bio: normalizeArtistLongBiography(profile.long_biography)
+        || normalizeArtistShortBiography(profile.short_biography)
+        || null,
       avatar_url: profile.profile_picture_url || null,
     } as Partial<TjsProfile> & { id: string });
 
@@ -1490,11 +1532,13 @@ export class SupabaseService {
       .upsert({
         profile_id: profile.profile_id,
         banner_url: profile.banner_url || null,
+        banner_copyright: profile.banner_copyright?.trim().slice(0, 20) || null,
+        profile_picture_copyright: profile.profile_picture_copyright?.trim().slice(0, 20) || null,
         first_name: profile.first_name || null,
         last_name: profile.last_name || null,
-        tagline: profile.tagline || null,
-        short_biography: profile.short_biography || null,
-        long_biography: profile.long_biography || null,
+        tagline: normalizeArtistTagline(profile.tagline) || null,
+        short_biography: normalizeArtistShortBiography(profile.short_biography) || null,
+        long_biography: normalizeArtistLongBiography(profile.long_biography) || null,
         website: profile.website || null,
         address: profile.address || null,
         city: profile.city || null,
@@ -2845,6 +2889,7 @@ export class SupabaseService {
       long_teaser: requestResult.data.long_teaser ?? '',
       description: requestResult.data.description ?? '',
       image_url: requestResult.data.image_url ?? null,
+      image_copyright: requestResult.data.image_copyright ?? '',
       status: derivedStatus,
       dates: (((datesResult.data ?? []) as any[]).length > 0
         ? (datesResult.data ?? []) as any[]
@@ -2923,19 +2968,32 @@ export class SupabaseService {
   }
 
   async saveArtistWorkspaceRequest(profileId: string, request: ArtistRequestDetail): Promise<{ requestId: string | null; error: string | null }> {
-    const normalizedTeaser = request.teaser.trim().slice(0, 200);
+    const artistInstruments = await this.getArtistWorkspaceInstruments(profileId);
+    if (artistInstruments.length === 0) {
+      return {
+        requestId: null,
+        error: 'Add at least one instrument to your profile before submitting an event request.',
+      };
+    }
+
+    const datesValidationError = validateArtistRequestDates(request.dates);
+    if (datesValidationError) {
+      return { requestId: null, error: datesValidationError };
+    }
+
     const primaryDate = request.dates.find((item) => item.start_date) ?? null;
     const basePayload = {
       event_domain_id: request.event_domain_id,
       event_title: request.event_title.trim(),
-      teaser: normalizedTeaser || null,
-      long_teaser: request.long_teaser.trim() || null,
-      description: request.description.trim() || null,
+      teaser: normalizeArtistRequestTeaser(request.teaser) || null,
+      long_teaser: normalizeArtistRequestLongTeaser(request.long_teaser) || null,
+      description: normalizeArtistRequestDescription(request.description) || null,
       request_type: primaryDate?.request_type ?? 'day_show',
       start_date: primaryDate?.start_date ?? null,
       end_date: primaryDate?.request_type === 'period' ? (primaryDate.end_date || null) : null,
       event_time: null,
       image_url: request.image_url || null,
+      image_copyright: request.image_copyright?.trim().slice(0, 20) || null,
       status: this.mapArtistWorkflowStatusToDb(request.status),
       updated_at: new Date().toISOString(),
     };
@@ -4123,7 +4181,7 @@ export class SupabaseService {
       requestIds.length > 0
         ? this.adminSupabase
             .from('tjs_artist_requests')
-            .select('id, teaser, image_url, event_domain:sys_event_domain(name)')
+            .select('id, teaser, image_url, image_copyright, event_domain:sys_event_domain(name)')
             .in('id', requestIds)
         : Promise.resolve({ data: [], error: null }),
       requestIds.length > 0
@@ -4197,12 +4255,13 @@ export class SupabaseService {
       eventArtistNamesByEventId.set(eventId, existing);
     }
 
-    const requestDetailsById = new Map<string, { teaser: string; image_url: string | null; event_domain_name: string | null }>();
+    const requestDetailsById = new Map<string, { teaser: string; image_url: string | null; image_copyright: string | null; event_domain_name: string | null }>();
     for (const row of ((requestDetailsResult.data ?? []) as any[])) {
       const requestId = row.id as string;
       requestDetailsById.set(requestId, {
         teaser: (row.teaser as string | null | undefined)?.trim() || '',
         image_url: (row.image_url as string | null | undefined) ?? null,
+        image_copyright: (row.image_copyright as string | null | undefined) ?? null,
         event_domain_name: (row.event_domain?.name as string | null | undefined) ?? null,
       });
     }
@@ -4319,6 +4378,9 @@ export class SupabaseService {
             || (event.description as string | null | undefined)?.trim()
             || '',
           image_url: requestDetail?.image_url ?? this.extractNoteValue(notes, 'Event Image:') ?? null,
+          image_copyright: requestDetail?.image_copyright
+            ?? this.extractNoteValue(notes, 'Event Image Copyright:')
+            ?? null,
           event_domain_name: requestDetail?.event_domain_name ?? this.extractNoteValue(notes, 'Event Domain:') ?? null,
           instruments,
           event_type_name: this.extractNoteValue(notes, 'Event Type:'),
@@ -4387,7 +4449,7 @@ export class SupabaseService {
       profileIds.length > 0
         ? this.adminSupabase
             .from('tjs_artist_profiles')
-            .select('profile_id, first_name, last_name, tagline, short_biography')
+            .select('profile_id, first_name, last_name, tagline, short_biography, profile_picture_copyright')
             .in('profile_id', profileIds)
         : Promise.resolve({ data: [], error: null }),
       profileIds.length > 0
@@ -4570,38 +4632,51 @@ export class SupabaseService {
       );
     }
 
-    return artistRows
-      .map((artist) => {
-        const profileId = (artist.profile_id as string | null | undefined) ?? '';
-        const profile = artist.profile as Partial<TjsProfile> | null | undefined;
-        const workspaceProfile = profileId ? workspaceByProfileId.get(profileId) : null;
-        const workspaceName = [
-          (workspaceProfile?.first_name as string | null | undefined)?.trim(),
-          (workspaceProfile?.last_name as string | null | undefined)?.trim(),
-        ].filter(Boolean).join(' ');
-        const displayName = workspaceName
-          || (profile?.full_name ?? '').trim()
-          || (artist.artist_name as string | null | undefined)?.trim()
-          || 'Unnamed artist';
-        const upcomingEvents = upcomingEventsByArtistId.get(artist.id as string) ?? [];
-        const nextEvent = upcomingEvents[0] ?? null;
+    const publicArtists: PublicTjsArtistItem[] = [];
 
-        return {
-          id: artist.id as string,
-          display_name: displayName,
-          photo_url: profile?.avatar_url ?? null,
-          teaser: (workspaceProfile?.tagline as string | null | undefined)?.trim()
-            || (workspaceProfile?.short_biography as string | null | undefined)?.trim()
-            || (profile?.bio ?? '').trim()
-            || 'TJS artist',
-          instruments: (profileId ? instrumentsByProfileId.get(profileId) ?? [] : []).sort(),
-          performance_types: (profileId ? performanceTypesByProfileId.get(profileId) ?? [] : []).sort(),
-          next_event_date: nextEvent?.date ?? null,
-          next_event_title: nextEvent?.title ?? null,
-          upcoming_event_count: upcomingEvents.length,
-        } satisfies PublicTjsArtistItem;
-      })
-      .sort((left, right) => {
+    for (const artist of artistRows) {
+      const profileId = (artist.profile_id as string | null | undefined) ?? '';
+      const profile = artist.profile as Partial<TjsProfile> | null | undefined;
+      const workspaceProfile = profileId ? workspaceByProfileId.get(profileId) : null;
+      const instruments = (profileId ? instrumentsByProfileId.get(profileId) ?? [] : []).sort();
+
+      if (!isPublicArtistProfileComplete({
+        firstName: workspaceProfile?.first_name as string | null | undefined,
+        lastName: workspaceProfile?.last_name as string | null | undefined,
+        instruments,
+      })) {
+        continue;
+      }
+
+      const workspaceName = [
+        (workspaceProfile?.first_name as string | null | undefined)?.trim(),
+        (workspaceProfile?.last_name as string | null | undefined)?.trim(),
+      ].filter(Boolean).join(' ');
+      const displayName = workspaceName
+        || (profile?.full_name ?? '').trim()
+        || (artist.artist_name as string | null | undefined)?.trim()
+        || 'Unnamed artist';
+      const upcomingEvents = upcomingEventsByArtistId.get(artist.id as string) ?? [];
+      const nextEvent = upcomingEvents[0] ?? null;
+
+      publicArtists.push({
+        id: artist.id as string,
+        display_name: displayName,
+        photo_url: profile?.avatar_url ?? null,
+        photo_copyright: (workspaceProfile?.profile_picture_copyright as string | null | undefined) ?? null,
+        teaser: (workspaceProfile?.tagline as string | null | undefined)?.trim()
+          || (workspaceProfile?.short_biography as string | null | undefined)?.trim()
+          || (profile?.bio ?? '').trim()
+          || 'TJS artist',
+        instruments,
+        performance_types: (profileId ? performanceTypesByProfileId.get(profileId) ?? [] : []).sort(),
+        next_event_date: nextEvent?.date ?? null,
+        next_event_title: nextEvent?.title ?? null,
+        upcoming_event_count: upcomingEvents.length,
+      });
+    }
+
+    return publicArtists.sort((left, right) => {
         const leftDate = left.next_event_date ?? '9999-12-31';
         const rightDate = right.next_event_date ?? '9999-12-31';
         if (leftDate !== rightDate) {
@@ -4813,19 +4888,30 @@ export class SupabaseService {
       || (workspaceProfile.short_biography as string | null | undefined)?.trim()
       || (profile?.bio ?? '').trim()
       || '';
+    const instruments = ((instrumentsResult.data ?? []) as any[])
+      .map((row) => (row.instrument?.name as string | null | undefined)?.trim())
+      .filter((value): value is string => !!value)
+      .filter((value, index, values) => values.indexOf(value) === index)
+      .sort();
+
+    if (!isPublicArtistProfileComplete({
+      firstName: workspaceProfile.first_name as string | null | undefined,
+      lastName: workspaceProfile.last_name as string | null | undefined,
+      instruments,
+    })) {
+      return null;
+    }
 
     return {
       id: artist.id as string,
       display_name: displayName,
       cover_url: (workspaceProfile.banner_url as string | null | undefined) ?? null,
+      cover_copyright: (workspaceProfile.banner_copyright as string | null | undefined) ?? null,
       photo_url: profile?.avatar_url ?? null,
+      photo_copyright: (workspaceProfile.profile_picture_copyright as string | null | undefined) ?? null,
       teaser,
       long_description: longDescription,
-      instruments: ((instrumentsResult.data ?? []) as any[])
-        .map((row) => (row.instrument?.name as string | null | undefined)?.trim())
-        .filter((value): value is string => !!value)
-        .filter((value, index, values) => values.indexOf(value) === index)
-        .sort(),
+      instruments,
       performance_types: ((performanceResult.data ?? []) as any[])
         .map((row) => (row.performance?.name as string | null | undefined)?.trim())
         .filter((value): value is string => !!value)
@@ -4944,7 +5030,7 @@ export class SupabaseService {
       requestId
         ? this.adminSupabase
             .from('tjs_artist_requests')
-            .select('teaser, description, image_url, event_domain:sys_event_domain(name)')
+            .select('teaser, description, image_url, image_copyright, event_domain:sys_event_domain(name)')
             .eq('id', requestId)
             .maybeSingle()
         : Promise.resolve({ data: null, error: null }),
@@ -4997,11 +5083,12 @@ export class SupabaseService {
       artistProfileIds.length > 0
         ? this.adminSupabase
             .from('tjs_artist_profiles')
-            .select('profile_id, tagline')
+            .select('profile_id, tagline, first_name, last_name')
             .in('profile_id', artistProfileIds)
         : Promise.resolve({ data: [], error: null }),
     ]);
 
+    const workspaceByProfileId = new Map<string, any>();
     const instrumentsByProfileId = new Map<string, string[]>();
     for (const row of ((instrumentsResult.data ?? []) as any[])) {
       const profileId = row.profile_id as string;
@@ -5017,7 +5104,12 @@ export class SupabaseService {
 
     const taglineByProfileId = new Map<string, string>();
     for (const row of ((artistProfilesResult.data ?? []) as any[])) {
-      if (row.profile_id && row.tagline) {
+      if (!row.profile_id) {
+        continue;
+      }
+
+      workspaceByProfileId.set(row.profile_id as string, row);
+      if (row.tagline) {
         taglineByProfileId.set(row.profile_id, row.tagline);
       }
     }
@@ -5050,10 +5142,13 @@ export class SupabaseService {
       teaser: requestDetail?.teaser || this.extractNoteValue(notes, 'Event Teaser:') || '',
       description: requestDetail?.description || event.description || '',
       image_url: requestDetail?.image_url ?? this.extractNoteValue(notes, 'Event Image:') ?? null,
+      image_copyright: requestDetail?.image_copyright
+        ?? this.extractNoteValue(notes, 'Event Image Copyright:')
+        ?? null,
       event_domain_name: requestDetail?.event_domain?.name ?? this.extractNoteValue(notes, 'Event Domain:') ?? null,
       edition,
       event_type_name: this.extractNoteValue(notes, 'Event Type:'),
-      call_to_action_url: this.extractNoteValue(notes, 'Call to Action URL:'),
+      call_to_action_url: this.normalizePublicBookingUrl(this.extractNoteValue(notes, 'Call to Action URL:')),
       instruments,
       artist_names: displayArtistNames,
       host_names: this.publicHostNamesFromAssignments((hostAssignmentsResult.data ?? []) as any[]),
@@ -5070,17 +5165,29 @@ export class SupabaseService {
           }))
         : this.extractMediaEntriesFromNotes(notes),
       artists: eventArtists.length > 0 ? eventArtists.map((a) => {
-        const profileId = a.artist?.profile_id;
+        const profileId = a.artist?.profile_id as string | null | undefined;
         const profile = profileId ? profilesById.get(profileId) : null;
+        const workspaceProfile = profileId ? workspaceByProfileId.get(profileId) : null;
+        const instruments = profileId ? instrumentsByProfileId.get(profileId) ?? [] : [];
+        const artistId = a.artist?.id as string | undefined;
+        const canLinkToProfile = !!artistId && isPublicArtistProfileComplete({
+          firstName: workspaceProfile?.first_name as string | null | undefined,
+          lastName: workspaceProfile?.last_name as string | null | undefined,
+          instruments,
+        });
+        const workspaceName = [
+          (workspaceProfile?.first_name as string | null | undefined)?.trim(),
+          (workspaceProfile?.last_name as string | null | undefined)?.trim(),
+        ].filter(Boolean).join(' ');
+
         return {
-          id: a.artist?.id,
-          display_name: a.artist?.artist_name || 'Unknown',
+          id: canLinkToProfile ? artistId : undefined,
+          display_name: workspaceName || (a.artist?.artist_name as string | null | undefined)?.trim() || 'Unknown',
           tagline: profileId ? taglineByProfileId.get(profileId) ?? null : null,
           image_url: profile?.avatar_url ?? null,
-          instruments: profileId ? instrumentsByProfileId.get(profileId) ?? [] : [],
+          instruments,
         };
       }) : externalArtists.map((artist) => ({
-        id: artist.id,
         display_name: artist.display_name,
         tagline: null,
         image_url: artist.image_url,
@@ -6061,7 +6168,12 @@ export class SupabaseService {
     return error ? error.message : null;
   }
 
-  async updateHostWorkspaceEventImage(profileId: string, eventId: string, imageUrl: string | null): Promise<string | null> {
+  async updateHostWorkspaceEventImage(
+    profileId: string,
+    eventId: string,
+    imageUrl: string | null,
+    imageCopyright?: string,
+  ): Promise<string | null> {
     const hosts = await this.getAccessibleHosts(profileId);
     const hostIds = hosts.map((host) => host.id);
 
@@ -6112,12 +6224,14 @@ export class SupabaseService {
         return hostAssignmentResultWithNotes.error?.message ?? 'You do not have access to this event.';
       }
 
-      const notes = this.mergeStructuredHostNotes((hostAssignmentResultWithNotes.data.notes as string | null | undefined) ?? '', {
-        edition: this.extractNoteValue((hostAssignmentResultWithNotes.data.notes as string | null | undefined) ?? '', 'Edition:'),
-        eventType: this.extractNoteValue((hostAssignmentResultWithNotes.data.notes as string | null | undefined) ?? '', 'Event Type:'),
-        showTime: this.extractNoteValue((hostAssignmentResultWithNotes.data.notes as string | null | undefined) ?? '', 'Show Time:'),
+      const existingNotes = (hostAssignmentResultWithNotes.data.notes as string | null | undefined) ?? '';
+      const notes = this.mergeStructuredHostNotes(existingNotes, {
+        edition: this.extractNoteValue(existingNotes, 'Edition:'),
+        eventType: this.extractNoteValue(existingNotes, 'Event Type:'),
+        showTime: this.extractNoteValue(existingNotes, 'Show Time:'),
         eventImageUrl: imageUrl,
-        callToActionUrl: this.extractNoteValue((hostAssignmentResultWithNotes.data.notes as string | null | undefined) ?? '', 'Call to Action URL:'),
+        eventImageCopyright: imageCopyright ?? this.extractNoteValue(existingNotes, 'Event Image Copyright:'),
+        callToActionUrl: this.extractNoteValue(existingNotes, 'Call to Action URL:'),
         hostNotes: null,
       });
 
@@ -6130,12 +6244,17 @@ export class SupabaseService {
       return hostNotesError ? hostNotesError.message : null;
     }
 
+    const requestUpdate: Record<string, unknown> = {
+      image_url: imageUrl,
+      updated_at: new Date().toISOString(),
+    };
+    if (imageCopyright !== undefined) {
+      requestUpdate['image_copyright'] = imageCopyright.trim().slice(0, 20) || null;
+    }
+
     const { error } = await this.adminSupabase
       .from('tjs_artist_requests')
-      .update({
-        image_url: imageUrl,
-        updated_at: new Date().toISOString(),
-      })
+      .update(requestUpdate)
       .eq('id', eventResult.data.parent_event_id);
 
     if (error) {
@@ -6148,7 +6267,11 @@ export class SupabaseService {
     return null;
   }
 
-  async updateAdminWorkspaceEventImage(eventId: string, imageUrl: string | null): Promise<string | null> {
+  async updateAdminWorkspaceEventImage(
+    eventId: string,
+    imageUrl: string | null,
+    imageCopyright?: string,
+  ): Promise<string | null> {
     const eventResult = await this.adminSupabase
       .from('tjs_events')
       .select('id, parent_event_id')
@@ -6180,6 +6303,7 @@ export class SupabaseService {
         eventType: this.extractNoteValue(existingNotes, 'Event Type:'),
         showTime: this.extractNoteValue(existingNotes, 'Show Time:'),
         eventImageUrl: imageUrl,
+        eventImageCopyright: imageCopyright ?? this.extractNoteValue(existingNotes, 'Event Image Copyright:'),
         callToActionUrl: this.extractNoteValue(existingNotes, 'Call to Action URL:'),
         hostNotes: null,
       });
@@ -6193,12 +6317,17 @@ export class SupabaseService {
       return hostNotesError ? hostNotesError.message : null;
     }
 
+    const requestUpdate: Record<string, unknown> = {
+      image_url: imageUrl,
+      updated_at: new Date().toISOString(),
+    };
+    if (imageCopyright !== undefined) {
+      requestUpdate['image_copyright'] = imageCopyright.trim().slice(0, 20) || null;
+    }
+
     const { error } = await this.adminSupabase
       .from('tjs_artist_requests')
-      .update({
-        image_url: imageUrl,
-        updated_at: new Date().toISOString(),
-      })
+      .update(requestUpdate)
       .eq('id', eventResult.data.parent_event_id);
 
     if (error) {
@@ -6211,7 +6340,12 @@ export class SupabaseService {
     return null;
   }
 
-  async updateArtistWorkspaceEventImage(profileId: string, eventId: string, imageUrl: string | null): Promise<string | null> {
+  async updateArtistWorkspaceEventImage(
+    profileId: string,
+    eventId: string,
+    imageUrl: string | null,
+    imageCopyright?: string,
+  ): Promise<string | null> {
     const scopedEvent = await this.getArtistWorkspaceEventDetail(profileId, eventId);
     if (!scopedEvent) {
       return 'You do not have access to this event.';
@@ -6235,12 +6369,17 @@ export class SupabaseService {
     }
 
     if (eventResult.data.parent_event_id) {
+      const requestUpdate: Record<string, unknown> = {
+        image_url: imageUrl,
+        updated_at: new Date().toISOString(),
+      };
+      if (imageCopyright !== undefined) {
+        requestUpdate['image_copyright'] = imageCopyright.trim().slice(0, 20) || null;
+      }
+
       const { error } = await this.adminSupabase
         .from('tjs_artist_requests')
-        .update({
-          image_url: imageUrl,
-          updated_at: new Date().toISOString(),
-        })
+        .update(requestUpdate)
         .eq('id', eventResult.data.parent_event_id);
 
       if (error) {
@@ -6271,6 +6410,7 @@ export class SupabaseService {
       eventType: this.extractNoteValue(existingNotes, 'Event Type:'),
       showTime: this.extractNoteValue(existingNotes, 'Show Time:'),
       eventImageUrl: imageUrl,
+      eventImageCopyright: imageCopyright ?? this.extractNoteValue(existingNotes, 'Event Image Copyright:'),
       callToActionUrl: this.extractNoteValue(existingNotes, 'Call to Action URL:'),
       hostNotes: null,
     });
@@ -7351,7 +7491,7 @@ export class SupabaseService {
       .from('tjs_locations')
       .select(`
         *,
-        images:tjs_location_images(id, image_url, sort_order),
+        images:tjs_location_images(id, image_url, copyright_text, sort_order),
         amenity_links:tjs_location_amenities(amenity:sys_location_amenity(id, name)),
         spec_links:tjs_location_specs(spec:sys_location_specs(id, name)),
         type_links:tjs_location_types(location_type:sys_location_types(id, name))
@@ -7380,7 +7520,7 @@ export class SupabaseService {
       .from('tjs_locations')
       .select(`
         *,
-        images:tjs_location_images(id, image_url, sort_order),
+        images:tjs_location_images(id, image_url, copyright_text, sort_order),
         amenity_links:tjs_location_amenities(amenity:sys_location_amenity(id, name)),
         spec_links:tjs_location_specs(spec:sys_location_specs(id, name)),
         type_links:tjs_location_types(location_type:sys_location_types(id, name))
@@ -7418,7 +7558,7 @@ export class SupabaseService {
       .from('tjs_private_locations')
       .select(`
         *,
-        images:tjs_private_location_images(id, image_url, sort_order),
+        images:tjs_private_location_images(id, image_url, copyright_text, sort_order),
         amenity_links:tjs_private_location_amenities(amenity:sys_location_amenity(id, name)),
         spec_links:tjs_private_location_specs(spec:sys_location_specs(id, name)),
         type_links:tjs_private_location_types(location_type:sys_location_types(id, name))
@@ -7444,7 +7584,7 @@ export class SupabaseService {
       .from('tjs_private_locations')
       .select(`
         *,
-        images:tjs_private_location_images(id, image_url, sort_order),
+        images:tjs_private_location_images(id, image_url, copyright_text, sort_order),
         amenity_links:tjs_private_location_amenities(amenity:sys_location_amenity(id, name)),
         spec_links:tjs_private_location_specs(spec:sys_location_specs(id, name)),
         type_links:tjs_private_location_types(location_type:sys_location_types(id, name))
@@ -7466,7 +7606,7 @@ export class SupabaseService {
       .from('tjs_private_locations')
       .select(`
         *,
-        images:tjs_private_location_images(id, image_url, sort_order),
+        images:tjs_private_location_images(id, image_url, copyright_text, sort_order),
         amenity_links:tjs_private_location_amenities(amenity:sys_location_amenity(id, name)),
         spec_links:tjs_private_location_specs(spec:sys_location_specs(id, name)),
         type_links:tjs_private_location_types(location_type:sys_location_types(id, name))
@@ -7489,7 +7629,7 @@ export class SupabaseService {
       .from('tjs_private_locations')
       .select(`
         *,
-        images:tjs_private_location_images(id, image_url, sort_order),
+        images:tjs_private_location_images(id, image_url, copyright_text, sort_order),
         amenity_links:tjs_private_location_amenities(amenity:sys_location_amenity(id, name)),
         spec_links:tjs_private_location_specs(spec:sys_location_specs(id, name)),
         type_links:tjs_private_location_types(location_type:sys_location_types(id, name))
@@ -9046,6 +9186,7 @@ export class SupabaseService {
         .map((image: any) => ({
           id: image.id,
           image_url: image.image_url,
+          copyright_text: image.copyright_text ?? null,
           sort_order: image.sort_order ?? 0,
         }))
         .sort((a: TjsLocationImage, b: TjsLocationImage) => a.sort_order - b.sort_order),
@@ -9071,6 +9212,7 @@ export class SupabaseService {
       id: location.id,
       name: location.name,
       image_url: location.images[0]?.image_url ?? null,
+      image_copyright: location.images[0]?.copyright_text ?? null,
       description: location.public_description?.trim()
         || location.description?.trim()
         || location.restricted_description?.trim()
@@ -9099,6 +9241,12 @@ export class SupabaseService {
     return {
       ...item,
       image_urls: location.images.map((image) => image.image_url).filter(Boolean),
+      images: location.images
+        .filter((image) => !!image.image_url)
+        .map((image) => ({
+          image_url: image.image_url,
+          copyright_text: image.copyright_text ?? null,
+        })),
       long_description: location.description?.trim()
         || location.public_description?.trim()
         || location.restricted_description?.trim()
@@ -9461,12 +9609,13 @@ export class SupabaseService {
       }
     }
 
-    if (location.image_urls.length > 0) {
+    if (location.images.length > 0) {
       const { error } = await this.adminSupabase
         .from('tjs_location_images')
-        .insert(location.image_urls.slice(0, 5).map((imageUrl, index) => ({
+        .insert(location.images.slice(0, 5).map((image, index) => ({
           location_id: locationId,
-          image_url: imageUrl,
+          image_url: image.image_url,
+          copyright_text: image.copyright_text?.trim().slice(0, 20) || null,
           sort_order: index,
         })));
 
@@ -9561,12 +9710,13 @@ export class SupabaseService {
       }
     }
 
-    if (location.image_urls.length > 0) {
+    if (location.images.length > 0) {
       const { error } = await this.adminSupabase
         .from('tjs_private_location_images')
-        .insert(location.image_urls.slice(0, 5).map((imageUrl, index) => ({
+        .insert(location.images.slice(0, 5).map((image, index) => ({
           location_id: locationId,
-          image_url: imageUrl,
+          image_url: image.image_url,
+          copyright_text: image.copyright_text?.trim().slice(0, 20) || null,
           sort_order: index,
         })));
 
@@ -10129,6 +10279,21 @@ export class SupabaseService {
     createdBy: string,
     payload: CreateHostEventFromRequestPayload,
   ): Promise<{ eventId: string | null; error: string | null }> {
+    const scheduleValidationError = validateHostScheduleEntries(
+      payload.entries
+        .filter((entry) => !!entry.startDate?.trim())
+        .map((entry) => ({
+          mode: entry.mode,
+          startDate: entry.startDate,
+          endDate: entry.endDate,
+          showTime: payload.showTime,
+          locationId: payload.locationId,
+        })),
+    );
+    if (scheduleValidationError) {
+      return { eventId: null, error: scheduleValidationError };
+    }
+
     const timestamp = new Date().toISOString();
     const [requestResult, artistsResult, editionOptions, eventTypeOptions] = await Promise.all([
       this.adminSupabase
@@ -10346,6 +10511,11 @@ export class SupabaseService {
     createdBy: string,
     payload: CreateStandaloneHostEventPayload,
   ): Promise<{ eventId: string | null; error: string | null }> {
+    const scheduleValidationError = validateHostScheduleEntries(payload.entries);
+    if (scheduleValidationError) {
+      return { eventId: null, error: scheduleValidationError };
+    }
+
     const timestamp = new Date().toISOString();
     const accessibleHosts = await this.getAccessibleHosts(createdBy);
     const allowedHostIds = new Set(accessibleHosts.map((host) => host.id));
@@ -10430,6 +10600,7 @@ export class SupabaseService {
       eventType: selectedEventType?.name ?? null,
       showTime: payload.entries[0]?.showTime?.trim() || null,
       eventImageUrl: payload.imageUrl,
+      eventImageCopyright: payload.imageCopyright?.trim() || null,
       callToActionUrl: payload.callToActionUrl.trim() || null,
       hostNotes: mergedHostNotes || null,
       scheduleEntries: payload.entries,
@@ -11975,6 +12146,10 @@ export class SupabaseService {
     return 'inactive';
   }
 
+  private normalizePublicBookingUrl(url: string | null | undefined): string | null {
+    return toPublicBookingUrl(url);
+  }
+
   private extractNoteValue(notes: string | null | undefined, prefix: string): string | null {
     if (!notes) {
       return null;
@@ -12156,6 +12331,7 @@ export class SupabaseService {
           && !trimmed.startsWith('Event Type:')
           && !trimmed.startsWith('Show Time:')
           && !trimmed.startsWith('Event Image:')
+          && !trimmed.startsWith('Event Image Copyright:')
           && !trimmed.startsWith('Call to Action URL:')
           && !trimmed.startsWith('Additional Instruments:')
           && !trimmed.startsWith('Media:')
@@ -12176,6 +12352,7 @@ export class SupabaseService {
       eventType: string | null;
       showTime: string | null;
       eventImageUrl?: string | null;
+      eventImageCopyright?: string | null;
       callToActionUrl?: string | null;
       hostNotes: string | null;
       scheduleEntries?: Array<{ mode: 'day_show' | 'period'; startDate: string; endDate: string; showTime?: string; locationLabel?: string }> | null;
@@ -12194,6 +12371,7 @@ export class SupabaseService {
         && !line.startsWith('Event Type:')
         && !line.startsWith('Show Time:')
         && !line.startsWith('Event Image:')
+        && !line.startsWith('Event Image Copyright:')
         && !line.startsWith('Call to Action URL:')
         && !line.startsWith('[COMMENT]')
         && (values.scheduleEntries === undefined || !line.startsWith('[SCHEDULE]'))
@@ -12206,6 +12384,9 @@ export class SupabaseService {
       values.eventType ? `Event Type: ${values.eventType}` : null,
       values.showTime ? `Show Time: ${values.showTime}` : null,
       values.eventImageUrl ? `Event Image: ${values.eventImageUrl}` : null,
+      values.eventImageCopyright?.trim()
+        ? `Event Image Copyright: ${values.eventImageCopyright.trim().slice(0, 20)}`
+        : null,
       values.callToActionUrl ? `Call to Action URL: ${values.callToActionUrl}` : null,
       ...((values.scheduleEntries ?? []).map((entry) =>
         `[SCHEDULE] ${entry.mode}|${entry.startDate}|${entry.endDate || ''}|${entry.showTime || ''}|${entry.locationLabel || ''}`

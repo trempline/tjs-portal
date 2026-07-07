@@ -1,5 +1,13 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { WorkspaceEditActions } from '../../shared/workspace-edit/workspace-edit-actions';
+import { remainingCharacters } from '../../shared/artist-biography/artist-biography.util';
+import {
+  MAX_ARTIST_REQUEST_DESCRIPTION_LENGTH,
+  MAX_ARTIST_REQUEST_LONG_TEASER_LENGTH,
+  MAX_ARTIST_REQUEST_TEASER_LENGTH,
+} from '../../shared/artist-request/artist-request-text.util';
+import { ImageCopyrightTag } from '../../shared/image-copyright/image-copyright-tag';
+import { validateArtistRequestDates } from '../../shared/request-dates/request-dates.util';
 import { DatePipe, NgClass, NgFor, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -10,6 +18,7 @@ import {
   ArtistRequestCommentEntry,
   ArtistRequestDateEntry,
   ArtistRequestDetail,
+  ArtistInstrumentOption,
   ArtistRequestListItem,
   ArtistRequestMediaEntry,
   SupabaseService,
@@ -27,7 +36,7 @@ interface HostProposalSummary {
 @Component({
   selector: 'app-artist-requests',
   standalone: true,
-  imports: [NgIf, NgFor, NgClass, FormsModule, DatePipe, RouterLink, WorkspaceEditActions],
+  imports: [NgIf, NgFor, NgClass, FormsModule, DatePipe, RouterLink, WorkspaceEditActions, ImageCopyrightTag],
   templateUrl: './artist-requests.html',
 })
 export class ArtistRequests implements OnInit {
@@ -56,10 +65,15 @@ export class ArtistRequests implements OnInit {
   error = '';
   successMessage = '';
 
+  readonly maxRequestTeaserLength = MAX_ARTIST_REQUEST_TEASER_LENGTH;
+  readonly maxRequestLongTeaserLength = MAX_ARTIST_REQUEST_LONG_TEASER_LENGTH;
+  readonly maxRequestDescriptionLength = MAX_ARTIST_REQUEST_DESCRIPTION_LENGTH;
+
   requests: ArtistRequestListItem[] = [];
   eventDomains: Array<{ id: number; name: string }> = [];
   tjsArtists: Array<{ id: string; artist_name: string; profile_id: string; instruments: string[] }> = [];
   availabilityEntries: ArtistAvailabilityEntry[] = [];
+  artistInstruments: ArtistInstrumentOption[] = [];
 
   isEditorOpen = false;
   activeTab: RequestTab = 'details';
@@ -442,24 +456,17 @@ export class ArtistRequests implements OnInit {
       return;
     }
 
-    if (this.request.dates.length === 0) {
-      this.error = 'At least one date entry is required.';
-      this.activeTab = 'dates';
+    this.artistInstruments = await this.supabase.getArtistWorkspaceInstruments(profileId);
+    if (this.artistInstruments.length === 0) {
+      this.error = 'Add at least one instrument to your profile before submitting an event request.';
       return;
     }
 
-    for (const date of this.request.dates) {
-      if (!date.start_date) {
-        this.error = 'Start date is required for every date entry.';
-        this.activeTab = 'dates';
-        return;
-      }
-
-      if (date.request_type === 'period' && !date.end_date) {
-        this.error = 'End date is required for every period entry.';
-        this.activeTab = 'dates';
-        return;
-      }
+    const datesValidationError = validateArtistRequestDates(this.request.dates);
+    if (datesValidationError) {
+      this.error = datesValidationError;
+      this.activeTab = 'dates';
+      return;
     }
 
     const availabilityValidationError = this.validateDatesAgainstAvailability(this.request.dates);
@@ -674,6 +681,10 @@ export class ArtistRequests implements OnInit {
     this.successMessage = 'Invite added to the request. It will be sent on submit.';
   }
 
+  charsLeft(text: string | null | undefined, maxLength: number): number {
+    return remainingCharacters(text, maxLength);
+  }
+
   trackByRequest(_: number, item: ArtistRequestListItem) {
     return item.id;
   }
@@ -770,6 +781,14 @@ export class ArtistRequests implements OnInit {
       return;
     }
 
+    const hostProposalDates = this.latestHostProposal?.dateLines ?? [];
+    const artistDatesError = validateArtistRequestDates(this.request.dates);
+    if (hostProposalDates.length === 0 && artistDatesError) {
+      this.error = 'Cannot accept this proposal without proposed dates.';
+      this.activeTab = 'proposed_dates';
+      return;
+    }
+
     this.error = '';
     this.successMessage = '';
     this.isSaving = true;
@@ -816,6 +835,7 @@ export class ArtistRequests implements OnInit {
       long_teaser: '',
       description: '',
       image_url: null,
+      image_copyright: '',
       status: 'new_request',
       dates: [this.blankDate()],
       media: [],
@@ -835,17 +855,19 @@ export class ArtistRequests implements OnInit {
 
   private async loadData(profileId: string) {
     try {
-      const [requests, eventDomains, tjsArtists, availabilityEntries] = await Promise.all([
+      const [requests, eventDomains, tjsArtists, availabilityEntries, artistInstruments] = await Promise.all([
         this.supabase.getArtistWorkspaceRequests(profileId),
         this.supabase.listEventDomains(),
         this.supabase.listTjsArtistsForRequestSelection(),
         this.supabase.getArtistWorkspaceAvailability(profileId),
+        this.supabase.getArtistWorkspaceInstruments(profileId),
       ]);
 
       this.requests = requests;
       this.eventDomains = eventDomains;
       this.tjsArtists = tjsArtists;
       this.availabilityEntries = availabilityEntries;
+      this.artistInstruments = artistInstruments;
       const currentArtist = this.tjsArtists.find((artist) => artist.profile_id === profileId) ?? null;
       this.currentArtistId = currentArtist?.id ?? null;
       this.currentArtistName = currentArtist?.artist_name ?? this.authService.currentUser?.email ?? '';

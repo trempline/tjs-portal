@@ -568,7 +568,22 @@
             No event image attached to this event.
           </div>
           <div *ngIf="eventImageUrl" class="mt-5 overflow-hidden rounded-3xl border border-zinc-200 bg-zinc-50">
-            <img [src]="eventImageUrl" alt="Event image" class="h-80 w-full object-cover" />
+            <div class="relative">
+              <img [src]="eventImageUrl" alt="Event image" class="h-80 w-full object-cover" />
+              <app-image-copyright-tag [copyrightText]="eventImageCopyright"></app-image-copyright-tag>
+            </div>
+          </div>
+          <div *ngIf="canEditEventImage && eventImageUrl" class="mt-5 max-w-md space-y-2">
+            <label class="text-sm font-medium text-zinc-700">Copyright text (20 char)</label>
+            <input [(ngModel)]="eventImageCopyright" type="text" maxlength="20" placeholder="Copyright" class="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+            <button
+              type="button"
+              (click)="saveEventImageCopyright()"
+              [disabled]="isImageUploading"
+              class="rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {{ isImageUploading ? 'Saving...' : 'Save Copyright' }}
+            </button>
           </div>
         </div>
 

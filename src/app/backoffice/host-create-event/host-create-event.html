@@ -391,7 +391,10 @@
           <h2 class="text-lg font-semibold text-zinc-900">Event Image</h2>
           <p class="mt-1 text-sm text-zinc-500">Replace the inherited request image if the event needs a different visual.</p>
           <div *ngIf="request.image_url" class="mt-5 overflow-hidden rounded-3xl border border-zinc-200 bg-zinc-50">
-            <img [src]="request.image_url" alt="Event request image" class="h-80 w-full object-cover" />
+            <div class="relative">
+              <img [src]="request.image_url" alt="Event request image" class="h-80 w-full object-cover" />
+              <app-image-copyright-tag [copyrightText]="request.image_copyright"></app-image-copyright-tag>
+            </div>
           </div>
           <div *ngIf="!request.image_url" class="mt-5 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-12 text-center text-sm text-zinc-500">
             No image was attached to the original request.

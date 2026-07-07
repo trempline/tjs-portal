@@ -303,8 +303,10 @@
           <div class="relative h-64 overflow-hidden bg-zinc-900">
             <img *ngIf="item.image_url; else imageFallback" 
                  [src]="item.image_url" 
-                 [alt]="item.title" 
+                 [alt]="item.title"
+                 [attr.data-preview-copyright]="item.image_copyright"
                  class="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
+            <app-image-copyright-tag *ngIf="item.image_url" [copyrightText]="item.image_copyright"></app-image-copyright-tag>
             <ng-template #imageFallback>
               <div class="flex h-full items-center justify-center bg-gradient-to-br from-zinc-800 to-zinc-900">
                 <svg class="h-20 w-20 text-white/20" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">

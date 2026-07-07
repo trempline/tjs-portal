@@ -100,7 +100,9 @@
                       <img
                         [src]="event.image_url"
                         [alt]="event.title"
+                        [attr.data-preview-copyright]="event.image_copyright"
                         class="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                      <app-image-copyright-tag [copyrightText]="event.image_copyright"></app-image-copyright-tag>
                     } @else {
                       <div class="flex h-full items-center justify-center bg-gradient-to-br from-zinc-800 to-zinc-900">
                         <svg class="h-16 w-16 text-white/20" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
@@ -191,6 +193,7 @@
                       <img
                         [src]="artist.photo_url"
                         [alt]="artist.display_name"
+                        [attr.data-preview-copyright]="artist.photo_copyright"
                         class="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
                     } @else {
                       <div class="flex h-full items-center justify-center bg-gradient-to-br from-zinc-800 to-zinc-900">

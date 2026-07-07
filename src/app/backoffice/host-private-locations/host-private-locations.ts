@@ -5,12 +5,14 @@ import { RouterLink } from '@angular/router';
 import { WorkspaceEditButton } from '../../shared/workspace-edit/workspace-edit-button';
 import { AuthService } from '../../services/auth.service';
 import {
+  LocationImageInput,
   LocationLookupOption,
   SaveTjsPrivateLocationInput,
   SupabaseService,
   TjsHost,
   TjsPrivateLocation,
 } from '../../services/supabase.service';
+import { ImageCopyrightTag } from '../../shared/image-copyright/image-copyright-tag';
 
 interface LocationForm {
   name: string;
@@ -29,7 +31,7 @@ interface LocationForm {
   website: string;
   access_info: string;
   is_active: boolean;
-  image_urls: string[];
+  images: LocationImageInput[];
   location_type_id: number | null;
   amenities: LocationLookupOption[];
   specs: LocationLookupOption[];
@@ -38,7 +40,7 @@ interface LocationForm {
 @Component({
   selector: 'app-host-private-locations',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, WorkspaceEditButton],
+  imports: [CommonModule, FormsModule, RouterLink, WorkspaceEditButton, ImageCopyrightTag],
   templateUrl: './host-private-locations.html',
 })
 export class HostPrivateLocations implements OnInit {
@@ -55,6 +57,7 @@ export class HostPrivateLocations implements OnInit {
   searchQuery = '';
   selectedAmenityId = '';
   selectedSpecId = '';
+  defaultImageCopyright = '';
 
   locations: TjsPrivateLocation[] = [];
   accessibleHosts: TjsHost[] = [];
@@ -157,6 +160,7 @@ export class HostPrivateLocations implements OnInit {
     this.editingLocation = null;
     this.selectedAmenityId = '';
     this.selectedSpecId = '';
+    this.defaultImageCopyright = '';
     this.form = this.blankForm();
   }
 
@@ -167,6 +171,7 @@ export class HostPrivateLocations implements OnInit {
     this.editingLocation = location;
     this.selectedAmenityId = '';
     this.selectedSpecId = '';
+    this.defaultImageCopyright = location.images[0]?.copyright_text ?? '';
     this.form = {
       name: location.name,
       address: location.address ?? '',
@@ -184,7 +189,10 @@ export class HostPrivateLocations implements OnInit {
       website: location.website ?? '',
       access_info: location.access_info ?? '',
       is_active: location.is_active,
-      image_urls: [...location.images.map((image) => image.image_url)],
+      images: location.images.map((image) => ({
+        image_url: image.image_url,
+        copyright_text: image.copyright_text ?? '',
+      })),
       location_type_id: location.location_type?.id ?? null,
       amenities: [...location.amenities],
       specs: [...location.specs],
@@ -194,6 +202,7 @@ export class HostPrivateLocations implements OnInit {
   cancelEdit() {
     this.isEditing = false;
     this.editingLocation = null;
+    this.defaultImageCopyright = '';
     this.form = this.blankForm();
     this.error = '';
   }
@@ -234,7 +243,7 @@ export class HostPrivateLocations implements OnInit {
       access_info: this.form.access_info,
       created_by: this.editingLocation?.created_by ?? this.currentUserId,
       updated_by: this.currentUserId,
-      image_urls: this.form.image_urls.slice(0, 5),
+      images: this.form.images.slice(0, 5),
       amenity_ids: this.form.amenities.map((item) => item.id),
       spec_ids: this.form.specs.map((item) => item.id),
       location_type_id: this.parseOptionalId(this.form.location_type_id),
@@ -304,7 +313,10 @@ export class HostPrivateLocations implements OnInit {
       access_info: location.access_info,
       created_by: location.created_by ?? this.currentUserId,
       updated_by: this.currentUserId,
-      image_urls: location.images.map((image) => image.image_url),
+      images: location.images.map((image) => ({
+        image_url: image.image_url,
+        copyright_text: image.copyright_text ?? '',
+      })),
       amenity_ids: location.amenities.map((item) => item.id),
       spec_ids: location.specs.map((item) => item.id),
       location_type_id: location.location_type?.id ?? null,
@@ -331,12 +343,12 @@ export class HostPrivateLocations implements OnInit {
       return;
     }
 
-    if (this.form.image_urls.length >= 5) {
+    if (this.form.images.length >= 5) {
       this.error = 'You can upload up to 5 images.';
       return;
     }
 
-    const remainingSlots = 5 - this.form.image_urls.length;
+    const remainingSlots = 5 - this.form.images.length;
     const uploadQueue = files.slice(0, remainingSlots);
 
     if (files.length > remainingSlots) {
@@ -354,7 +366,10 @@ export class HostPrivateLocations implements OnInit {
         break;
       }
       if (url) {
-        this.form.image_urls = [...this.form.image_urls, url].slice(0, 5);
+        this.form.images = [
+          ...this.form.images,
+          { image_url: url, copyright_text: this.defaultImageCopyright.trim().slice(0, 20) },
+        ].slice(0, 5);
       }
     }
 
@@ -362,7 +377,7 @@ export class HostPrivateLocations implements OnInit {
   }
 
   removeImage(index: number) {
-    this.form.image_urls = this.form.image_urls.filter((_, imageIndex) => imageIndex !== index);
+    this.form.images = this.form.images.filter((_, imageIndex) => imageIndex !== index);
   }
 
   addAmenity() {
@@ -413,8 +428,8 @@ export class HostPrivateLocations implements OnInit {
     return option.id;
   }
 
-  trackByImage(index: number, imageUrl: string) {
-    return `${index}:${imageUrl}`;
+  trackByImage(index: number, image: LocationImageInput) {
+    return `${index}:${image.image_url}`;
   }
 
   hostNameForLocation(location: TjsPrivateLocation): string {
@@ -443,7 +458,7 @@ export class HostPrivateLocations implements OnInit {
       website: '',
       access_info: '',
       is_active: true,
-      image_urls: [],
+      images: [],
       location_type_id: null,
       amenities: [],
       specs: [],

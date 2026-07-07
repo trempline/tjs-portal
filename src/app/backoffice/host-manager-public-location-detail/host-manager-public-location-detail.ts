@@ -2,6 +2,8 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
+import { ImageCopyrightTag } from '../../shared/image-copyright/image-copyright-tag';
+import { ImagePreviewOpen } from '../../shared/image-preview/image-preview-open';
 import { HostPrivateLocationBookingItem, SaveTjsLocationInput, SupabaseService, TjsLocation } from '../../services/supabase.service';
 
 interface PublicLocationCalendarDay {
@@ -15,7 +17,7 @@ interface PublicLocationCalendarDay {
 @Component({
   selector: 'app-host-manager-public-location-detail',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, ImageCopyrightTag, ImagePreviewOpen],
   templateUrl: './host-manager-public-location-detail.html',
 })
 export class HostManagerPublicLocationDetail implements OnInit {
@@ -28,7 +30,6 @@ export class HostManagerPublicLocationDetail implements OnInit {
   error = '';
   successMessage = '';
   location: TjsLocation | null = null;
-  zoomedImageUrl: string | null = null;
   bookings: HostPrivateLocationBookingItem[] = [];
   calendarMonth = this.startOfMonth(new Date());
 
@@ -125,14 +126,6 @@ export class HostManagerPublicLocationDetail implements OnInit {
     return item.id;
   }
 
-  openImageZoom(imageUrl: string) {
-    this.zoomedImageUrl = imageUrl;
-  }
-
-  closeImageZoom() {
-    this.zoomedImageUrl = null;
-  }
-
   get monthLabel(): string {
     return this.calendarMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
   }
@@ -215,7 +208,10 @@ export class HostManagerPublicLocationDetail implements OnInit {
       access_info: location.access_info,
       created_by: location.created_by ?? this.currentUserId,
       updated_by: this.currentUserId,
-      image_urls: location.images.map((image) => image.image_url),
+      images: location.images.map((image) => ({
+        image_url: image.image_url,
+        copyright_text: image.copyright_text ?? '',
+      })),
       amenity_ids: location.amenities.map((item) => item.id),
       spec_ids: location.specs.map((item) => item.id),
       location_type_id: location.location_type?.id ?? null,

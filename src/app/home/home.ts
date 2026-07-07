@@ -4,10 +4,12 @@ import { DatePipe, NgClass, SlicePipe, TitleCasePipe } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { FormsModule, NgModel } from '@angular/forms';
 import { PublicTjsArtistItem, PublicWebsiteEventItem, SupabaseService } from '../services/supabase.service';
+import { ImageCopyrightTag } from '../shared/image-copyright/image-copyright-tag';
+import { formatFrenchPublicDate } from '../shared/date-format/date-format.util';
 
 @Component({
   selector: 'app-home',
-  imports: [SharedModule, RouterModule, FormsModule],
+  imports: [SharedModule, RouterModule, FormsModule, ImageCopyrightTag],
   templateUrl: './home.html',
 })
 export class Home implements OnInit {
@@ -82,11 +84,7 @@ export class Home implements OnInit {
       return 'Date TBA';
     }
 
-    return new Intl.DateTimeFormat(undefined, {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    }).format(new Date(`${date}T00:00:00`));
+    return formatFrenchPublicDate(date);
   }
 
   instrumentsLabel(item: { instruments: string[] }): string {

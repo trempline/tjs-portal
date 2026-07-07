@@ -1,0 +1,28 @@
+---
+pid: 6612
+cwd: "c:\tjs\tjs-portal"
+command: "Set-Location c:\\tjs\\tjs-portal; npm run build:dev"
+started_at: 2026-07-07T12:30:37.808Z
+running_for_ms: 4989995  
+---
+
+> web@0.0.0 build:dev
+> node scripts/set-env.js && ng build --configuration development
+
+✅ Environment files generated successfully!
+   - Using Supabase URL: https://iuvbnejalukjapgnpzzz.supabase.co
+   - Public App URL: (not set, fallback to current browser origin)
+   - Using Supabase Anon Key: ***y6W-y-MM
+   - Service Role Key: ***etlHPfbg (set ✓)
+> Building...
+√ Building...
+X [ERROR] TS2345: Argument of type 'string | null | undefined' is not assignable to parameter of type 'string | null'.
+  Type 'undefined' is not assignable to type 'string | null'. [plugin angular-compiler]
+
+    src/app/backoffice/host-artist-request-detail/host-artist-request-detail.ts:292:55:
+      292 │ ...const selectedLocation = this.findLocationById(item.location_id);
+          ╵                                                   ~~~~~~~~~~~~~~~~
+
+
+Application bundle generation failed. [29.006 seconds] - 2026-07-07T12:31:09.537Z
+

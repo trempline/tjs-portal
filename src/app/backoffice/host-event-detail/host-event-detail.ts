@@ -1,6 +1,7 @@
 import { DatePipe, Location, NgClass, NgFor, NgIf } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { WorkspaceEditActions } from '../../shared/workspace-edit/workspace-edit-actions';
+import { ImageCopyrightTag } from '../../shared/image-copyright/image-copyright-tag';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
@@ -50,7 +51,7 @@ interface StandaloneEventCommentEntry {
 @Component({
   selector: 'app-host-event-detail',
   standalone: true,
-  imports: [NgIf, NgFor, NgClass, DatePipe, FormsModule, WorkspaceEditActions],
+  imports: [NgIf, NgFor, NgClass, DatePipe, FormsModule, WorkspaceEditActions, ImageCopyrightTag],
   templateUrl: './host-event-detail.html',
 })
 export class HostEventDetail implements OnInit {
@@ -62,6 +63,7 @@ export class HostEventDetail implements OnInit {
   isLoading = true;
   isUpdating = false;
   isImageUploading = false;
+  eventImageCopyright = '';
   isEditingDetails = false;
   isEditingHostNotes = false;
   isEditingSchedule = false;
@@ -403,6 +405,36 @@ export class HostEventDetail implements OnInit {
     this.isUpdating = false;
   }
 
+  async saveEventImageCopyright() {
+    if (!this.canEditEventImage || !this.eventImageUrl || !this.event) {
+      return;
+    }
+
+    const profileId = this.authService.currentProfile?.id ?? this.authService.currentUser?.id ?? '';
+    if (!profileId) {
+      return;
+    }
+
+    this.isImageUploading = true;
+    this.error = '';
+    this.successMessage = '';
+
+    const saveError = this.isAdmin
+      ? await this.supabase.updateAdminWorkspaceEventImage(this.event.id, this.eventImageUrl, this.eventImageCopyright)
+      : this.isArtistWorkspace
+        ? await this.supabase.updateArtistWorkspaceEventImage(profileId, this.event.id, this.eventImageUrl, this.eventImageCopyright)
+        : await this.supabase.updateHostWorkspaceEventImage(profileId, this.event.id, this.eventImageUrl, this.eventImageCopyright);
+
+    if (saveError) {
+      this.error = saveError;
+    } else {
+      await this.loadData();
+      this.successMessage = 'Event image copyright saved.';
+    }
+
+    this.isImageUploading = false;
+  }
+
   async onEventImageSelected(event: Event) {
     if (!this.canEditEventImage) {
       return;
@@ -429,10 +461,10 @@ export class HostEventDetail implements OnInit {
     }
 
     const saveError = this.isAdmin
-      ? await this.supabase.updateAdminWorkspaceEventImage(this.event.id, uploadResult.url)
+      ? await this.supabase.updateAdminWorkspaceEventImage(this.event.id, uploadResult.url, this.eventImageCopyright)
       : this.isArtistWorkspace
-        ? await this.supabase.updateArtistWorkspaceEventImage(profileId, this.event.id, uploadResult.url)
-        : await this.supabase.updateHostWorkspaceEventImage(profileId, this.event.id, uploadResult.url);
+        ? await this.supabase.updateArtistWorkspaceEventImage(profileId, this.event.id, uploadResult.url, this.eventImageCopyright)
+        : await this.supabase.updateHostWorkspaceEventImage(profileId, this.event.id, uploadResult.url, this.eventImageCopyright);
     if (saveError) {
       this.error = saveError;
       this.isImageUploading = false;
@@ -822,6 +854,9 @@ export class HostEventDetail implements OnInit {
       isMemberOnly: !!this.event.is_member_only,
       hostNotes: this.extractFreeformHostNotes(this.event.host_notes),
     };
+    this.eventImageCopyright = this.event.request_detail?.image_copyright
+      ?? this.extractNoteValue(this.event.host_notes ?? '', 'Event Image Copyright:')
+      ?? '';
     this.resetScheduleFormFromEvent();
     this.resetMediaFormFromEvent();
   }

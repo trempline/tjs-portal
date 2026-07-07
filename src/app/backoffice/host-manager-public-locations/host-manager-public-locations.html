@@ -144,24 +144,45 @@
 
     <div class="mt-6 grid gap-6 lg:grid-cols-2">
       <section class="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
-        <div class="flex items-center justify-between gap-3">
+        <div class="space-y-4">
           <div>
             <h3 class="text-base font-semibold text-zinc-900">Images</h3>
             <p class="mt-1 text-sm text-zinc-500">Upload up to 5 images for the location.</p>
           </div>
 
-          <label class="inline-flex cursor-pointer items-center rounded-xl border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50">
-            {{ isUploadingImages ? 'Uploading...' : 'Upload Images' }}
-            <input type="file" accept="image/*" multiple class="hidden" (change)="onImagesSelected($event)" [disabled]="isUploadingImages || form.image_urls.length >= 5" />
-          </label>
+          <div class="rounded-2xl border border-zinc-200 bg-white p-4">
+            <label class="text-sm font-medium text-zinc-700">Copyright text (20 char)</label>
+            <input
+              [(ngModel)]="defaultImageCopyright"
+              type="text"
+              maxlength="20"
+              placeholder="Copyright"
+              class="mt-2 w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100"
+            />
+            <p class="mt-2 text-xs text-zinc-500">Used for newly uploaded images. Customize each image below if needed.</p>
+          </div>
+
+          <div class="flex justify-end">
+            <label class="inline-flex cursor-pointer items-center rounded-xl border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50">
+              {{ isUploadingImages ? 'Uploading...' : 'Upload Images' }}
+              <input type="file" accept="image/*" multiple class="hidden" (change)="onImagesSelected($event)" [disabled]="isUploadingImages || form.images.length >= 5" />
+            </label>
+          </div>
         </div>
 
-        <div *ngIf="form.image_urls.length; else noImages" class="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          <div *ngFor="let imageUrl of form.image_urls; let i = index; trackBy: trackByImage" class="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
-            <img [src]="imageUrl" alt="Location image" class="h-32 w-full object-cover" />
-            <div class="flex items-center justify-between px-3 py-2">
-              <span class="text-xs font-medium text-zinc-500">Image {{ i + 1 }}</span>
-              <button type="button" (click)="removeImage(i)" class="text-xs font-semibold text-red-600 hover:text-red-700">Remove</button>
+        <div *ngIf="form.images.length; else noImages" class="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div *ngFor="let image of form.images; let i = index; trackBy: trackByImage" class="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+            <div class="relative">
+              <img [src]="image.image_url" alt="Location image" class="h-32 w-full object-cover" />
+              <app-image-copyright-tag [copyrightText]="image.copyright_text"></app-image-copyright-tag>
+            </div>
+            <div class="space-y-2 px-3 py-3">
+              <label class="text-xs font-medium text-zinc-600">Copyright text (20 char)</label>
+              <input [(ngModel)]="image.copyright_text" type="text" maxlength="20" placeholder="Copyright" class="w-full rounded-lg border border-zinc-300 px-2.5 py-2 text-xs outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-medium text-zinc-500">Image {{ i + 1 }}</span>
+                <button type="button" (click)="removeImage(i)" class="text-xs font-semibold text-red-600 hover:text-red-700">Remove</button>
+              </div>
             </div>
           </div>
         </div>
@@ -246,8 +267,9 @@
           <tr *ngFor="let location of filteredLocations; trackBy: trackByLocation" class="hover:bg-zinc-50">
             <td class="px-5 py-4">
               <div class="flex items-center gap-3">
-                <div class="h-12 w-12 overflow-hidden rounded-xl bg-zinc-100">
+                <div class="relative h-12 w-12 overflow-hidden rounded-xl bg-zinc-100">
                   <img *ngIf="location.images[0]?.image_url; else imageFallback" [src]="location.images[0]?.image_url" alt="Location preview" class="h-full w-full object-cover" />
+                  <app-image-copyright-tag *ngIf="location.images[0]?.image_url" [copyrightText]="location.images[0]?.copyright_text"></app-image-copyright-tag>
                   <ng-template #imageFallback>
                     <div class="flex h-full w-full items-center justify-center text-xs font-semibold uppercase tracking-wide text-zinc-500">IMG</div>
                   </ng-template>

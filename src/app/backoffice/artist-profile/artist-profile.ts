@@ -3,6 +3,14 @@ import { NgFor, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { WorkspaceEditActions } from '../../shared/workspace-edit/workspace-edit-actions';
 import {
+  MAX_ARTIST_LONG_BIOGRAPHY_LENGTH,
+  MAX_ARTIST_SHORT_BIOGRAPHY_LENGTH,
+  MAX_ARTIST_TAGLINE_LENGTH,
+  remainingCharacters,
+} from '../../shared/artist-biography/artist-biography.util';
+import { ImageCopyrightTag } from '../../shared/image-copyright/image-copyright-tag';
+import { ImagePreviewOpen } from '../../shared/image-preview/image-preview-open';
+import {
   ArtistAwardEntry,
   ArtistEducationEntry,
   ArtistPerformanceType,
@@ -14,7 +22,7 @@ import { AuthService } from '../../services/auth.service';
 @Component({
   selector: 'app-artist-profile',
   standalone: true,
-  imports: [NgIf, NgFor, FormsModule, WorkspaceEditActions],
+  imports: [NgIf, NgFor, FormsModule, WorkspaceEditActions, ImageCopyrightTag, ImagePreviewOpen],
   templateUrl: './artist-profile.html',
 })
 export class ArtistProfile implements OnInit {
@@ -34,6 +42,10 @@ export class ArtistProfile implements OnInit {
 
   profile: ArtistWorkspaceProfile = this.blankProfile('');
 
+  readonly maxTaglineLength = MAX_ARTIST_TAGLINE_LENGTH;
+  readonly maxShortBiographyLength = MAX_ARTIST_SHORT_BIOGRAPHY_LENGTH;
+  readonly maxLongBiographyLength = MAX_ARTIST_LONG_BIOGRAPHY_LENGTH;
+
   async ngOnInit() {
     await this.authService.waitForAuthReady();
 
@@ -51,7 +63,9 @@ export class ArtistProfile implements OnInit {
     return {
       profile_id: profileId,
       banner_url: null,
+      banner_copyright: '',
       profile_picture_url: null,
+      profile_picture_copyright: '',
       first_name: '',
       last_name: '',
       tagline: '',
@@ -204,6 +218,10 @@ export class ArtistProfile implements OnInit {
 
   trackByIndex(index: number) {
     return index;
+  }
+
+  charsLeft(text: string | null | undefined, maxLength: number): number {
+    return remainingCharacters(text, maxLength);
   }
 
   private async loadProfile(profileId: string) {

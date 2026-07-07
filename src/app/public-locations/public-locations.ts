@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { PublicLocationItem, SupabaseService } from '../services/supabase.service';
 import { SharedModule } from '../shared/shared-module';
+import { ImageCopyrightTag } from '../shared/image-copyright/image-copyright-tag';
 
 type LocationSort = 'name-asc' | 'city-asc';
 type VisibilityFilter = '' | 'public' | 'private';
@@ -11,7 +12,7 @@ type VisibilityFilter = '' | 'public' | 'private';
 @Component({
   selector: 'app-public-locations',
   standalone: true,
-  imports: [SharedModule, NgIf, NgFor, FormsModule],
+  imports: [SharedModule, NgIf, NgFor, FormsModule, ImageCopyrightTag],
   templateUrl: './public-locations.html',
 })
 export class PublicLocations implements OnInit {

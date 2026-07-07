@@ -1,0 +1,41 @@
+---
+pid: 31180
+cwd: "c:\tjs\tjs-portal"
+command: "Set-Location c:\\tjs\\tjs-portal; npm run build:dev"
+started_at: 2026-07-07T12:09:14.700Z
+running_for_ms: 6269993  
+---
+
+> web@0.0.0 build:dev
+> node scripts/set-env.js && ng build --configuration development
+
+✅ Environment files generated successfully!
+   - Using Supabase URL: https://iuvbnejalukjapgnpzzz.supabase.co
+   - Public App URL: (not set, fallback to current browser origin)
+   - Using Supabase Anon Key: ***y6W-y-MM
+   - Service Role Key: ***etlHPfbg (set ✓)
+> Building...
+√ Building...
+Initial chunk files | Names                      |  Raw size
+main.js             | main                       |   3.78 MB | 
+chunk-YA6HXST7.js   | -                          |   2.07 MB | 
+chunk-M7XQ2ZDT.js   | -                          | 151.98 kB | 
+styles.css          | styles                     | 130.60 kB | 
+polyfills.js        | polyfills                  |  89.77 kB | 
+chunk-AIXZ5PIS.js   | -                          |  12.65 kB | 
+chunk-7LRL2FED.js   | -                          |   7.59 kB | 
+
+                    | Initial total              |   6.25 MB
+
+Lazy chunk files    | Names                      |  Raw size
+chunk-M5WGN7CM.js   | host-plus-create-tjs-event |  71.10 kB | 
+chunk-DRS4BKP4.js   | host-plus-event-detail     |  39.42 kB | 
+chunk-T7WGUJMY.js   | host-plus-home             |  37.39 kB | 
+chunk-LVNVKRTR.js   | host-plus-events           |  36.74 kB | 
+chunk-BELI5EPF.js   | host-plus-settings         |  34.57 kB | 
+chunk-NO77DA7Q.js   | host-plus-artists          |  20.12 kB | 
+
+Application bundle generation complete. [27.393 seconds] - 2026-07-07T12:09:43.931Z
+
+Output location: C:\tjs\tjs-portal\dist\web
+

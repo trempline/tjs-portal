@@ -3,6 +3,8 @@ import { DatePipe, Location, NgFor, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
+import { validateHostScheduleEntries } from '../../shared/request-dates/request-dates.util';
+import { ImageCopyrightTag } from '../../shared/image-copyright/image-copyright-tag';
 import {
   ArtistInstrumentOption,
   ArtistRequestCommentEntry,
@@ -47,7 +49,7 @@ interface NormalizedScheduleEntry {
 @Component({
   selector: 'app-host-create-event',
   standalone: true,
-  imports: [NgIf, NgFor, FormsModule, DatePipe],
+  imports: [NgIf, NgFor, FormsModule, DatePipe, ImageCopyrightTag],
   templateUrl: './host-create-event.html',
 })
 export class HostCreateEvent implements OnInit {
@@ -397,26 +399,11 @@ export class HostCreateEvent implements OnInit {
         locationId: entry.locationId,
       }));
 
-    if (entries.length === 0) {
-      this.error = 'At least one event date is required.';
+    const scheduleValidationError = validateHostScheduleEntries(entries);
+    if (scheduleValidationError) {
+      this.error = scheduleValidationError;
+      this.activeTab = 'proposed-dates';
       return;
-    }
-
-    for (const [index, entry] of entries.entries()) {
-      if (entry.mode === 'period' && !entry.endDate) {
-        this.error = `Schedule entry ${index + 1} requires an end date.`;
-        return;
-      }
-
-      if (!entry.showTime) {
-        this.error = `Schedule entry ${index + 1} requires a time.`;
-        return;
-      }
-
-      if (!entry.locationId) {
-        this.error = `Schedule entry ${index + 1} requires a venue.`;
-        return;
-      }
     }
 
     const overlapError = this.findScheduleOverlap(entries);

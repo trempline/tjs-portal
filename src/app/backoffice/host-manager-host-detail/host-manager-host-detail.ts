@@ -6,6 +6,7 @@ import { lastValueFrom } from 'rxjs';
 import { AuthService } from '../../services/auth.service';
 import { HostManagerService } from '../../services/host-manager.service';
 import {
+  LocationImageInput,
   LocationLookupOption,
   SaveTjsPrivateLocationInput,
   SupabaseService,
@@ -14,6 +15,7 @@ import {
   TjsPrivateLocation,
   TjsUserWithRoles,
 } from '../../services/supabase.service';
+import { ImageCopyrightTag } from '../../shared/image-copyright/image-copyright-tag';
 import { WorkspaceEditButton } from '../../shared/workspace-edit/workspace-edit-button';
 
 interface LocationForm {
@@ -33,7 +35,7 @@ interface LocationForm {
   website: string;
   access_info: string;
   is_active: boolean;
-  image_urls: string[];
+  images: LocationImageInput[];
   location_type_id: number | null;
   amenities: LocationLookupOption[];
   specs: LocationLookupOption[];
@@ -48,7 +50,7 @@ interface InviteHostUserForm {
 @Component({
   selector: 'app-host-manager-host-detail',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, WorkspaceEditButton],
+  imports: [CommonModule, FormsModule, RouterLink, WorkspaceEditButton, ImageCopyrightTag],
   templateUrl: './host-manager-host-detail.html',
   styleUrl: './host-manager-host-detail.scss'
 })
@@ -98,6 +100,7 @@ export class HostManagerHostDetail implements OnInit {
   typeOptions: LocationLookupOption[] = [];
   selectedAmenityId = '';
   selectedSpecId = '';
+  defaultImageCopyright = '';
   form: LocationForm = this.blankForm();
   inviteHostUserForm: InviteHostUserForm = this.blankInviteHostUserForm();
 
@@ -213,6 +216,7 @@ export class HostManagerHostDetail implements OnInit {
     this.locationSuccessMessage = '';
     this.selectedAmenityId = '';
     this.selectedSpecId = '';
+    this.defaultImageCopyright = '';
     this.form = this.blankForm();
   }
 
@@ -222,6 +226,7 @@ export class HostManagerHostDetail implements OnInit {
     this.locationError = '';
     this.selectedAmenityId = '';
     this.selectedSpecId = '';
+    this.defaultImageCopyright = '';
     this.form = this.blankForm();
   }
 
@@ -237,6 +242,7 @@ export class HostManagerHostDetail implements OnInit {
     this.locationSuccessMessage = '';
     this.selectedAmenityId = '';
     this.selectedSpecId = '';
+    this.defaultImageCopyright = this.selectedPrivateLocation.images[0]?.copyright_text ?? '';
     this.form = {
       name: this.selectedPrivateLocation.name,
       address: this.selectedPrivateLocation.address ?? '',
@@ -254,7 +260,10 @@ export class HostManagerHostDetail implements OnInit {
       website: this.selectedPrivateLocation.website ?? '',
       access_info: this.selectedPrivateLocation.access_info ?? '',
       is_active: this.selectedPrivateLocation.is_active,
-      image_urls: [...this.selectedPrivateLocation.images.map((image) => image.image_url)],
+      images: this.selectedPrivateLocation.images.map((image) => ({
+        image_url: image.image_url,
+        copyright_text: image.copyright_text ?? '',
+      })),
       location_type_id: this.selectedPrivateLocation.location_type?.id ?? null,
       amenities: [...this.selectedPrivateLocation.amenities],
       specs: [...this.selectedPrivateLocation.specs],
@@ -295,7 +304,7 @@ export class HostManagerHostDetail implements OnInit {
       access_info: this.form.access_info,
       created_by: this.currentUserId,
       updated_by: this.currentUserId,
-      image_urls: this.form.image_urls.slice(0, 5),
+      images: this.form.images.slice(0, 5),
       amenity_ids: this.form.amenities.map((item) => item.id),
       spec_ids: this.form.specs.map((item) => item.id),
       location_type_id: this.parseOptionalId(this.form.location_type_id),
@@ -340,12 +349,12 @@ export class HostManagerHostDetail implements OnInit {
       return;
     }
 
-    if (this.form.image_urls.length >= 5) {
+    if (this.form.images.length >= 5) {
       this.locationError = 'You can upload up to 5 images.';
       return;
     }
 
-    const remainingSlots = 5 - this.form.image_urls.length;
+    const remainingSlots = 5 - this.form.images.length;
     const uploadQueue = files.slice(0, remainingSlots);
 
     if (files.length > remainingSlots) {
@@ -364,7 +373,10 @@ export class HostManagerHostDetail implements OnInit {
       }
 
       if (url) {
-        this.form.image_urls = [...this.form.image_urls, url].slice(0, 5);
+        this.form.images = [
+          ...this.form.images,
+          { image_url: url, copyright_text: this.defaultImageCopyright.trim().slice(0, 20) },
+        ].slice(0, 5);
       }
     }
 
@@ -372,7 +384,7 @@ export class HostManagerHostDetail implements OnInit {
   }
 
   removeImage(index: number) {
-    this.form.image_urls = this.form.image_urls.filter((_, imageIndex) => imageIndex !== index);
+    this.form.images = this.form.images.filter((_, imageIndex) => imageIndex !== index);
   }
 
   addAmenity() {
@@ -570,8 +582,8 @@ export class HostManagerHostDetail implements OnInit {
     return option.id;
   }
 
-  trackByImage(index: number, imageUrl: string) {
-    return `${index}:${imageUrl}`;
+  trackByImage(index: number, image: LocationImageInput) {
+    return `${index}:${image.image_url}`;
   }
 
   trackByUser(_: number, user: TjsUserWithRoles) {
@@ -650,7 +662,7 @@ export class HostManagerHostDetail implements OnInit {
       website: '',
       access_info: '',
       is_active: true,
-      image_urls: [],
+      images: [],
       location_type_id: null,
       amenities: [],
       specs: [],

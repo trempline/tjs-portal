@@ -1,9 +1,10 @@
 import { Component, signal } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
+import { ImagePreviewOverlay } from './shared/image-preview/image-preview-overlay';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet],
+  imports: [RouterOutlet, ImagePreviewOverlay],
   templateUrl: './app.html',
   styleUrl: './app.scss'
 })

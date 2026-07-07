@@ -1,0 +1,44 @@
+---
+pid: 13844
+cwd: "c:\tjs\tjs-portal"
+command: "Set-Location c:\\tjs\\tjs-portal; npm run build"
+started_at: 2026-07-07T13:36:21.657Z
+running_for_ms: 1045002  
+---
+
+> web@0.0.0 build
+> node scripts/set-env.js && ng build --configuration production
+
+✅ Environment files generated successfully!
+   - Using Supabase URL: https://iuvbnejalukjapgnpzzz.supabase.co
+   - Public App URL: (not set, fallback to current browser origin)
+   - Using Supabase Anon Key: ***y6W-y-MM
+   - Service Role Key: ***etlHPfbg (set ✓)
+> Building...
+√ Building...
+▲ [WARNING] bundle initial exceeded maximum budget. Budget 2.00 MB was not met by 221.03 kB with a total of 2.22 MB.
+
+
+Initial chunk files   | Names                      |  Raw size | Estimated transfer size
+main-JKJDNFBI.js      | main                       |   1.36 MB |               162.81 kB
+chunk-SR5EH24U.js     | -                          | 678.92 kB |               145.80 kB
+styles-5NTUYKEE.css   | styles                     | 105.90 kB |                11.72 kB
+chunk-SUAI5RR7.js     | -                          |  38.30 kB |                 8.09 kB
+polyfills-5CFQRCPP.js | polyfills                  |  34.59 kB |                11.33 kB
+chunk-KSP4JLFW.js     | -                          |   4.81 kB |                 1.41 kB
+chunk-J7ISK4TR.js     | -                          |   2.44 kB |               885 bytes
+
+                      | Initial total              |   2.22 MB |               342.05 kB
+
+Lazy chunk files      | Names                      |  Raw size | Estimated transfer size
+chunk-SNFMO2AS.js     | host-plus-create-tjs-event |  26.49 kB |                 5.82 kB
+chunk-FBJYWZ2F.js     | host-plus-home             |  14.59 kB |                 3.00 kB
+chunk-OE2IZEDX.js     | host-plus-event-detail     |  14.46 kB |                 3.92 kB
+chunk-AMTJPS6A.js     | host-plus-events           |  13.52 kB |                 3.92 kB
+chunk-S2I3AOC4.js     | host-plus-settings         |  13.36 kB |                 2.94 kB
+chunk-RR6UYAZY.js     | host-plus-artists          |   7.55 kB |                 2.50 kB
+
+Application bundle generation complete. [33.706 seconds] - 2026-07-07T13:36:58.169Z
+
+Output location: C:\tjs\tjs-portal\dist\web
+

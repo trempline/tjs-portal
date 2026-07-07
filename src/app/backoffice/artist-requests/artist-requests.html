@@ -209,17 +209,25 @@
             <input [(ngModel)]="request.event_title" [disabled]="!isEditing" type="text" class="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none disabled:bg-zinc-100 disabled:text-zinc-500 focus:border-red-500 focus:ring-2 focus:ring-red-100" />
           </div>
           <div class="space-y-2 md:col-span-2">
-            <label class="text-sm font-medium text-zinc-700">Teaser</label>
-            <input [(ngModel)]="request.teaser" [disabled]="!isEditing" maxlength="200" type="text" class="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none disabled:bg-zinc-100 disabled:text-zinc-500 focus:border-red-500 focus:ring-2 focus:ring-red-100" />
-            <div class="text-xs text-zinc-400">{{ request.teaser.length }}/200</div>
+            <div class="flex items-center justify-between gap-3">
+              <label class="text-sm font-medium text-zinc-700">Teaser</label>
+              <span class="text-xs font-medium" [class.text-red-600]="charsLeft(request.teaser, maxRequestTeaserLength) === 0" [class.text-zinc-500]="charsLeft(request.teaser, maxRequestTeaserLength) > 0">{{ charsLeft(request.teaser, maxRequestTeaserLength) }} characters left</span>
+            </div>
+            <input [(ngModel)]="request.teaser" [disabled]="!isEditing" type="text" [attr.maxlength]="maxRequestTeaserLength" class="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none disabled:bg-zinc-100 disabled:text-zinc-500 focus:border-red-500 focus:ring-2 focus:ring-red-100" />
           </div>
           <div class="space-y-2 md:col-span-2">
-            <label class="text-sm font-medium text-zinc-700">Long Teaser</label>
-            <textarea [(ngModel)]="request.long_teaser" [disabled]="!isEditing" rows="4" class="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none disabled:bg-zinc-100 disabled:text-zinc-500 focus:border-red-500 focus:ring-2 focus:ring-red-100"></textarea>
+            <div class="flex items-center justify-between gap-3">
+              <label class="text-sm font-medium text-zinc-700">Long Teaser</label>
+              <span class="text-xs font-medium" [class.text-red-600]="charsLeft(request.long_teaser, maxRequestLongTeaserLength) === 0" [class.text-zinc-500]="charsLeft(request.long_teaser, maxRequestLongTeaserLength) > 0">{{ charsLeft(request.long_teaser, maxRequestLongTeaserLength) }} characters left</span>
+            </div>
+            <textarea [(ngModel)]="request.long_teaser" [disabled]="!isEditing" rows="4" [attr.maxlength]="maxRequestLongTeaserLength" class="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none disabled:bg-zinc-100 disabled:text-zinc-500 focus:border-red-500 focus:ring-2 focus:ring-red-100"></textarea>
           </div>
           <div class="space-y-2 md:col-span-2">
-            <label class="text-sm font-medium text-zinc-700">Description</label>
-            <textarea [(ngModel)]="request.description" [disabled]="!isEditing" rows="7" class="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none disabled:bg-zinc-100 disabled:text-zinc-500 focus:border-red-500 focus:ring-2 focus:ring-red-100"></textarea>
+            <div class="flex items-center justify-between gap-3">
+              <label class="text-sm font-medium text-zinc-700">Description</label>
+              <span class="text-xs font-medium" [class.text-red-600]="charsLeft(request.description, maxRequestDescriptionLength) === 0" [class.text-zinc-500]="charsLeft(request.description, maxRequestDescriptionLength) > 0">{{ charsLeft(request.description, maxRequestDescriptionLength) }} characters left</span>
+            </div>
+            <textarea [(ngModel)]="request.description" [disabled]="!isEditing" rows="7" [attr.maxlength]="maxRequestDescriptionLength" class="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none disabled:bg-zinc-100 disabled:text-zinc-500 focus:border-red-500 focus:ring-2 focus:ring-red-100"></textarea>
           </div>
           <div class="rounded-3xl border border-zinc-200 bg-white/90 p-6 shadow-sm md:col-span-2">
             <h3 class="text-lg font-semibold text-zinc-900">Artists</h3>
@@ -332,10 +340,17 @@
 
         <div *ngIf="activeTab === 'image'" class="space-y-4">
           <div *ngIf="request.image_url" class="overflow-hidden rounded-3xl border border-zinc-200">
-            <img [src]="request.image_url" alt="Request image" class="h-72 w-full object-cover" />
+            <div class="relative">
+              <img [src]="request.image_url" alt="Request image" [attr.data-preview-copyright]="request.image_copyright" class="h-72 w-full object-cover" />
+              <app-image-copyright-tag [copyrightText]="request.image_copyright"></app-image-copyright-tag>
+            </div>
           </div>
           <div *ngIf="!request.image_url" class="rounded-3xl border border-dashed border-zinc-300 bg-zinc-50 px-6 py-10 text-center text-sm text-zinc-500">
             No request image uploaded yet.
+          </div>
+          <div *ngIf="isEditing && request.image_url" class="max-w-md space-y-2">
+            <label class="text-sm font-medium text-zinc-700">Copyright text (20 char)</label>
+            <input [(ngModel)]="request.image_copyright" type="text" maxlength="20" placeholder="Copyright" class="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
           </div>
           <label *ngIf="isEditing" class="inline-flex cursor-pointer items-center rounded-2xl bg-zinc-900 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-zinc-800">
             {{ isRequestImageUploading ? 'Uploading...' : 'Upload Request Image' }}

@@ -4,11 +4,13 @@ import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { ActivatedRoute, Router } from '@angular/router';
 import { PublicLocationDetail as PublicLocationDetailData, PublicLocationUpcomingEvent, SupabaseService } from '../services/supabase.service';
 import { SharedModule } from '../shared/shared-module';
+import { ImageCopyrightTag } from '../shared/image-copyright/image-copyright-tag';
+import { formatFrenchPublicDatePart, parsePublicScheduleLine } from '../shared/date-format/date-format.util';
 
 @Component({
   selector: 'app-public-location-detail',
   standalone: true,
-  imports: [SharedModule, NgIf, NgFor],
+  imports: [SharedModule, NgIf, NgFor, ImageCopyrightTag],
   templateUrl: './public-location-detail.html',
 })
 export class PublicLocationDetail implements OnInit {
@@ -20,7 +22,6 @@ export class PublicLocationDetail implements OnInit {
   isLoading = true;
   error = '';
   location: PublicLocationDetailData | null = null;
-  selectedImageUrl: string | null = null;
   mapEmbedUrl: SafeResourceUrl | null = null;
   directionsUrl = '';
 
@@ -51,14 +52,6 @@ export class PublicLocationDetail implements OnInit {
 
   openEvent(event: PublicLocationUpcomingEvent) {
     this.router.navigate(['/events', event.id]);
-  }
-
-  openGalleryImage(imageUrl: string) {
-    this.selectedImageUrl = imageUrl;
-  }
-
-  closeGalleryImage() {
-    this.selectedImageUrl = null;
   }
 
   get heroEyebrow(): string {
@@ -111,7 +104,8 @@ export class PublicLocationDetail implements OnInit {
 
   formatScheduleLine(line: string): string {
     const { datePart, timePart, locationPart } = this.parseScheduleLine(line);
-    return [datePart, timePart, locationPart].filter(Boolean).join(' - ');
+    const formattedDate = formatFrenchPublicDatePart(datePart);
+    return [formattedDate, timePart, locationPart].filter(Boolean).join(' - ');
   }
 
   primaryScheduleLine(event: PublicLocationUpcomingEvent): string {
@@ -170,15 +164,6 @@ export class PublicLocationDetail implements OnInit {
   }
 
   private parseScheduleLine(line: string): { datePart: string; timePart: string; locationPart: string } {
-    const parts = line.split('|').map((part) => part.trim());
-    const dateTimePart = parts[0] || '';
-    const locationPart = parts[1] || '';
-    const separatorIndex = dateTimePart.lastIndexOf(' : ');
-
-    return {
-      datePart: separatorIndex >= 0 ? dateTimePart.slice(0, separatorIndex).trim() : dateTimePart,
-      timePart: separatorIndex >= 0 ? dateTimePart.slice(separatorIndex + 3).trim() : '',
-      locationPart,
-    };
+    return parsePublicScheduleLine(line);
   }
 }

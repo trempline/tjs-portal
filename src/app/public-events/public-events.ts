@@ -4,12 +4,14 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthService } from '../services/auth.service';
 import { SharedModule } from '../shared/shared-module';
+import { ImageCopyrightTag } from '../shared/image-copyright/image-copyright-tag';
 import { PublicWebsiteEventItem, SupabaseService } from '../services/supabase.service';
+import { formatFrenchPublicDatePart, parsePublicScheduleLine } from '../shared/date-format/date-format.util';
 
 @Component({
   selector: 'app-public-events',
   standalone: true,
-  imports: [SharedModule, NgIf, NgFor, FormsModule],
+  imports: [SharedModule, NgIf, NgFor, FormsModule, ImageCopyrightTag],
   templateUrl: './public-events.html',
 })
 export class PublicEvents implements OnInit {
@@ -216,28 +218,19 @@ export class PublicEvents implements OnInit {
   }
 
   formatScheduleLine(line: string): string {
-    // Format: "2026-04-17 - 2026-04-18 : 14:00 | Location TBA"
-    // or: "2026-05-01 : 20:00 | Moses Dearm"
-    
-    const parts = line.split('|').map(p => p.trim());
-    const dateTimePart = parts[0] || '';
-    const locationPart = parts[1] || '';
-    
-    // Split date and time by colon
-    const dateTimeSegments = dateTimePart.split(':').map(s => s.trim());
-    const datePart = dateTimeSegments[0] || '';
-    const timePart = dateTimeSegments.length > 1 ? dateTimeSegments.slice(1).join(':').trim() : '';
-    
-    let formatted = `📅 ${datePart}`;
-    
+    const { datePart, timePart, locationPart } = parsePublicScheduleLine(line);
+    const formattedDate = formatFrenchPublicDatePart(datePart);
+
+    let formatted = `📅 ${formattedDate}`;
+
     if (timePart) {
       formatted += ` • 🕐 ${timePart}`;
     }
-    
+
     if (locationPart) {
       formatted += ` • 📍 ${locationPart}`;
     }
-    
+
     return formatted;
   }
 

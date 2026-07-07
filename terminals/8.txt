@@ -1,0 +1,17 @@
+---
+pid: 2928
+cwd: "c:\tjs\tjs-portal"
+command: "supabase --version 2>&1; npx supabase --version 2>&1"
+started_at: 2026-07-07T10:37:42.080Z
+running_for_ms: 11764997 
+---
+supabase : The term 'supabase' is not recognized as the name of a cmdlet, function, script file, or operable program. 
+Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+At line:1 char:1
++ supabase --version 2>&1; npx supabase --version 2>&1
++ ~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (supabase:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 
+npm warn exec The following package was not found and will be installed: supabase@2.109.1
+The process cannot access the file because it is being used by another process.

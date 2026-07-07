@@ -1,0 +1,68 @@
+---
+pid: 33376
+cwd: "c:\tjs\tjs-portal"
+command: "Set-Location c:\\tjs\\tjs-portal; npm run build"
+started_at: 2026-07-07T13:39:23.137Z
+running_for_ms: 864997   
+---
+
+> web@0.0.0 build
+> node scripts/set-env.js && ng build --configuration production
+
+✅ Environment files generated successfully!
+   - Using Supabase URL: https://iuvbnejalukjapgnpzzz.supabase.co
+   - Public App URL: (not set, fallback to current browser origin)
+   - Using Supabase Anon Key: ***y6W-y-MM
+   - Service Role Key: ***etlHPfbg (set ✓)
+> Building...
+√ Building...
+X [ERROR] TS2322: Type '({ id: string; display_name: string; photo_url: string | null; photo_copyright: string | null; teaser: string; instruments: string[]; performance_types: string[]; next_event_date: string; next_event_title: string; upcoming_event_count: number; } | null)[]' is not assignable to type 'PublicTjsArtistItem[]'.
+  Type '{ id: string; display_name: string; photo_url: string | null; photo_copyright: string | null; teaser: string; instruments: string[]; performance_types: string[]; next_event_date: string; next_event_title: string; upcoming_event_count: number; } | null' is not assignable to type 'PublicTjsArtistItem'.
+    Type 'null' is not assignable to type 'PublicTjsArtistItem'. [plugin angular-compiler]
+
+    src/app/services/supabase.service.ts:4635:4:
+      4635 │     return artistRows
+           ╵     ~~~~~~
+
+
+X [ERROR] TS2677: A type predicate's type must be assignable to its parameter's type.
+  Type 'PublicTjsArtistItem' is not assignable to type '{ id: string; display_name: string; photo_url: string | null; photo_copyright: string | null; teaser: string; instruments: string[]; performance_types: string[]; next_event_date: string; next_event_title: string; upcoming_event_count: number; }'.
+    Types of property 'next_event_date' are incompatible.
+      Type 'string | null' is not assignable to type 'string'.
+        Type 'null' is not assignable to type 'string'. [plugin angular-compiler]
+
+    src/app/services/supabase.service.ts:4677:30:
+      4677 │       .filter((item): item is PublicTjsArtistItem => item !== null)
+           ╵                               ~~~~~~~~~~~~~~~~~~~
+
+
+X [ERROR] TS18047: 'left' is possibly 'null'. [plugin angular-compiler]
+
+    src/app/services/supabase.service.ts:4679:25:
+      4679 │         const leftDate = left.next_event_date ?? '9999-12-31';
+           ╵                          ~~~~
+
+
+X [ERROR] TS18047: 'right' is possibly 'null'. [plugin angular-compiler]
+
+    src/app/services/supabase.service.ts:4680:26:
+      4680 │         const rightDate = right.next_event_date ?? '9999-12-31';
+           ╵                           ~~~~~
+
+
+X [ERROR] TS18047: 'left' is possibly 'null'. [plugin angular-compiler]
+
+    src/app/services/supabase.service.ts:4685:15:
+      4685 │         return left.display_name.localeCompare(right.display_name);
+           ╵                ~~~~
+
+
+X [ERROR] TS18047: 'right' is possibly 'null'. [plugin angular-compiler]
+
+    src/app/services/supabase.service.ts:4685:47:
+      4685 │         return left.display_name.localeCompare(right.display_name);
+           ╵                                                ~~~~~
+
+
+Application bundle generation failed. [28.575 seconds] - 2026-07-07T13:39:54.461Z
+

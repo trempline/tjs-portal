@@ -1,0 +1,46 @@
+---
+pid: 16328
+cwd: "c:\tjs\tjs-portal"
+command: "Set-Location c:\\tjs\\tjs-portal; npm run build"
+started_at: 2026-07-07T13:49:54.563Z
+running_for_ms: 229998   
+---
+
+> web@0.0.0 build
+> node scripts/set-env.js && ng build --configuration production
+
+✅ Environment files generated successfully!
+   - Using Supabase URL: https://iuvbnejalukjapgnpzzz.supabase.co
+   - Public App URL: (not set, fallback to current browser origin)
+   - Using Supabase Anon Key: ***y6W-y-MM
+   - Service Role Key: ***etlHPfbg (set ✓)
+> Building...
+√ Building...
+X [ERROR] NG8002: Can't bind to 'routerLink' since it isn't a known property of 'a'. [plugin angular-compiler]
+
+    src/app/public-event-detail/public-event-detail.html:90:24:
+      90 │                         [routerLink]="['/artists', artist.id]"
+         ╵                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  Error occurs in the template of component PublicEventDetailComponent.
+
+    src/app/public-event-detail/public-event-detail.ts:15:15:
+      15 │   templateUrl: './public-event-detail.html',
+         ╵                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+X [ERROR] NG8002: Can't bind to 'routerLink' since it isn't a known property of 'a'. [plugin angular-compiler]
+
+    src/app/public-event-detail/public-event-detail.html:205:22:
+      205 │                       [routerLink]="['/artists', artist.id]"
+          ╵                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  Error occurs in the template of component PublicEventDetailComponent.
+
+    src/app/public-event-detail/public-event-detail.ts:15:15:
+      15 │   templateUrl: './public-event-detail.html',
+         ╵                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+Application bundle generation failed. [30.773 seconds] - 2026-07-07T13:50:27.277Z
+

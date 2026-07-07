@@ -211,7 +211,10 @@
 
           <div class="space-y-6">
             <section *ngIf="request.image_url" class="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm">
-              <img [src]="request.image_url" alt="Request image" class="h-56 w-full object-cover" />
+              <div class="relative">
+                <img [src]="request.image_url" alt="Request image" class="h-56 w-full object-cover" />
+                <app-image-copyright-tag [copyrightText]="request.image_copyright"></app-image-copyright-tag>
+              </div>
             </section>
 
             <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">

@@ -4,13 +4,15 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { PublicTjsArtistItem, SupabaseService } from '../services/supabase.service';
 import { SharedModule } from '../shared/shared-module';
+import { ImageCopyrightTag } from '../shared/image-copyright/image-copyright-tag';
+import { formatFrenchPublicDate } from '../shared/date-format/date-format.util';
 
 type ArtistSort = 'upcoming' | 'name-asc';
 
 @Component({
   selector: 'app-public-artists',
   standalone: true,
-  imports: [SharedModule, NgIf, NgFor, FormsModule],
+  imports: [SharedModule, NgIf, NgFor, FormsModule, ImageCopyrightTag],
   templateUrl: './public-artists.html',
 })
 export class PublicArtists implements OnInit {
@@ -172,10 +174,6 @@ export class PublicArtists implements OnInit {
   }
 
   private formatDate(value: string): string {
-    return new Intl.DateTimeFormat(undefined, {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    }).format(new Date(`${value}T00:00:00`));
+    return formatFrenchPublicDate(value);
   }
 }

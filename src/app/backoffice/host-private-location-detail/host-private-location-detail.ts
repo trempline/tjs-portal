@@ -2,6 +2,8 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
+import { ImageCopyrightTag } from '../../shared/image-copyright/image-copyright-tag';
+import { ImagePreviewOpen } from '../../shared/image-preview/image-preview-open';
 import { HostPrivateLocationBookingItem, SaveTjsPrivateLocationInput, SupabaseService, TjsPrivateLocation } from '../../services/supabase.service';
 
 interface PrivateLocationCalendarDay {
@@ -15,7 +17,7 @@ interface PrivateLocationCalendarDay {
 @Component({
   selector: 'app-host-private-location-detail',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, ImageCopyrightTag, ImagePreviewOpen],
   templateUrl: './host-private-location-detail.html',
 })
 export class HostPrivateLocationDetail implements OnInit {
@@ -28,7 +30,6 @@ export class HostPrivateLocationDetail implements OnInit {
   error = '';
   successMessage = '';
   location: TjsPrivateLocation | null = null;
-  zoomedImageUrl: string | null = null;
   bookings: HostPrivateLocationBookingItem[] = [];
   calendarMonth = this.startOfMonth(new Date());
 
@@ -104,14 +105,6 @@ export class HostPrivateLocationDetail implements OnInit {
 
   trackById(_: number, item: { id: number }) {
     return item.id;
-  }
-
-  openImageZoom(imageUrl: string) {
-    this.zoomedImageUrl = imageUrl;
-  }
-
-  closeImageZoom() {
-    this.zoomedImageUrl = null;
   }
 
   get monthLabel(): string {
@@ -214,7 +207,10 @@ export class HostPrivateLocationDetail implements OnInit {
       access_info: location.access_info,
       created_by: location.created_by ?? this.currentUserId,
       updated_by: this.currentUserId,
-      image_urls: location.images.map((image) => image.image_url),
+      images: location.images.map((image) => ({
+        image_url: image.image_url,
+        copyright_text: image.copyright_text ?? '',
+      })),
       amenity_ids: location.amenities.map((item) => item.id),
       spec_ids: location.specs.map((item) => item.id),
       location_type_id: location.location_type?.id ?? null,

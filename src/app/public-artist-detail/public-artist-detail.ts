@@ -3,11 +3,13 @@ import { Component, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { PublicTjsArtistDetail, SupabaseService } from '../services/supabase.service';
 import { SharedModule } from '../shared/shared-module';
+import { ImageCopyrightTag } from '../shared/image-copyright/image-copyright-tag';
+import { formatFrenchPublicDatePart, parsePublicScheduleLine } from '../shared/date-format/date-format.util';
 
 @Component({
   selector: 'app-public-artist-detail',
   standalone: true,
-  imports: [SharedModule, NgIf, NgFor],
+  imports: [SharedModule, NgIf, NgFor, ImageCopyrightTag],
   templateUrl: './public-artist-detail.html',
 })
 export class PublicArtistDetail implements OnInit {
@@ -85,20 +87,8 @@ export class PublicArtistDetail implements OnInit {
   }
 
   formatScheduleLine(line: string): string {
-    const { datePart, timePart, locationPart } = this.parseScheduleLine(line);
-    return [datePart, timePart, locationPart].filter(Boolean).join(' - ');
-  }
-
-  private parseScheduleLine(line: string): { datePart: string; timePart: string; locationPart: string } {
-    const parts = line.split('|').map((part) => part.trim());
-    const dateTimePart = parts[0] || '';
-    const locationPart = parts[1] || '';
-    const separatorIndex = dateTimePart.lastIndexOf(' : ');
-
-    return {
-      datePart: separatorIndex >= 0 ? dateTimePart.slice(0, separatorIndex).trim() : dateTimePart,
-      timePart: separatorIndex >= 0 ? dateTimePart.slice(separatorIndex + 3).trim() : '',
-      locationPart,
-    };
+    const { datePart, timePart, locationPart } = parsePublicScheduleLine(line);
+    const formattedDate = formatFrenchPublicDatePart(datePart);
+    return [formattedDate, timePart, locationPart].filter(Boolean).join(' - ');
   }
 }
