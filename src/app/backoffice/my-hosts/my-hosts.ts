@@ -159,7 +159,7 @@ export class MyHosts implements OnInit {
       zip: this.hostForm.zip || null,
       country: this.hostForm.country || null,
       host_per_year: this.hostForm.host_per_year || null,
-      capacity: this.hostForm.capacity,
+      capacity: null,
       id_host_type: this.hostForm.id_host_type,
       contact_fname: this.hostForm.contact_fname || null,
       contact_lname: this.hostForm.contact_lname || null,

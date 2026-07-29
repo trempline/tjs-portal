@@ -101,7 +101,7 @@ export class HostPlusHome implements OnInit {
       zip: this.nullable(this.form.zip),
       country: this.nullable(this.form.country),
       host_per_year: this.nullable(this.form.host_per_year),
-      capacity: this.form.capacity,
+      capacity: null,
       contact_fname: this.nullable(this.form.contact_fname),
       contact_lname: this.nullable(this.form.contact_lname),
       contact_phone1: this.nullable(this.form.contact_phone1),

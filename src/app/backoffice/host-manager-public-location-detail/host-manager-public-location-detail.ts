@@ -5,6 +5,7 @@ import { AuthService } from '../../services/auth.service';
 import { ImageCopyrightTag } from '../../shared/image-copyright/image-copyright-tag';
 import { ImagePreviewOpen } from '../../shared/image-preview/image-preview-open';
 import { HostPrivateLocationBookingItem, SaveTjsLocationInput, SupabaseService, TjsLocation } from '../../services/supabase.service';
+import { validateLocationForActivation } from '../../shared/location-profile/location-public-profile.util';
 
 interface PublicLocationCalendarDay {
   date: string;
@@ -102,6 +103,15 @@ export class HostManagerPublicLocationDetail implements OnInit {
     this.isUpdatingStatus = true;
 
     const nextStatus = !this.location.is_active;
+    if (nextStatus) {
+      const activationError = validateLocationForActivation(this.location);
+      if (activationError) {
+        this.error = activationError;
+        this.isUpdatingStatus = false;
+        return;
+      }
+    }
+
     const error = await this.supabase.updateLocation(this.location.id, this.buildSavePayload(this.location, nextStatus));
 
     if (error) {

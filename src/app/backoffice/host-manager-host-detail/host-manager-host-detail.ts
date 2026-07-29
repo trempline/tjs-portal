@@ -15,6 +15,7 @@ import {
   TjsPrivateLocation,
   TjsUserWithRoles,
 } from '../../services/supabase.service';
+import { validateLocationForActivation } from '../../shared/location-profile/location-public-profile.util';
 import { ImageCopyrightTag } from '../../shared/image-copyright/image-copyright-tag';
 import { WorkspaceEditButton } from '../../shared/workspace-edit/workspace-edit-button';
 
@@ -279,6 +280,18 @@ export class HostManagerHostDetail implements OnInit {
     if (!this.form.name.trim()) {
       this.locationError = 'Location name is required.';
       return;
+    }
+
+    if (this.form.is_active) {
+      const activationError = validateLocationForActivation({
+        address: this.form.address,
+        lat: this.parseOptionalNumber(this.form.lat),
+        long: this.parseOptionalNumber(this.form.long),
+      });
+      if (activationError) {
+        this.locationError = activationError;
+        return;
+      }
     }
 
     this.isSavingLocation = true;
@@ -661,7 +674,7 @@ export class HostManagerHostDetail implements OnInit {
       email: '',
       website: '',
       access_info: '',
-      is_active: true,
+      is_active: false,
       images: [],
       location_type_id: null,
       amenities: [],

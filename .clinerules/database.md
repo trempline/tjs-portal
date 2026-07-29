@@ -1,1 +1,0 @@
-Always read database-schema.sql in db folder

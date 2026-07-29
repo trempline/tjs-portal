@@ -12,6 +12,7 @@ import {
   TjsHost,
   TjsPrivateLocation,
 } from '../../services/supabase.service';
+import { validateLocationForActivation } from '../../shared/location-profile/location-public-profile.util';
 import { ImageCopyrightTag } from '../../shared/image-copyright/image-copyright-tag';
 
 interface LocationForm {
@@ -213,6 +214,18 @@ export class HostPrivateLocations implements OnInit {
       return;
     }
 
+    if (this.form.is_active) {
+      const activationError = validateLocationForActivation({
+        address: this.form.address,
+        lat: this.parseOptionalNumber(this.form.lat),
+        long: this.parseOptionalNumber(this.form.long),
+      });
+      if (activationError) {
+        this.error = activationError;
+        return;
+      }
+    }
+
     this.isSaving = true;
     this.error = '';
     this.successMessage = '';
@@ -291,6 +304,16 @@ export class HostPrivateLocations implements OnInit {
   async toggleLocationStatus(location: TjsPrivateLocation) {
     this.error = '';
     this.successMessage = '';
+
+    const nextStatus = !location.is_active;
+    if (nextStatus) {
+      const activationError = validateLocationForActivation(location);
+      if (activationError) {
+        this.error = activationError;
+        return;
+      }
+    }
+
     this.isSaving = true;
 
     const payload: SaveTjsPrivateLocationInput = {
@@ -309,7 +332,7 @@ export class HostPrivateLocations implements OnInit {
       phone: location.phone,
       email: location.email,
       website: location.website,
-      is_active: !location.is_active,
+      is_active: nextStatus,
       access_info: location.access_info,
       created_by: location.created_by ?? this.currentUserId,
       updated_by: this.currentUserId,
@@ -457,7 +480,7 @@ export class HostPrivateLocations implements OnInit {
       email: '',
       website: '',
       access_info: '',
-      is_active: true,
+      is_active: false,
       images: [],
       location_type_id: null,
       amenities: [],

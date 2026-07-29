@@ -16,6 +16,10 @@ import {
 } from '../shared/request-dates/request-dates.util';
 import { normalizePublicBookingUrl as toPublicBookingUrl } from '../shared/booking-url/booking-url.util';
 import { isPublicArtistProfileComplete } from '../shared/artist-profile/artist-public-profile.util';
+import {
+  isPublicLocationComplete,
+  validateLocationForActivation,
+} from '../shared/location-profile/location-public-profile.util';
 import { environment } from '../../environments/environment';
 
 export interface NewsletterMessage {
@@ -288,6 +292,12 @@ export interface PublicLocationDetail extends PublicLocationItem {
   upcoming_events: PublicLocationUpcomingEvent[];
 }
 
+export interface PublicEventScheduleItem {
+  line: string;
+  location_label: string | null;
+  location_id: string | null;
+}
+
 export interface PublicEventDetail {
   id: string;
   title: string;
@@ -303,6 +313,7 @@ export interface PublicEventDetail {
   artist_names: string[];
   host_names: string[];
   schedule_lines: string[];
+  schedule_items: PublicEventScheduleItem[];
   is_member_only: boolean;
   media: Array<{
     id?: string;
@@ -4944,10 +4955,10 @@ export class SupabaseService {
 
     return [
       ...publicLocations
-        .filter((location) => location.is_active)
+        .filter((location) => location.is_active && isPublicLocationComplete(location))
         .map((location) => this.mapPublicLocationItem(location, false, null)),
       ...privateLocations
-        .filter((location) => location.is_active)
+        .filter((location) => location.is_active && isPublicLocationComplete(location))
         .map((location) => this.mapPublicLocationItem(
           location,
           true,
@@ -4966,7 +4977,7 @@ export class SupabaseService {
 
   async getPublicWebsiteLocationDetail(locationId: string): Promise<PublicLocationDetail | null> {
     const publicLocation = await this.getPublicLocationById(locationId);
-    if (publicLocation?.is_active) {
+    if (publicLocation?.is_active && isPublicLocationComplete(publicLocation)) {
       return this.mapPublicLocationDetail(
         publicLocation,
         false,
@@ -4976,7 +4987,7 @@ export class SupabaseService {
     }
 
     const privateLocation = await this.getPrivateLocationById(locationId);
-    if (!privateLocation?.is_active) {
+    if (!privateLocation?.is_active || !isPublicLocationComplete(privateLocation)) {
       return null;
     }
 
@@ -5008,13 +5019,21 @@ export class SupabaseService {
     const event = eventsResult.data as any;
     const requestId = event.parent_event_id as string | null;
 
-    const [hostAssignmentsResult, eventArtistsResult, requestDetailsResult, requestArtistsResult, requestMediaResult] = await Promise.all([
+    const [
+      hostAssignmentsResult,
+      eventArtistsResult,
+      requestDetailsResult,
+      requestArtistsResult,
+      requestMediaResult,
+      publicLocationsResult,
+    ] = await Promise.all([
       this.adminSupabase
         .from('tjs_event_hosts')
         .select(`
           host_id,
           selected_dates,
           notes,
+          location_id,
           host:tjs_hosts (
             id,
             public_name,
@@ -5046,15 +5065,33 @@ export class SupabaseService {
             .select('id, media_type, image_url, name, description, url')
             .eq('request_id', requestId)
         : Promise.resolve({ data: [], error: null }),
+      this.getPublicWebsiteLocations(),
     ]);
 
     const primaryAssignment = (hostAssignmentsResult.data ?? [])[0] as any;
     const notes = primaryAssignment?.notes ?? '';
+    const assignmentLocationId = (primaryAssignment?.location_id as string | null | undefined) ?? null;
+    const publicLocations = (publicLocationsResult as PublicLocationItem[]) ?? [];
     const scheduleEntries = this.extractScheduleEntries(
       notes,
       Array.isArray(primaryAssignment?.selected_dates) ? primaryAssignment.selected_dates : []
     );
     const scheduleLines = this.extractEventScheduleLines(notes, scheduleEntries);
+    const scheduleItems: PublicEventScheduleItem[] = scheduleLines.map((line, index) => {
+      const locationLabel = this.extractScheduleLineLocationLabel(line);
+      const locationId = this.resolvePublicLocationIdForScheduleLine(
+        line,
+        scheduleEntries[index],
+        assignmentLocationId,
+        publicLocations,
+      );
+
+      return {
+        line,
+        location_label: locationLabel,
+        location_id: locationId,
+      };
+    });
 
     const eventArtists = (eventArtistsResult.data ?? []) as any[];
     const requestArtists = (requestArtistsResult.data ?? []) as any[];
@@ -5153,6 +5190,7 @@ export class SupabaseService {
       artist_names: displayArtistNames,
       host_names: this.publicHostNamesFromAssignments((hostAssignmentsResult.data ?? []) as any[]),
       schedule_lines: scheduleLines,
+      schedule_items: scheduleItems,
       is_member_only: this.isEventMemberOnly(event.visibility_scope),
       media: ((requestMediaResult.data ?? []) as any[]).length > 0
         ? ((requestMediaResult.data ?? []) as any[]).map((m) => ({
@@ -7662,6 +7700,11 @@ export class SupabaseService {
   }
 
   async createLocation(location: SaveTjsLocationInput): Promise<{ id: string | null; error: string | null }> {
+    const activationError = validateLocationForActivation(location);
+    if (location.is_active && activationError) {
+      return { id: null, error: activationError };
+    }
+
     const { data, error } = await this.adminSupabase
       .from('tjs_locations')
       .insert(this.buildLocationPayload(location, false))
@@ -7686,6 +7729,11 @@ export class SupabaseService {
   }
 
   async createPrivateLocation(location: SaveTjsPrivateLocationInput): Promise<{ id: string | null; error: string | null }> {
+    const activationError = validateLocationForActivation(location);
+    if (location.is_active && activationError) {
+      return { id: null, error: activationError };
+    }
+
     const { data, error } = await this.adminSupabase
       .from('tjs_private_locations')
       .insert(this.buildPrivateLocationPayload(location, false))
@@ -7720,6 +7768,11 @@ export class SupabaseService {
   }
 
   async updatePrivateLocation(locationId: string, location: SaveTjsPrivateLocationInput): Promise<string | null> {
+    const activationError = validateLocationForActivation(location);
+    if (location.is_active && activationError) {
+      return activationError;
+    }
+
     const { error } = await this.adminSupabase
       .from('tjs_private_locations')
       .update(this.buildPrivateLocationPayload(location, true))
@@ -7756,6 +7809,11 @@ export class SupabaseService {
   }
 
   async updateLocation(locationId: string, location: SaveTjsLocationInput): Promise<string | null> {
+    const activationError = validateLocationForActivation(location);
+    if (location.is_active && activationError) {
+      return activationError;
+    }
+
     const { error } = await this.adminSupabase
       .from('tjs_locations')
       .update(this.buildLocationPayload(location, true))
@@ -9537,6 +9595,88 @@ export class SupabaseService {
         .map((value) => this.normalizeLocationComparisonValue(value))
         .filter((value): value is string => !!value)
     );
+  }
+
+  private getPublicLocationAliases(location: PublicLocationItem): Set<string> {
+    return new Set(
+      [
+        location.name,
+        location.city,
+        location.address,
+        location.name || location.city || location.address,
+      ]
+        .map((value) => this.normalizeLocationComparisonValue(value))
+        .filter((value): value is string => !!value)
+    );
+  }
+
+  private isResolvableScheduleLocationLabel(label: string | null | undefined): boolean {
+    const normalized = this.normalizeLocationComparisonValue(label);
+    return !!normalized
+      && normalized !== 'location tba'
+      && normalized !== 'no venue'
+      && normalized !== 'unknown venue'
+      && normalized !== 'unknown';
+  }
+
+  private resolvePublicLocationIdByLabel(
+    label: string | null | undefined,
+    locations: PublicLocationItem[],
+  ): string | null {
+    if (!this.isResolvableScheduleLocationLabel(label)) {
+      return null;
+    }
+
+    const trimmed = label?.trim() ?? '';
+    const directMatch = locations.find((location) => location.id === trimmed);
+    if (directMatch) {
+      return directMatch.id;
+    }
+
+    const normalized = this.normalizeLocationComparisonValue(label);
+    for (const location of locations) {
+      if (this.getPublicLocationAliases(location).has(normalized!)) {
+        return location.id;
+      }
+    }
+
+    return null;
+  }
+
+  private resolvePublicLocationIdForScheduleLine(
+    scheduleLine: string,
+    scheduleEntry: { location_label?: string } | undefined,
+    assignmentLocationId: string | null,
+    locations: PublicLocationItem[],
+  ): string | null {
+    const lineLabel = this.extractScheduleLineLocationLabel(scheduleLine);
+    const entryLabel = scheduleEntry?.location_label?.trim() || null;
+
+    const resolvedFromLine = this.resolvePublicLocationIdByLabel(lineLabel, locations);
+    if (resolvedFromLine) {
+      return resolvedFromLine;
+    }
+
+    const resolvedFromEntry = this.resolvePublicLocationIdByLabel(entryLabel, locations);
+    if (resolvedFromEntry) {
+      return resolvedFromEntry;
+    }
+
+    if (!assignmentLocationId || !this.isResolvableScheduleLocationLabel(lineLabel)) {
+      return null;
+    }
+
+    const assignmentLocation = locations.find((location) => location.id === assignmentLocationId);
+    if (!assignmentLocation) {
+      return null;
+    }
+
+    const normalizedLineLabel = this.normalizeLocationComparisonValue(lineLabel);
+    if (normalizedLineLabel && this.getPublicLocationAliases(assignmentLocation).has(normalizedLineLabel)) {
+      return assignmentLocationId;
+    }
+
+    return null;
   }
 
   private buildLocationPayload(location: SaveTjsLocationInput, isUpdate: boolean) {

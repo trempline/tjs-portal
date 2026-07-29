@@ -12,6 +12,7 @@ import {
   SupabaseService,
   TjsLocation,
 } from '../../services/supabase.service';
+import { validateLocationForActivation } from '../../shared/location-profile/location-public-profile.util';
 
 interface LocationForm {
   name: string;
@@ -213,6 +214,18 @@ export class HostManagerPublicLocations implements OnInit {
       return;
     }
 
+    if (this.form.is_active) {
+      const activationError = validateLocationForActivation({
+        address: this.form.address,
+        lat: this.parseOptionalNumber(this.form.lat),
+        long: this.parseOptionalNumber(this.form.long),
+      });
+      if (activationError) {
+        this.error = activationError;
+        return;
+      }
+    }
+
     this.isSaving = true;
     this.error = '';
     this.successMessage = '';
@@ -410,7 +423,7 @@ export class HostManagerPublicLocations implements OnInit {
       email: '',
       website: '',
       access_info: '',
-      is_active: true,
+      is_active: false,
       images: [],
       location_type_id: null,
       amenities: [],

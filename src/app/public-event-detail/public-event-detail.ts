@@ -4,7 +4,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../services/auth.service';
 import { SharedModule } from '../shared/shared-module';
 import { ImageCopyrightTag } from '../shared/image-copyright/image-copyright-tag';
-import { SupabaseService, PublicEventDetail } from '../services/supabase.service';
+import { SupabaseService, PublicEventDetail, PublicEventScheduleItem } from '../services/supabase.service';
 import { formatFrenchPublicDatePart, parsePublicScheduleLine } from '../shared/date-format/date-format.util';
 import { hasPublicBookingUrl } from '../shared/booking-url/booking-url.util';
 
@@ -126,25 +126,47 @@ export class PublicEventDetailComponent implements OnInit {
     return formatted;
   }
 
-  scheduleLocation(line: string): string {
-    return this.toTitleCase(this.parseScheduleLine(line).locationPart);
+  private scheduleItems(): PublicEventScheduleItem[] {
+    if (!this.event) {
+      return [];
+    }
+
+    if (this.event.schedule_items.length > 0) {
+      return this.event.schedule_items;
+    }
+
+    return this.event.schedule_lines.map((line) => ({
+      line,
+      location_label: this.parseScheduleLine(line).locationPart || null,
+      location_id: null,
+    }));
   }
 
-  hasScheduleLocation(line: string): boolean {
-    return !!this.parseScheduleLine(line).locationPart;
+  scheduleLocation(item: PublicEventScheduleItem): string {
+    const label = item.location_label || this.parseScheduleLine(item.line).locationPart;
+    return this.toTitleCase(label);
+  }
+
+  hasScheduleLocation(item: PublicEventScheduleItem): boolean {
+    const label = item.location_label || this.parseScheduleLine(item.line).locationPart;
+    return !!label?.trim();
+  }
+
+  hasScheduleLocationLink(item: PublicEventScheduleItem): boolean {
+    return !!item.location_id;
   }
 
   private toTitleCase(value: string): string {
     return value.replace(/\w\S*/g, word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase());
   }
 
-  get visibleScheduleLines(): string[] {
-    if (!this.event) return [];
-    return this.showAllSchedules ? this.event.schedule_lines : this.event.schedule_lines.slice(0, 3);
+  get visibleScheduleItems(): PublicEventScheduleItem[] {
+    const items = this.scheduleItems();
+    return this.showAllSchedules ? items : items.slice(0, 3);
   }
 
   get hasMoreSchedules(): boolean {
-    return (this.event?.schedule_lines.length ?? 0) > 3;
+    return this.scheduleItems().length > 3;
   }
 
   toggleSchedules() {

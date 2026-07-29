@@ -65,3 +65,5 @@ PROJECT_CONTEXT.md
 supabase-schema.sql
 db/*
 /db
+/terminals
+

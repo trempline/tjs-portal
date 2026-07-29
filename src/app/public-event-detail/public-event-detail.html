@@ -130,7 +130,7 @@
           <div class="px-7 py-6">
             <div class="grid gap-5 lg:grid-cols-2">
               <div
-                *ngFor="let line of visibleScheduleLines; let index = index"
+                *ngFor="let item of visibleScheduleItems; let index = index"
                 class="rounded-[1.75rem] border border-zinc-200 bg-[linear-gradient(180deg,#ffffff_0%,#fafaf9_100%)] px-5 py-5 shadow-sm"
               >
                 <div class="flex items-start gap-4">
@@ -140,8 +140,20 @@
                   <div class="min-w-0 flex-1">
                     <div class="text-[11px] font-semibold uppercase tracking-[0.24em] text-red-600">🎻 Show {{ index + 1 }}</div>
                     <div class="mt-3 text-base leading-8 text-zinc-700">
-                      <span>{{ formatScheduleLine(line) }}</span>
-                      <span *ngIf="hasScheduleLocation(line)" class="underline decoration-red-300 underline-offset-4"> • 📍 {{ scheduleLocation(line) }}</span>
+                      <span>{{ formatScheduleLine(item.line) }}</span>
+                      <span *ngIf="hasScheduleLocation(item)">
+                        <span> • 📍 </span>
+                        <a
+                          *ngIf="hasScheduleLocationLink(item); else scheduleLocationPlain"
+                          [routerLink]="['/locations', item.location_id]"
+                          class="font-semibold text-red-700 underline decoration-red-300 underline-offset-4 transition hover:text-red-800 hover:decoration-red-500"
+                        >
+                          {{ scheduleLocation(item) }}
+                        </a>
+                        <ng-template #scheduleLocationPlain>
+                          <span class="underline decoration-red-300 underline-offset-4">{{ scheduleLocation(item) }}</span>
+                        </ng-template>
+                      </span>
                     </div>
                  
                   </div>
