@@ -50,6 +50,7 @@ import { ArtistProfile } from './backoffice/artist-profile/artist-profile';
 import { ArtistInstruments } from './backoffice/artist-instruments/artist-instruments';
 import { ArtistRequirements } from './backoffice/artist-requirements/artist-requirements';
 import { ArtistMedia } from './backoffice/artist-media/artist-media';
+import { ArtistPreview } from './backoffice/artist-preview/artist-preview';
 import { ArtistAvailability } from './backoffice/artist-availability/artist-availability';
 import { ArtistRequests } from './backoffice/artist-requests/artist-requests';
 import { ArtistMessages } from './backoffice/artist-messages/artist-messages';
@@ -258,6 +259,7 @@ export const routes: Routes = [
             { path: 'artist-requests/:requestId', component: ArtistRequests, canActivate: [roleGuard(['Artist', 'Artist Invited'])] },
             { path: 'artist-requests', component: ArtistRequests, canActivate: [roleGuard(['Artist', 'Artist Invited'])] },
             { path: 'artist-availability', component: ArtistAvailability, canActivate: [roleGuard(['Artist', 'Artist Invited'])] },
+            { path: 'artist-preview', component: ArtistPreview, canActivate: [roleGuard(['Artist', 'Artist Invited'])] },
             { path: 'artist-events', component: ArtistEvents, canActivate: [roleGuard(['Artist', 'Artist Invited'])] },
             { path: 'artist-events/:id', component: HostEventDetail, canActivate: [roleGuard(['Artist', 'Artist Invited'])] },
             { path: 'artist-messages', component: ArtistMessages, canActivate: [roleGuard(['Artist', 'Artist Invited'])] },

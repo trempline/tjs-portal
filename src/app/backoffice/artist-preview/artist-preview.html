@@ -1,0 +1,153 @@
+<div class="space-y-6">
+  <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-zinc-900">Device Preview</h1>
+      <p class="mt-0.5 text-sm text-zinc-500">See how your pictures look on mobile, tablet, and desktop before visitors do.</p>
+    </div>
+
+    <div *ngIf="!isLoading && isLivePreview" class="flex items-center gap-2">
+      <button
+        type="button"
+        (click)="reloadPreview()"
+        class="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50"
+      >
+        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 12a9 9 0 1 1-3-6.7"></path>
+          <polyline points="21 3 21 9 15 9"></polyline>
+        </svg>
+        Refresh
+      </button>
+      <button
+        type="button"
+        (click)="openInNewTab()"
+        class="inline-flex items-center gap-2 rounded-xl bg-red-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700"
+      >
+        Open live page
+      </button>
+    </div>
+  </div>
+
+  <div *ngIf="error" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+    {{ error }}
+  </div>
+
+  <div *ngIf="isLoading" class="flex items-center justify-center py-20">
+    <div class="h-8 w-8 animate-spin rounded-full border-4 border-zinc-200 border-t-red-600"></div>
+  </div>
+
+  <div *ngIf="!isLoading && !error" class="space-y-5">
+    <div *ngIf="unavailableReasons.length > 0" class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+      <div class="font-semibold">Your public page is not live yet, so this is a preview of your pictures only.</div>
+      <ul class="mt-2 list-disc space-y-1 pl-5">
+        <li *ngFor="let reason of unavailableReasons">{{ reason }}</li>
+      </ul>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2">
+      <button
+        *ngFor="let device of devices"
+        type="button"
+        (click)="selectDevice(device)"
+        class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
+        [class.bg-zinc-900]="activeDevice.key === device.key"
+        [class.text-white]="activeDevice.key === device.key"
+        [class.shadow-sm]="activeDevice.key === device.key"
+        [class.bg-white]="activeDevice.key !== device.key"
+        [class.text-zinc-600]="activeDevice.key !== device.key"
+        [class.border]="activeDevice.key !== device.key"
+        [class.border-zinc-200]="activeDevice.key !== device.key"
+      >
+        {{ device.label }}
+        <span class="ml-1 text-xs opacity-70">{{ device.hint }}</span>
+      </button>
+    </div>
+
+    <div class="flex justify-center rounded-2xl border border-zinc-200 bg-zinc-100 p-6">
+      <div
+        class="overflow-hidden rounded-[1.75rem] border-8 border-zinc-900 bg-white shadow-2xl"
+        [style.width.px]="stageWidth"
+        [style.height.px]="stageHeight"
+      >
+        <!-- The real public page, rendered at the device viewport and scaled to fit. -->
+        <iframe
+          *ngIf="isLivePreview"
+          [src]="previewUrl"
+          title="Public artist page preview"
+          class="border-0 bg-white"
+          [style.width.px]="activeDevice.width"
+          [style.height.px]="activeDevice.height"
+          [style.transform]="'scale(' + scale + ')'"
+          style="transform-origin: top left;"
+        ></iframe>
+
+        <!-- Fallback used until the artist has a live public page. -->
+        <div
+          *ngIf="!isLivePreview"
+          class="origin-top-left overflow-y-auto bg-white"
+          [style.width.px]="activeDevice.width"
+          [style.height.px]="activeDevice.height"
+          [style.transform]="'scale(' + scale + ')'"
+        >
+          <div class="relative h-64 bg-zinc-950">
+            <img
+              *ngIf="bannerImageUrl"
+              [src]="bannerImageUrl"
+              alt="Banner preview"
+              class="h-full w-full object-cover opacity-90" />
+            <div class="absolute inset-0 bg-[linear-gradient(100deg,rgba(9,9,11,0.88)_0%,rgba(9,9,11,0.62)_38%,rgba(24,24,27,0.3)_65%,rgba(127,29,29,0.24)_100%)]"></div>
+            <app-image-copyright-tag
+              *ngIf="bannerImageUrl"
+              [copyrightText]="profile?.banner_copyright"
+              size="md"
+            ></app-image-copyright-tag>
+
+            <div class="absolute inset-x-0 bottom-0 flex items-end gap-4 p-6">
+              <div class="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-white/20 bg-black/30">
+                <img
+                  *ngIf="profile?.profile_picture_url"
+                  [src]="profile?.profile_picture_url"
+                  alt="Profile picture preview"
+                  class="h-full w-full object-cover" />
+                <app-image-copyright-tag
+                  *ngIf="profile?.profile_picture_url"
+                  [copyrightText]="profile?.profile_picture_copyright"
+                ></app-image-copyright-tag>
+                <div *ngIf="!profile?.profile_picture_url" class="flex h-full w-full items-center justify-center text-lg font-black text-white/70">
+                  {{ initials(displayName) }}
+                </div>
+              </div>
+              <div class="min-w-0">
+                <div class="truncate text-2xl font-black tracking-tight text-white">{{ displayName }}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="p-6">
+            <div class="text-[11px] font-semibold uppercase tracking-[0.28em] text-red-600">Media</div>
+            <div *ngIf="mediaWithCovers.length === 0" class="mt-4 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-6 py-10 text-center text-sm text-zinc-500">
+              No media covers uploaded yet.
+            </div>
+            <div *ngIf="mediaWithCovers.length > 0" class="mt-4 grid gap-4 sm:grid-cols-2">
+              <article
+                *ngFor="let item of mediaWithCovers"
+                class="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+                <div class="relative aspect-[16/9] bg-zinc-100">
+                  <img [src]="item.image_url" [alt]="item.name" class="h-full w-full object-cover" />
+                  <app-image-copyright-tag [copyrightText]="item.copyright_text"></app-image-copyright-tag>
+                </div>
+                <div class="p-4">
+                  <div class="text-xs font-semibold uppercase tracking-[0.2em] text-red-600">{{ item.media_type }}</div>
+                  <div class="mt-1.5 text-base font-semibold text-zinc-900">{{ item.name || 'Untitled' }}</div>
+                </div>
+              </article>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p class="text-center text-xs text-zinc-500">
+      Shown at {{ activeDevice.hint }} CSS pixels<span *ngIf="scale < 1">, scaled to {{ scalePercent }}% to fit this panel</span>.
+    </p>
+  </div>
+</div>

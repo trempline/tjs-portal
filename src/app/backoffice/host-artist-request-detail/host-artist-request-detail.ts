@@ -16,15 +16,23 @@ import {
 import { AuthService } from '../../services/auth.service';
 import { ImageCopyrightTag } from '../../shared/image-copyright/image-copyright-tag';
 import {
+  buildScheduleLine,
   getCompleteHostProposedDates,
+  parseScheduleLine,
   validateArtistRequestDates,
-  validateHostProposedDates,
 } from '../../shared/request-dates/request-dates.util';
 
 interface HostProposedDateEntry {
   mode: 'one_day' | 'period';
   start_date: string;
   end_date: string;
+  show_time: string;
+  location_id: string | null;
+}
+
+/** The host's answer to one artist-proposed date: taken or not, and where it would happen. */
+interface ArtistDateSelection {
+  selected: boolean;
   show_time: string;
   location_id: string | null;
 }
@@ -59,6 +67,7 @@ export class HostArtistRequestDetail implements OnInit {
   selectedEditionId: number | null = null;
   selectedEventTypeId: number | null = null;
   proposedDates: HostProposedDateEntry[] = [this.createBlankProposedDate()];
+  artistDateSelections: ArtistDateSelection[] = [];
   proposalDraftDates: HostProposedDateEntry[] = [];
   draftSelectedEditionId: number | null = null;
   draftSelectedEventTypeId: number | null = null;
@@ -101,6 +110,7 @@ export class HostArtistRequestDetail implements OnInit {
       this.hydrateAssignedAdminHost();
       this.hydrateArtistProposalFromComments();
       this.hydrateHostProposalFromComments();
+      this.syncArtistDateSelections();
       await this.loadPublishedEvent();
     } catch (error) {
       this.error = error instanceof Error ? error.message : 'Request details could not be loaded.';
@@ -196,12 +206,14 @@ export class HostArtistRequestDetail implements OnInit {
     const selectedEventType = this.eventTypeOptions.find((item) => item.id === this.draftSelectedEventTypeId)?.name ?? `Type #${this.draftSelectedEventTypeId}`;
     const proposalSummary = validProposals.map((item) => {
       const selectedLocation = this.findLocationById(item.location_id);
-      const locationName = selectedLocation?.name || 'Unknown location';
-      const datePart = item.mode === 'period'
-        ? `${item.start_date} to ${item.end_date}`
-        : item.start_date;
 
-      return `${item.mode === 'period' ? 'Period' : 'One Day'} | ${datePart} | ${item.show_time} | ${locationName}`;
+      return buildScheduleLine({
+        mode: item.mode === 'period' ? 'period' : 'one_day',
+        dateLabel: item.mode === 'period' ? `${item.start_date} to ${item.end_date}` : item.start_date,
+        showTime: item.show_time,
+        locationLabel: selectedLocation ? this.locationLabel(selectedLocation) : 'Unknown location',
+        locationId: item.location_id,
+      });
     });
 
     const commentError = await this.supabase.addArtistWorkspaceRequestComment(
@@ -258,18 +270,97 @@ export class HostArtistRequestDetail implements OnInit {
     this.isSaving = false;
   }
 
+  /** Keeps one selection row per artist-proposed date, preserving what the host already typed. */
+  private syncArtistDateSelections() {
+    const dates = this.request?.dates ?? [];
+    this.artistDateSelections = dates.map((_, index) => this.artistDateSelections[index] ?? {
+      selected: false,
+      show_time: '',
+      location_id: null,
+    });
+  }
+
+  get selectedArtistDateCount(): number {
+    return this.artistDateSelections.filter((selection) => selection.selected).length;
+  }
+
+  toggleArtistDateSelection(index: number) {
+    const selection = this.artistDateSelections[index];
+    if (selection) {
+      selection.selected = !selection.selected;
+    }
+  }
+
+  /**
+   * The artist dates the host has ticked, rendered in the same
+   * "mode | date | time | location" shape the event builder reads back.
+   */
+  private buildAcceptedArtistDateLines(): { lines: string[]; error: string | null } {
+    const dates = this.request?.dates ?? [];
+    const lines: string[] = [];
+
+    for (const [index, date] of dates.entries()) {
+      const selection = this.artistDateSelections[index];
+      if (!selection?.selected) {
+        continue;
+      }
+
+      if (!date.start_date?.trim()) {
+        return { lines: [], error: `Date ${index + 1} is incomplete and cannot be accepted.` };
+      }
+
+      if (!selection.show_time?.trim()) {
+        return { lines: [], error: `Add a show time for date ${index + 1} before accepting it.` };
+      }
+
+      if (!selection.location_id) {
+        return { lines: [], error: `Select a location for date ${index + 1} before accepting it.` };
+      }
+
+      const isPeriod = date.request_type === 'period';
+      const datePart = isPeriod
+        ? `${date.start_date} to ${date.end_date || date.start_date}`
+        : date.start_date;
+      const selectedLocation = this.findLocationById(selection.location_id);
+
+      lines.push(buildScheduleLine({
+        mode: isPeriod ? 'period' : 'one_day',
+        dateLabel: datePart,
+        showTime: selection.show_time,
+        locationLabel: selectedLocation ? this.locationLabel(selectedLocation) : 'Unknown location',
+        locationId: selection.location_id,
+      }));
+    }
+
+    if (lines.length === 0) {
+      return { lines: [], error: 'Select at least one of the artist proposed dates before accepting.' };
+    }
+
+    return { lines, error: null };
+  }
+
   async acceptRequest() {
     if (!this.canManageRequestActions || !this.request?.id || !this.authService.currentUser?.id) {
       return;
     }
 
-    const validProposals = getCompleteHostProposedDates(this.proposedDates);
-    const artistDatesError = this.request ? validateArtistRequestDates(this.request.dates) : 'At least one proposed date is required.';
-    const hostDatesError = validateHostProposedDates(this.proposedDates);
+    // Accepting only ever takes the artist's own proposed dates. Offering different
+    // dates is a separate action — "Save Proposed Dates" — which goes back to the
+    // artist as a host proposal for them to accept or counter.
+    const artistDatesError = validateArtistRequestDates(this.request.dates);
+    if (artistDatesError) {
+      this.error = artistDatesError;
+      return;
+    }
 
-    if (validProposals.length === 0 && artistDatesError) {
-      this.error = hostDatesError ?? artistDatesError;
-      this.isSaving = false;
+    const { lines: acceptedLines, error: selectionError } = this.buildAcceptedArtistDateLines();
+    if (selectionError) {
+      this.error = selectionError;
+      return;
+    }
+
+    if (!this.selectedEditionId || !this.selectedEventTypeId) {
+      this.error = 'Select both event edition and event type before accepting.';
       return;
     }
 
@@ -277,54 +368,17 @@ export class HostArtistRequestDetail implements OnInit {
     this.successMessage = '';
     this.isSaving = true;
 
-    let commentBody: string | null = null;
+    const selectedEdition = this.editionOptions.find((item) => item.id === this.selectedEditionId)?.name ?? `Edition #${this.selectedEditionId}`;
+    const selectedEventType = this.eventTypeOptions.find((item) => item.id === this.selectedEventTypeId)?.name ?? `Type #${this.selectedEventTypeId}`;
 
-    if (validProposals.length > 0) {
-      if (!this.selectedEditionId || !this.selectedEventTypeId) {
-        this.error = 'Select both event edition and event type before accepting.';
-        this.isSaving = false;
-        return;
-      }
-
-      const selectedEdition = this.editionOptions.find((item) => item.id === this.selectedEditionId)?.name ?? `Edition #${this.selectedEditionId}`;
-      const selectedEventType = this.eventTypeOptions.find((item) => item.id === this.selectedEventTypeId)?.name ?? `Type #${this.selectedEventTypeId}`;
-      const proposalSummary = validProposals.map((item) => {
-        const selectedLocation = this.findLocationById(item.location_id);
-        const locationName = selectedLocation?.name || 'Unknown location';
-        const datePart = item.mode === 'period'
-          ? `${item.start_date} to ${item.end_date}`
-          : item.start_date;
-
-        return `${item.mode === 'period' ? 'Period' : 'One Day'} | ${datePart} | ${item.show_time} | ${locationName}`;
-      });
-      const acceptanceLines = [
-        '[HOST_ACCEPTED]',
-        'Host accepted the artist proposed dates.',
-        `Edition: ${selectedEdition}`,
-        `Event Type: ${selectedEventType}`,
-        'Proposed Dates:',
-        ...proposalSummary.map((line) => `- ${line}`),
-      ];
-      commentBody = acceptanceLines.join('\n');
-    } else if (!artistDatesError) {
-      const artistDateLines = this.request!.dates
-        .filter((date) => !!date.start_date?.trim())
-        .map((date) =>
-          date.request_type === 'period'
-            ? `Period | ${date.start_date} to ${date.end_date || 'TBD'}`
-            : `One Day | ${date.start_date}`
-        );
-      commentBody = [
-        '[HOST_ACCEPTED]',
-        'Host accepted the artist proposed dates.',
-        'Artist Proposed Dates:',
-        ...artistDateLines.map((line) => `- ${line}`),
-      ].join('\n');
-    } else {
-      this.error = artistDatesError;
-      this.isSaving = false;
-      return;
-    }
+    const commentBody = [
+      '[HOST_ACCEPTED]',
+      `Host accepted ${acceptedLines.length} of ${this.request.dates.length} artist proposed date(s).`,
+      `Edition: ${selectedEdition}`,
+      `Event Type: ${selectedEventType}`,
+      'Proposed Dates:',
+      ...acceptedLines.map((line) => `- ${line}`),
+    ].join('\n');
 
     const commentError = await this.supabase.addArtistWorkspaceRequestComment(
       this.request.id,
@@ -838,6 +892,8 @@ export class HostArtistRequestDetail implements OnInit {
 
       return {
         request_type: 'period',
+        // Rebuilt from a comment line, which carries no residence marker.
+        is_residence: false,
         start_date: startDate,
         end_date: endDate && endDate !== 'TBD' ? endDate : '',
         event_time: eventTime,
@@ -850,6 +906,7 @@ export class HostArtistRequestDetail implements OnInit {
 
     return {
       request_type: 'day_show',
+      is_residence: false,
       start_date: dateLabel,
       end_date: '',
       event_time: eventTime,
@@ -857,34 +914,31 @@ export class HostArtistRequestDetail implements OnInit {
   }
 
   private parseHostProposalLine(line: string): HostProposedDateEntry | null {
-    const segments = line.split('|').map((item) => item.trim());
-    if (segments.length < 4) {
+    const parsed = parseScheduleLine(line);
+    if (!parsed) {
       return null;
     }
 
-    const modeLabel = segments[0];
-    const dateLabel = segments[1];
-    const showTime = segments[2];
-    const locationName = segments.slice(3).join(' | ');
-    const mode = modeLabel.toLowerCase() === 'period' ? 'period' : 'one_day';
+    // Prefer the id the line carries; fall back to the label for older comments.
+    const locationId = parsed.locationId ?? this.findLocationIdByLabel(parsed.locationLabel);
 
-    if (mode === 'period') {
-      const [startDate, endDate] = dateLabel.split(' to ').map((item) => item.trim());
+    if (parsed.mode === 'period') {
+      const [startDate, endDate] = parsed.dateLabel.split(' to ').map((item) => item.trim());
       return {
-        mode,
+        mode: 'period',
         start_date: startDate || '',
         end_date: endDate && endDate !== 'TBD' ? endDate : '',
-        show_time: showTime,
-        location_id: this.findLocationIdByLabel(locationName),
+        show_time: parsed.showTime,
+        location_id: locationId,
       };
     }
 
     return {
-      mode,
-      start_date: dateLabel,
+      mode: 'one_day',
+      start_date: parsed.dateLabel,
       end_date: '',
-      show_time: showTime,
-      location_id: this.findLocationIdByLabel(locationName),
+      show_time: parsed.showTime,
+      location_id: locationId,
     };
   }
 

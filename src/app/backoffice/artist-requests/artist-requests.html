@@ -2,16 +2,26 @@
   <div class="flex items-start justify-between gap-4">
     <div>
       <h1 class="text-2xl font-bold text-zinc-900">Request</h1>
-      <p class="mt-0.5 text-sm text-zinc-500">Send performance, concert, and event requests from the artist workspace.</p>
+      <p class="mt-0.5 text-sm text-zinc-500">
+        {{ canCreateRequest
+          ? 'Send performance, concert, and event requests from the artist workspace.'
+          : 'Requests you have been invited onto.' }}
+      </p>
     </div>
 
-    <button type="button" (click)="openNewRequest()" class="rounded-2xl bg-red-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-red-700">
+    <button *ngIf="canCreateRequest" type="button" (click)="openNewRequest()" class="rounded-2xl bg-red-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-red-700">
       New Request
     </button>
   </div>
 
   <div *ngIf="successMessage" class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
     {{ successMessage }}
+  </div>
+
+  <div *ngIf="isEditorOpen && selectedRequestId && !isRequestOwner" class="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+    <span class="font-semibold">You were invited onto this request.</span>
+    <span *ngIf="canEditSelectedRequest()"> You can edit it until a host accepts it. Only the artist who created it can delete it.</span>
+    <span *ngIf="!canEditSelectedRequest()"> {{ requestLockReason }}</span>
   </div>
 
   <div *ngIf="error" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -39,6 +49,9 @@
             <td class="px-4 py-3 text-zinc-800">
               <div class="flex items-center gap-2">
                 <span>{{ request.event_title }}</span>
+                <span *ngIf="!request.is_owner" class="inline-flex rounded-full bg-blue-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-blue-700">
+                  Invited
+                </span>
                 <span *ngIf="hasUnreadComments(request)" class="inline-flex rounded-full bg-red-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-red-700">
                   New Comment
                 </span>
@@ -64,7 +77,9 @@
             <td class="px-4 py-3 text-zinc-500">{{ request.created_at | date:'mediumDate' }}</td>
           </tr>
           <tr *ngIf="requests.length === 0">
-            <td colspan="5" class="px-4 py-10 text-center text-sm text-zinc-500">No requests yet.</td>
+            <td colspan="5" class="px-4 py-10 text-center text-sm text-zinc-500">
+              {{ canCreateRequest ? 'No requests yet.' : 'You have not been invited onto any requests yet.' }}
+            </td>
           </tr>
         </tbody>
       </table>
@@ -169,7 +184,7 @@
               Back
             </a>
             <app-workspace-edit-actions
-              *ngIf="selectedRequestId && !isPublishedRequestLocked()"
+              *ngIf="!selectedRequestId || canEditSelectedRequest()"
               [isEditing]="isEditing"
               [isSaving]="isSaving"
               [showCancel]="false"
@@ -185,13 +200,15 @@
 
       <div class="border-b border-zinc-200 bg-zinc-50/80 px-6 py-4 backdrop-blur">
         <div class="flex flex-wrap gap-2">
-          <button type="button" (click)="activeTab = 'details'" [ngClass]="activeTab === 'details' ? 'bg-zinc-900 text-white shadow-sm' : 'bg-white text-zinc-600 hover:bg-zinc-100'" class="rounded-full px-4 py-2 text-sm font-medium transition-colors">Details</button>
-          <button type="button" (click)="activeTab = 'dates'" [ngClass]="activeTab === 'dates' ? 'bg-zinc-900 text-white shadow-sm' : 'bg-white text-zinc-600 hover:bg-zinc-100'" class="rounded-full px-4 py-2 text-sm font-medium transition-colors">Dates</button>
-          <button *ngIf="latestHostProposal && request.status !== 'published'" type="button" (click)="activeTab = 'proposed_dates'" [ngClass]="activeTab === 'proposed_dates' ? 'bg-zinc-900 text-white shadow-sm' : 'bg-white text-zinc-600 hover:bg-zinc-100'" class="rounded-full px-4 py-2 text-sm font-medium transition-colors">Proposed Dates</button>
-          <button type="button" (click)="activeTab = 'image'" [ngClass]="activeTab === 'image' ? 'bg-zinc-900 text-white shadow-sm' : 'bg-white text-zinc-600 hover:bg-zinc-100'" class="rounded-full px-4 py-2 text-sm font-medium transition-colors">Image</button>
-          <button type="button" (click)="activeTab = 'media'" [ngClass]="activeTab === 'media' ? 'bg-zinc-900 text-white shadow-sm' : 'bg-white text-zinc-600 hover:bg-zinc-100'" class="rounded-full px-4 py-2 text-sm font-medium transition-colors">Media</button>
-          <button type="button" (click)="activeTab = 'artist'" [ngClass]="activeTab === 'artist' ? 'bg-zinc-900 text-white shadow-sm' : 'bg-white text-zinc-600 hover:bg-zinc-100'" class="rounded-full px-4 py-2 text-sm font-medium transition-colors">Artist</button>
-          <button type="button" (click)="activeTab = 'comments'" [ngClass]="activeTab === 'comments' ? 'bg-zinc-900 text-white shadow-sm' : 'bg-white text-zinc-600 hover:bg-zinc-100'" class="rounded-full px-4 py-2 text-sm font-medium transition-colors">Comments</button>
+          <button
+            *ngFor="let tab of visibleTabs"
+            type="button"
+            (click)="activeTab = tab"
+            [ngClass]="activeTab === tab ? 'bg-zinc-900 text-white shadow-sm' : 'bg-white text-zinc-600 hover:bg-zinc-100'"
+            class="rounded-full px-4 py-2 text-sm font-medium transition-colors"
+          >
+            {{ tabLabel(tab) }}
+          </button>
         </div>
       </div>
 
@@ -266,42 +283,159 @@
         </div>
 
         <div *ngIf="activeTab === 'dates'" class="space-y-5">
-          <div class="flex items-center justify-between gap-3">
+          <div class="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h3 class="text-lg font-semibold text-zinc-900">Event Dates</h3>
-              <p class="text-sm text-zinc-500">Add multiple date rows for either day shows or period-based events.</p>
+              <p class="mt-1 text-sm text-zinc-500">
+                Propose one or more dates. Tick <span class="font-medium text-zinc-700">Residence?</span> when the stay runs over a period; otherwise choose a day show or a period.
+              </p>
             </div>
-            <button *ngIf="isEditing" type="button" (click)="addDate()" class="rounded-2xl border border-zinc-200 px-4 py-3 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50">
+            <button
+              *ngIf="isEditing"
+              type="button"
+              (click)="addDate()"
+              class="inline-flex items-center gap-2 rounded-2xl bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-800"
+            >
+              <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 5v14"></path>
+                <path d="M5 12h14"></path>
+              </svg>
               Add Date
             </button>
           </div>
 
-          <div *ngFor="let date of request.dates; let i = index" class="grid gap-4 rounded-3xl border border-zinc-200 bg-zinc-50 p-5 md:grid-cols-2">
-            <div class="space-y-2 md:col-span-2">
-              <label class="text-sm font-medium text-zinc-700">Request Type</label>
-              <div class="flex gap-3">
-                <label class="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm">
-                  <input [(ngModel)]="date.request_type" [disabled]="!isEditing" type="radio" value="day_show" />
-                  Day Show
-                </label>
-                <label class="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm">
-                  <input [(ngModel)]="date.request_type" [disabled]="!isEditing" type="radio" value="period" />
-                  Period
-                </label>
+          <div *ngIf="request.dates.length === 0" class="rounded-3xl border border-dashed border-zinc-300 bg-zinc-50 px-6 py-12 text-center">
+            <div class="text-base font-semibold text-zinc-900">No dates proposed yet</div>
+            <p class="mt-2 text-sm text-zinc-500">Add at least one date so a host can respond to your request.</p>
+          </div>
+
+          <!-- Read-only summary while the request is not being edited. -->
+          <div *ngIf="!isEditing && request.dates.length > 0" class="space-y-3">
+            <div
+              *ngFor="let date of request.dates; let i = index"
+              class="flex flex-wrap items-center gap-4 rounded-3xl border border-zinc-200 bg-white px-5 py-4 shadow-sm"
+            >
+              <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-zinc-900 text-sm font-bold text-white">
+                {{ i + 1 }}
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="flex flex-wrap items-center gap-2">
+                  <span
+                    class="inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide"
+                    [ngClass]="date.is_residence ? 'bg-violet-100 text-violet-700' : (date.request_type === 'period' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700')"
+                  >
+                    {{ dateTypeLabel(date) }}
+                  </span>
+                  <span *ngIf="periodDayCount(date) as days" class="text-xs font-medium text-zinc-500">{{ days }} days</span>
+                </div>
+                <div class="mt-2 text-sm font-semibold text-zinc-900">{{ dateRangeLabel(date) }}</div>
               </div>
             </div>
-            <div class="space-y-2">
-              <label class="text-sm font-medium text-zinc-700">Start Date</label>
-              <input [(ngModel)]="date.start_date" [disabled]="!isEditing" type="date" class="w-full rounded-2xl border border-zinc-300 px-3 py-2.5 text-sm outline-none disabled:bg-zinc-100 disabled:text-zinc-500 focus:border-red-500 focus:ring-2 focus:ring-red-100" />
-            </div>
-            <div *ngIf="date.request_type === 'period'" class="space-y-2">
-              <label class="text-sm font-medium text-zinc-700">End Date</label>
-              <input [(ngModel)]="date.end_date" [disabled]="!isEditing" type="date" class="w-full rounded-2xl border border-zinc-300 px-3 py-2.5 text-sm outline-none disabled:bg-zinc-100 disabled:text-zinc-500 focus:border-red-500 focus:ring-2 focus:ring-red-100" />
-            </div>
-            <div *ngIf="isEditing" class="md:col-span-2 flex justify-end">
-              <button type="button" (click)="removeDate(i)" class="rounded-xl border border-red-200 px-4 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50">
-                Remove
-              </button>
+          </div>
+
+          <!-- Editable cards. -->
+          <div *ngIf="isEditing" class="space-y-4">
+            <div
+              *ngFor="let date of request.dates; let i = index"
+              class="overflow-hidden rounded-3xl border bg-white shadow-sm transition-colors"
+              [ngClass]="date.is_residence ? 'border-violet-200' : 'border-zinc-200'"
+            >
+              <div class="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100 bg-zinc-50/80 px-5 py-3">
+                <div class="flex items-center gap-3">
+                  <div class="flex h-8 w-8 items-center justify-center rounded-xl bg-zinc-900 text-xs font-bold text-white">
+                    {{ i + 1 }}
+                  </div>
+                  <span class="text-sm font-semibold text-zinc-900">Date {{ i + 1 }}</span>
+                  <span
+                    class="inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide"
+                    [ngClass]="date.is_residence ? 'bg-violet-100 text-violet-700' : (date.request_type === 'period' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700')"
+                  >
+                    {{ dateTypeLabel(date) }}
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  (click)="removeDate(i)"
+                  class="inline-flex items-center gap-1.5 rounded-xl border border-transparent px-2.5 py-1.5 text-xs font-medium text-zinc-500 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-700"
+                  aria-label="Remove this date"
+                >
+                  <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 6h18"></path>
+                    <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"></path>
+                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+                  </svg>
+                  Remove
+                </button>
+              </div>
+
+              <div class="space-y-5 px-5 py-5">
+                <div class="flex flex-wrap items-center gap-3">
+                  <label class="inline-flex cursor-pointer items-center gap-3 rounded-2xl border px-4 py-2.5 text-sm transition-colors"
+                    [ngClass]="date.is_residence ? 'border-violet-300 bg-violet-50' : 'border-zinc-200 bg-white hover:bg-zinc-50'"
+                  >
+                    <input
+                      type="checkbox"
+                      [checked]="date.is_residence"
+                      (change)="setResidence(date, $any($event.target).checked)"
+                      class="h-4 w-4 rounded border-zinc-300 text-violet-600 focus:ring-2 focus:ring-violet-200"
+                    />
+                    <span class="font-medium" [ngClass]="date.is_residence ? 'text-violet-800' : 'text-zinc-700'">Residence?</span>
+                  </label>
+
+                  <!-- Segmented type picker, hidden for a residence since it is always a period. -->
+                  <div *ngIf="!date.is_residence" class="inline-flex rounded-2xl border border-zinc-200 bg-zinc-100 p-1">
+                    <button
+                      type="button"
+                      (click)="setRequestType(date, 'day_show')"
+                      class="rounded-xl px-4 py-1.5 text-sm font-medium transition-colors"
+                      [ngClass]="date.request_type === 'day_show' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-700'"
+                    >
+                      Day Show
+                    </button>
+                    <button
+                      type="button"
+                      (click)="setRequestType(date, 'period')"
+                      class="rounded-xl px-4 py-1.5 text-sm font-medium transition-colors"
+                      [ngClass]="date.request_type === 'period' ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-700'"
+                    >
+                      Period
+                    </button>
+                  </div>
+                </div>
+
+                <div class="grid gap-4" [ngClass]="date.request_type === 'period' ? 'md:grid-cols-2' : 'md:grid-cols-1'">
+                  <div class="space-y-2">
+                    <label class="text-sm font-medium text-zinc-700">{{ date.request_type === 'period' ? 'Start Date' : 'Date' }}</label>
+                    <input [(ngModel)]="date.start_date" type="date" class="w-full rounded-2xl border border-zinc-300 px-3 py-2.5 text-sm outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+                  </div>
+                  <div *ngIf="date.request_type === 'period'" class="space-y-2">
+                    <label class="text-sm font-medium text-zinc-700">End Date</label>
+                    <input [(ngModel)]="date.end_date" [min]="date.start_date || null" type="date" class="w-full rounded-2xl border border-zinc-300 px-3 py-2.5 text-sm outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+                  </div>
+                </div>
+
+                <div class="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-zinc-50 px-4 py-3">
+                  <div class="text-sm font-medium text-zinc-700">{{ dateRangeLabel(date) }}</div>
+                  <div class="flex items-center gap-3">
+                    <span *ngIf="periodDayCount(date) as days" class="text-xs font-medium text-zinc-500">{{ days }} days</span>
+                    <span
+                      class="inline-flex items-center gap-1.5 text-xs font-semibold"
+                      [ngClass]="isDateComplete(date) ? 'text-emerald-600' : 'text-amber-600'"
+                    >
+                      <svg *ngIf="isDateComplete(date)" class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                      </svg>
+                      <svg *ngIf="!isDateComplete(date)" class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <circle cx="12" cy="12" r="9"></circle>
+                        <path d="M12 8v4"></path>
+                        <path d="M12 16h.01"></path>
+                      </svg>
+                      {{ isDateComplete(date) ? 'Ready' : 'Incomplete' }}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -564,6 +698,44 @@
               </button>
             </div>
           </div>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-200 bg-white px-6 py-4">
+        <button
+          type="button"
+          (click)="goToPreviousTab()"
+          [disabled]="!previousTab"
+          class="inline-flex items-center gap-2 rounded-2xl border border-zinc-300 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="m15 18-6-6 6-6"></path>
+          </svg>
+          <span>{{ previousTab ? tabLabel(previousTab) : 'Previous' }}</span>
+        </button>
+
+        <div class="flex items-center gap-3">
+          <button
+            *ngIf="isLastTab && isEditing"
+            type="button"
+            (click)="submitRequest()"
+            [disabled]="isSaving"
+            class="rounded-2xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {{ isSaving ? 'Submitting...' : 'Submit Request' }}
+          </button>
+
+          <button
+            type="button"
+            (click)="goToNextTab()"
+            [disabled]="!nextTab"
+            class="inline-flex items-center gap-2 rounded-2xl border border-zinc-300 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <span>{{ nextTab ? tabLabel(nextTab) : 'Next' }}</span>
+            <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="m9 18 6-6-6-6"></path>
+            </svg>
+          </button>
         </div>
       </div>
     </div>

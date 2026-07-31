@@ -2,6 +2,8 @@ import { Component, OnInit, inject } from '@angular/core';
 import { WorkspaceEditActions } from '../../shared/workspace-edit/workspace-edit-actions';
 import { NgFor, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ImageCopyrightTag } from '../../shared/image-copyright/image-copyright-tag';
+import { MAX_COPYRIGHT_TEXT_LENGTH } from '../../shared/image-copyright/image-copyright.util';
 import { AuthService } from '../../services/auth.service';
 import {
   ArtistMediaEntry,
@@ -12,7 +14,7 @@ import {
 @Component({
   selector: 'app-artist-media',
   standalone: true,
-  imports: [NgIf, NgFor, FormsModule, WorkspaceEditActions],
+  imports: [NgIf, NgFor, FormsModule, WorkspaceEditActions, ImageCopyrightTag],
   templateUrl: './artist-media.html',
 })
 export class ArtistMedia implements OnInit {
@@ -27,6 +29,8 @@ export class ArtistMedia implements OnInit {
   successMessage = '';
 
   mediaEntries: ArtistMediaEntry[] = [];
+
+  readonly maxCopyrightLength = MAX_COPYRIGHT_TEXT_LENGTH;
 
   async ngOnInit() {
     await this.authService.waitForAuthReady();
@@ -168,6 +172,7 @@ export class ArtistMedia implements OnInit {
       image_url: null,
       name: '',
       description: '',
+      copyright_text: '',
       urls: [''],
     };
   }

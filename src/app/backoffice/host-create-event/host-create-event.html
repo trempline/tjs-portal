@@ -16,10 +16,20 @@
       type="button"
       (click)="createEvent()"
       [disabled]="isLoading || isSaving"
-      class="inline-flex items-center justify-center rounded-2xl bg-red-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+      class="inline-flex items-center justify-center gap-2 rounded-2xl bg-red-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
     >
+      <span *ngIf="isSaving" class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"></span>
       {{ isSaving ? 'Creating...' : 'Create an Event' }}
     </button>
+  </div>
+
+  <!-- Blocks the form while the event is being created, so the click always has feedback. -->
+  <div *ngIf="isSaving" class="fixed inset-0 z-[90] flex items-center justify-center bg-zinc-950/40 backdrop-blur-sm">
+    <div class="flex flex-col items-center gap-4 rounded-3xl bg-white px-10 py-8 shadow-2xl">
+      <div class="h-10 w-10 animate-spin rounded-full border-4 border-zinc-200 border-t-red-600"></div>
+      <div class="text-sm font-semibold text-zinc-900">Creating the event...</div>
+      <div class="text-xs text-zinc-500">Checking venue availability and saving the schedule.</div>
+    </div>
   </div>
 
   <div *ngIf="error" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

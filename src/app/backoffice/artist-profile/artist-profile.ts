@@ -8,7 +8,9 @@ import {
   MAX_ARTIST_TAGLINE_LENGTH,
   remainingCharacters,
 } from '../../shared/artist-biography/artist-biography.util';
+import { displayCopyrightText, MAX_COPYRIGHT_TEXT_LENGTH } from '../../shared/image-copyright/image-copyright.util';
 import { ImageCopyrightTag } from '../../shared/image-copyright/image-copyright-tag';
+import { CroppedImageResult, ImageCropperModal } from '../../shared/image-cropper/image-cropper-modal';
 import { ImagePreviewOpen } from '../../shared/image-preview/image-preview-open';
 import {
   ArtistAwardEntry,
@@ -19,10 +21,18 @@ import {
 } from '../../services/supabase.service';
 import { AuthService } from '../../services/auth.service';
 
+/** Lower-cased labels that identify the classical entry in sys_artist_performance. */
+const CLASSICAL_PERFORMANCE_LABELS = [
+  'classical music',
+  'classical',
+  'musique classique',
+  'classique',
+];
+
 @Component({
   selector: 'app-artist-profile',
   standalone: true,
-  imports: [NgIf, NgFor, FormsModule, WorkspaceEditActions, ImageCopyrightTag, ImagePreviewOpen],
+  imports: [NgIf, NgFor, FormsModule, WorkspaceEditActions, ImageCopyrightTag, ImageCropperModal, ImagePreviewOpen],
   templateUrl: './artist-profile.html',
 })
 export class ArtistProfile implements OnInit {
@@ -38,13 +48,16 @@ export class ArtistProfile implements OnInit {
   successMessage = '';
 
   performanceOptions: ArtistPerformanceType[] = [];
-  selectedPerformanceId = '';
+  /** Artists in this workspace always perform classical music — the type is not theirs to pick. */
+  lockedPerformanceType: ArtistPerformanceType | null = null;
+  cropperTarget: 'avatar' | 'banner' | null = null;
 
   profile: ArtistWorkspaceProfile = this.blankProfile('');
 
   readonly maxTaglineLength = MAX_ARTIST_TAGLINE_LENGTH;
   readonly maxShortBiographyLength = MAX_ARTIST_SHORT_BIOGRAPHY_LENGTH;
   readonly maxLongBiographyLength = MAX_ARTIST_LONG_BIOGRAPHY_LENGTH;
+  readonly maxCopyrightLength = MAX_COPYRIGHT_TEXT_LENGTH;
 
   async ngOnInit() {
     await this.authService.waitForAuthReady();
@@ -99,24 +112,6 @@ export class ArtistProfile implements OnInit {
     };
   }
 
-  addPerformanceType() {
-    const performanceId = Number(this.selectedPerformanceId);
-    if (!performanceId) return;
-
-    const selected = this.performanceOptions.find((option) => option.id === performanceId);
-    if (!selected) return;
-
-    if (!this.profile.performance_types.some((item) => item.id === selected.id)) {
-      this.profile.performance_types = [...this.profile.performance_types, selected];
-    }
-
-    this.selectedPerformanceId = '';
-  }
-
-  removePerformanceType(performanceId: number) {
-    this.profile.performance_types = this.profile.performance_types.filter((item) => item.id !== performanceId);
-  }
-
   addEducation() {
     this.profile.educations = [...this.profile.educations, this.blankEducation()];
   }
@@ -139,52 +134,70 @@ export class ArtistProfile implements OnInit {
     }
   }
 
-  async onBannerSelected(event: Event) {
+  openBannerEditor() {
     if (!this.isEditing) {
       return;
     }
 
     this.error = '';
     this.successMessage = '';
-
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) return;
-
-    this.isUploadingBanner = true;
-    const { url, error } = await this.supabase.uploadArtistWorkspaceImage(this.profile.profile_id, file, 'banner');
-    if (error) {
-      this.error = error;
-    } else {
-      this.profile.banner_url = url;
-      await this.persistUploadedImage('banner');
-    }
-    this.isUploadingBanner = false;
-    input.value = '';
+    this.cropperTarget = 'banner';
   }
 
-  async onAvatarSelected(event: Event) {
+  openAvatarEditor() {
     if (!this.isEditing) {
       return;
     }
 
     this.error = '';
     this.successMessage = '';
+    this.cropperTarget = 'avatar';
+  }
 
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) return;
+  closeImageEditor() {
+    this.cropperTarget = null;
+  }
 
-    this.isUploadingAvatar = true;
-    const { url, error } = await this.supabase.uploadArtistWorkspaceImage(this.profile.profile_id, file, 'avatar');
+  async onCroppedImageSaved(result: CroppedImageResult) {
+    const target = this.cropperTarget;
+    if (!target) {
+      return;
+    }
+
+    this.error = '';
+    this.successMessage = '';
+
+    const isBanner = target === 'banner';
+    if (isBanner) {
+      this.isUploadingBanner = true;
+    } else {
+      this.isUploadingAvatar = true;
+    }
+
+    const { url, error } = await this.supabase.uploadArtistWorkspaceImage(
+      this.profile.profile_id,
+      result.file,
+      isBanner ? 'banner' : 'avatar',
+    );
+
     if (error) {
       this.error = error;
     } else {
-      this.profile.profile_picture_url = url;
-      await this.persistUploadedImage('profile picture');
+      if (isBanner) {
+        this.profile.banner_url = url;
+        this.profile.banner_copyright = result.copyright;
+      } else {
+        this.profile.profile_picture_url = url;
+        this.profile.profile_picture_copyright = result.copyright;
+      }
+
+      await this.persistUploadedImage(isBanner ? 'banner' : 'profile picture');
     }
+
+    // Closed either way so the page-level message is not hidden behind the modal.
+    this.cropperTarget = null;
+    this.isUploadingBanner = false;
     this.isUploadingAvatar = false;
-    input.value = '';
   }
 
   async saveProfile() {
@@ -200,6 +213,8 @@ export class ArtistProfile implements OnInit {
       this.error = 'Email is required.';
       return;
     }
+
+    this.applyLockedPerformanceType();
 
     this.isSaving = true;
     const error = await this.supabase.saveArtistWorkspaceProfile(this.profile);
@@ -224,6 +239,11 @@ export class ArtistProfile implements OnInit {
     return remainingCharacters(text, maxLength);
   }
 
+  /** Credit shown under the avatar — the circle is too small for an on-image overlay. */
+  get pictureCopyrightLabel(): string {
+    return displayCopyrightText(this.profile.profile_picture_copyright);
+  }
+
   private async loadProfile(profileId: string) {
     this.error = '';
 
@@ -234,7 +254,30 @@ export class ArtistProfile implements OnInit {
 
     this.performanceOptions = performanceOptions;
     this.profile = profile ?? this.blankProfile(profileId);
+    this.lockedPerformanceType = this.resolveClassicalPerformanceType(performanceOptions);
+    this.applyLockedPerformanceType();
     this.isLoading = false;
+  }
+
+  /**
+   * Finds the classical entry in the system list. Matched by name rather than a hard-coded
+   * id, and tolerant of the French labels, since the list is maintained in the database.
+   */
+  private resolveClassicalPerformanceType(options: ArtistPerformanceType[]): ArtistPerformanceType | null {
+    const normalize = (value: string) => value.toLowerCase().trim();
+
+    return options.find((option) => CLASSICAL_PERFORMANCE_LABELS.includes(normalize(option.name ?? '')))
+      ?? options.find((option) => normalize(option.name ?? '').includes('classi'))
+      ?? null;
+  }
+
+  /** Keeps the saved profile in step with the locked type without touching other data. */
+  private applyLockedPerformanceType() {
+    if (!this.lockedPerformanceType) {
+      return;
+    }
+
+    this.profile.performance_types = [this.lockedPerformanceType];
   }
 
   private async persistUploadedImage(label: 'banner' | 'profile picture') {
@@ -262,6 +305,7 @@ export class ArtistProfile implements OnInit {
     this.successMessage = '';
     this.isEditing = false;
     this.isLoading = true;
+    this.cropperTarget = null;
 
     const profileId = this.authService.currentUser?.id;
     if (!profileId) {

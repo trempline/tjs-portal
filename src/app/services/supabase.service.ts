@@ -16,6 +16,11 @@ import {
 } from '../shared/request-dates/request-dates.util';
 import { normalizePublicBookingUrl as toPublicBookingUrl } from '../shared/booking-url/booking-url.util';
 import { isPublicArtistProfileComplete } from '../shared/artist-profile/artist-public-profile.util';
+import { normalizeCopyrightInput } from '../shared/image-copyright/image-copyright.util';
+import {
+  canCollaboratorEditRequest,
+  COLLABORATOR_LOCKED_MESSAGE,
+} from '../shared/artist-request/artist-request-permissions.util';
 import {
   isPublicLocationComplete,
   validateLocationForActivation,
@@ -226,12 +231,23 @@ export interface PublicTjsArtistDetail {
   long_description: string;
   instruments: string[];
   performance_types: string[];
+  educations: Array<{
+    school_name: string;
+    course_name: string;
+    year: number | null;
+  }>;
+  awards: Array<{
+    award: string;
+    description: string;
+    year: number | null;
+  }>;
   media: Array<{
     id?: string;
     media_type: string;
     image_url: string | null;
     name: string;
     description: string;
+    copyright_text: string;
     urls: string[];
   }>;
   upcoming_events: Array<{
@@ -791,6 +807,7 @@ export interface ArtistMediaEntry {
   image_url: string | null;
   name: string;
   description: string;
+  copyright_text: string;
   urls: string[];
 }
 
@@ -865,6 +882,9 @@ export interface ArtistRequestListItem {
   status: 'new_request' | 'accepted_by_host' | 'host_proposed' | 'artist_proposed' | 'artist_accepted' | 'approved' | 'published' | 'rejected';
   date_summary: string;
   created_at: string;
+  created_by: string | null;
+  /** False when the artist was invited onto someone else's request. */
+  is_owner: boolean;
   event_domain_name: string | null;
   comment_count: number;
   latest_comment_at: string | null;
@@ -874,6 +894,8 @@ export interface ArtistRequestListItem {
 export interface ArtistRequestDateEntry {
   id?: string;
   request_type: 'day_show' | 'period';
+  /** A residence may be a single day or a period; anything else is always a period. */
+  is_residence: boolean;
   start_date: string;
   end_date: string;
   event_time: string;
@@ -914,6 +936,7 @@ export interface ArtistRequestCommentEntry {
 
 export interface ArtistRequestDetail {
   id?: string;
+  created_by?: string | null;
   event_domain_id: number | null;
   event_domain_name?: string | null;
   event_title: string;
@@ -1543,8 +1566,8 @@ export class SupabaseService {
       .upsert({
         profile_id: profile.profile_id,
         banner_url: profile.banner_url || null,
-        banner_copyright: profile.banner_copyright?.trim().slice(0, 20) || null,
-        profile_picture_copyright: profile.profile_picture_copyright?.trim().slice(0, 20) || null,
+        banner_copyright: normalizeCopyrightInput(profile.banner_copyright) || null,
+        profile_picture_copyright: normalizeCopyrightInput(profile.profile_picture_copyright) || null,
         first_name: profile.first_name || null,
         last_name: profile.last_name || null,
         tagline: normalizeArtistTagline(profile.tagline) || null,
@@ -1811,9 +1834,11 @@ export class SupabaseService {
   }
 
   async getArtistWorkspaceMedia(profileId: string): Promise<ArtistMediaEntry[]> {
+    // Selected with '*' so media still loads on databases where db/031_media_copyright.sql
+    // has not been applied yet — the copyright simply comes back empty.
     const { data, error } = await this.adminSupabase
       .from('tjs_artist_media')
-      .select('id, media_type, image_url, name, description, urls')
+      .select('*')
       .eq('profile_id', profileId)
       .order('created_at', { ascending: true });
 
@@ -1830,6 +1855,7 @@ export class SupabaseService {
       image_url: row.image_url ?? null,
       name: row.name ?? '',
       description: row.description ?? '',
+      copyright_text: row.copyright_text ?? '',
       urls: Array.isArray(row.urls) ? row.urls.filter((value: unknown): value is string => typeof value === 'string') : [],
     }));
   }
@@ -1857,6 +1883,7 @@ export class SupabaseService {
         image_url: entry.image_url || null,
         name: entry.name.trim(),
         description: entry.description.trim() || null,
+        copyright_text: normalizeCopyrightInput(entry.copyright_text) || null,
         urls: entry.urls.map((url) => url.trim()).filter(Boolean),
         updated_at: new Date().toISOString(),
       }));
@@ -1870,6 +1897,10 @@ export class SupabaseService {
       .insert(payload);
 
     if (insertError) {
+      if (insertError.message?.toLowerCase().includes('copyright_text')) {
+        return 'Media copyright column is missing in the database. Run db/031_media_copyright.sql and try again.';
+      }
+
       if (this.isMissingSchemaError(insertError)) {
         return 'Artist media table is missing in the database. Run db/017_artist_workspace_media.sql and try again.';
       }
@@ -2549,8 +2580,58 @@ export class SupabaseService {
     return (data ?? []) as Array<{ id: number; name: string }>;
   }
 
-  async getArtistWorkspaceRequests(profileId: string): Promise<ArtistRequestListItem[]> {
+  /** Artist records (TJS and invited) belonging to a profile. */
+  private async getArtistIdsForProfile(profileId: string): Promise<string[]> {
     const { data, error } = await this.adminSupabase
+      .from('tjs_artists')
+      .select('id')
+      .eq('profile_id', profileId);
+
+    if (error) {
+      if (!this.isMissingSchemaError(error)) {
+        console.error('getArtistIdsForProfile error:', error.message);
+      }
+      return [];
+    }
+
+    return ((data ?? []) as any[])
+      .map((row) => row.id as string)
+      .filter((id): id is string => !!id);
+  }
+
+  /** Requests the artist takes part in — invited onto them rather than having created them. */
+  private async getParticipantRequestIds(profileId: string): Promise<string[]> {
+    const artistIds = await this.getArtistIdsForProfile(profileId);
+    if (artistIds.length === 0) {
+      return [];
+    }
+
+    const artistIdList = artistIds.join(',');
+    const { data, error } = await this.adminSupabase
+      .from('tjs_artist_request_artists')
+      .select('request_id')
+      .or(`artist_id.in.(${artistIdList}),invited_artist_id.in.(${artistIdList})`);
+
+    if (error) {
+      if (!this.isMissingSchemaError(error)) {
+        console.error('getParticipantRequestIds error:', error.message);
+      }
+      return [];
+    }
+
+    return Array.from(
+      new Set(
+        ((data ?? []) as any[])
+          .map((row) => row.request_id as string)
+          .filter((id): id is string => !!id)
+      )
+    );
+  }
+
+  async getArtistWorkspaceRequests(profileId: string): Promise<ArtistRequestListItem[]> {
+    const participantRequestIds = await this.getParticipantRequestIds(profileId);
+
+    const baseQuery = this.adminSupabase
       .from('tjs_artist_requests')
       .select(`
         id,
@@ -2561,10 +2642,14 @@ export class SupabaseService {
         end_date,
         event_time,
         created_at,
+        created_by,
         event_domain:sys_event_domain(name)
-      `)
-      .eq('created_by', profileId)
-      .order('created_at', { ascending: false });
+      `);
+
+    const { data, error } = await (participantRequestIds.length > 0
+      ? baseQuery.or(`created_by.eq.${profileId},id.in.(${participantRequestIds.join(',')})`)
+      : baseQuery.eq('created_by', profileId)
+    ).order('created_at', { ascending: false });
 
     if (error) {
       if (this.isMissingSchemaError(error)) {
@@ -2682,6 +2767,8 @@ export class SupabaseService {
               }].filter((item) => item.start_date)
         ),
         created_at: row.created_at,
+        created_by: row.created_by ?? null,
+        is_owner: row.created_by === profileId,
         event_domain_name: row.event_domain?.name ?? null,
       };
     });
@@ -2893,6 +2980,7 @@ export class SupabaseService {
 
     return {
       id: requestResult.data.id,
+      created_by: requestResult.data.created_by ?? null,
       event_domain_id: requestResult.data.event_domain_id ?? null,
       event_domain_name: requestResult.data.event_domain?.name ?? null,
       event_title: requestResult.data.event_title ?? '',
@@ -2913,6 +3001,7 @@ export class SupabaseService {
       ).map((row) => ({
         id: row.id,
         request_type: row.request_type ?? 'day_show',
+        is_residence: !!row.is_residence,
         start_date: row.start_date ?? '',
         end_date: row.end_date ?? '',
         event_time: row.event_time ?? '',
@@ -2925,7 +3014,7 @@ export class SupabaseService {
         description: row.description ?? '',
         url: row.url ?? '',
       })),
-      artists: artistRows.map((row) => {
+      artists: this.dedupeRequestArtists(artistRows.map((row) => {
         const selectedArtist = row.artist_id ? artistsById.get(row.artist_id) : null;
         const invitedArtist = row.invited_artist_id ? artistsById.get(row.invited_artist_id) : null;
         const selectedProfile = selectedArtist?.profile_id ? profilesById.get(selectedArtist.profile_id) : null;
@@ -2945,7 +3034,7 @@ export class SupabaseService {
           image_url: selectedProfile?.avatar_url ?? invitedProfile?.avatar_url ?? null,
           instruments: instrumentsByProfileId.get(artistProfileId) ?? [],
         };
-      }),
+      })),
       comments: ((commentsResult.data ?? []) as any[]).map((row) => ({
         id: row.id,
         author_profile_id: row.author_profile_id,
@@ -2956,6 +3045,45 @@ export class SupabaseService {
         created_at: row.created_at,
       })),
     };
+  }
+
+  /**
+   * One person can end up attached to a request more than once — invited by email and
+   * later linked as an artist, or simply invited twice. They are the same performer, so
+   * collapse those rows onto a single entry, keeping the richest details of each.
+   */
+  private dedupeRequestArtists(entries: ArtistRequestArtistEntry[]): ArtistRequestArtistEntry[] {
+    const byIdentity = new Map<string, ArtistRequestArtistEntry>();
+
+    for (const entry of entries) {
+      const identity = entry.profile_id
+        || entry.artist_id
+        || entry.invited_artist_id
+        || entry.invited_email.trim().toLowerCase()
+        || `row-${entry.id}`;
+
+      const existing = byIdentity.get(identity);
+      if (!existing) {
+        byIdentity.set(identity, entry);
+        continue;
+      }
+
+      byIdentity.set(identity, {
+        ...existing,
+        // A linked artist row is more meaningful than a bare invite, so keep whichever id exists.
+        artist_id: existing.artist_id ?? entry.artist_id,
+        invited_artist_id: existing.invited_artist_id ?? entry.invited_artist_id,
+        profile_id: existing.profile_id ?? entry.profile_id,
+        invited_email: existing.invited_email || entry.invited_email,
+        display_name: existing.display_name || entry.display_name,
+        invited_full_name: existing.invited_full_name || entry.invited_full_name,
+        tagline: existing.tagline ?? entry.tagline,
+        image_url: existing.image_url ?? entry.image_url,
+        instruments: existing.instruments?.length ? existing.instruments : entry.instruments,
+      });
+    }
+
+    return Array.from(byIdentity.values());
   }
 
   async uploadArtistWorkspaceRequestImage(profileId: string, file: File, folder: 'request-image' | 'request-media'): Promise<{ url: string | null; error: string | null }> {
@@ -2978,13 +3106,113 @@ export class SupabaseService {
     return { url: data.publicUrl, error: null };
   }
 
+  /** Workflow status derived exactly as getArtistWorkspaceRequestDetail derives it. */
+  private async getArtistRequestWorkflowStatus(
+    requestId: string,
+    baseDbStatus: string | null | undefined,
+  ): Promise<ArtistRequestDetail['status']> {
+    let derived = this.mapBaseRequestStatus(baseDbStatus ?? 'pending');
+
+    const { data, error } = await this.adminSupabase
+      .from('tjs_artist_request_comments')
+      .select('body, created_at')
+      .eq('request_id', requestId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      if (!this.isMissingSchemaError(error)) {
+        console.error('getArtistRequestWorkflowStatus error:', error.message);
+      }
+      return derived;
+    }
+
+    for (const row of (data ?? []) as any[]) {
+      if (typeof row.body !== 'string') {
+        continue;
+      }
+
+      if (row.body.startsWith('[HOST_PROPOSED]')) {
+        if (derived !== 'accepted_by_host') {
+          derived = 'host_proposed';
+        }
+      } else if (row.body.startsWith('[HOST_ACCEPTED]')) {
+        derived = 'accepted_by_host';
+      } else if (row.body.startsWith('[HOST_RELEASED]')) {
+        derived = 'new_request';
+      } else if (row.body.startsWith('[ARTIST_PROPOSED]')) {
+        derived = 'artist_proposed';
+      } else if (row.body.startsWith('[ARTIST_APPROVED]')) {
+        derived = 'artist_accepted';
+      } else if (row.body.startsWith('[EVENT_CREATED]')) {
+        derived = 'published';
+      }
+    }
+
+    return derived;
+  }
+
+  /**
+   * Decides whether this artist may write to an existing request. The creator keeps the
+   * rules they always had; artists invited onto the request may edit it only while no
+   * host has accepted it yet.
+   */
+  private async resolveArtistRequestAccess(
+    profileId: string,
+    requestId: string,
+  ): Promise<{ isOwner: boolean; error: string | null }> {
+    const { data, error } = await this.adminSupabase
+      .from('tjs_artist_requests')
+      .select('id, created_by, status')
+      .eq('id', requestId)
+      .maybeSingle();
+
+    if (error) {
+      if (this.isMissingSchemaError(error)) {
+        return { isOwner: false, error: 'Artist request tables are missing in the database. Run db/021_artist_workspace_requests.sql.' };
+      }
+      return { isOwner: false, error: error.message };
+    }
+
+    if (!data) {
+      return { isOwner: false, error: 'Request not found.' };
+    }
+
+    if (data.created_by === profileId) {
+      return { isOwner: true, error: null };
+    }
+
+    const participantRequestIds = await this.getParticipantRequestIds(profileId);
+    if (!participantRequestIds.includes(requestId)) {
+      return { isOwner: false, error: 'You do not have access to this request.' };
+    }
+
+    const status = await this.getArtistRequestWorkflowStatus(requestId, data.status);
+    if (!canCollaboratorEditRequest(status)) {
+      return { isOwner: false, error: COLLABORATOR_LOCKED_MESSAGE };
+    }
+
+    return { isOwner: false, error: null };
+  }
+
   async saveArtistWorkspaceRequest(profileId: string, request: ArtistRequestDetail): Promise<{ requestId: string | null; error: string | null }> {
-    const artistInstruments = await this.getArtistWorkspaceInstruments(profileId);
-    if (artistInstruments.length === 0) {
-      return {
-        requestId: null,
-        error: 'Add at least one instrument to your profile before submitting an event request.',
-      };
+    const access = request.id
+      ? await this.resolveArtistRequestAccess(profileId, request.id)
+      : { isOwner: true, error: null };
+
+    if (access.error) {
+      return { requestId: null, error: access.error };
+    }
+
+    // Profile completeness is asked of the artist raising the request, not of an
+    // invited artist amending someone else's.
+    if (access.isOwner) {
+      const artistInstruments = await this.getArtistWorkspaceInstruments(profileId);
+      if (artistInstruments.length === 0) {
+        return {
+          requestId: null,
+          error: 'Add at least one instrument to your profile before submitting an event request.',
+        };
+      }
     }
 
     const datesValidationError = validateArtistRequestDates(request.dates);
@@ -3004,7 +3232,7 @@ export class SupabaseService {
       end_date: primaryDate?.request_type === 'period' ? (primaryDate.end_date || null) : null,
       event_time: null,
       image_url: request.image_url || null,
-      image_copyright: request.image_copyright?.trim().slice(0, 20) || null,
+      image_copyright: normalizeCopyrightInput(request.image_copyright) || null,
       status: this.mapArtistWorkflowStatusToDb(request.status),
       updated_at: new Date().toISOString(),
     };
@@ -3047,6 +3275,7 @@ export class SupabaseService {
       .map((item) => ({
         request_id: requestId,
         request_type: item.request_type,
+        is_residence: !!item.is_residence,
         start_date: item.start_date,
         end_date: item.request_type === 'period' ? (item.end_date || null) : null,
         event_time: null,
@@ -3058,6 +3287,10 @@ export class SupabaseService {
         .from('tjs_artist_request_dates')
         .insert(datePayload);
       if (datesInsertError) {
+        if (datesInsertError.message?.toLowerCase().includes('is_residence')) {
+          return { requestId: null, error: 'Residence column is missing in the database. Run db/032_artist_request_date_residence.sql and try again.' };
+        }
+
         return { requestId: null, error: datesInsertError.message };
       }
     }
@@ -3183,6 +3416,40 @@ export class SupabaseService {
     return null;
   }
 
+  /** The artist record backing a profile, preferring the TJS record when both exist. */
+  async getArtistRecordForProfile(profileId: string): Promise<{
+    id: string;
+    artist_name: string;
+    is_tjs_artist: boolean;
+    is_invited_artist: boolean;
+  } | null> {
+    const { data, error } = await this.adminSupabase
+      .from('tjs_artists')
+      .select('id, artist_name, is_tjs_artist, is_invited_artist')
+      .eq('profile_id', profileId)
+      .order('is_tjs_artist', { ascending: false })
+      .limit(1);
+
+    if (error) {
+      if (!this.isMissingSchemaError(error)) {
+        console.error('getArtistRecordForProfile error:', error.message);
+      }
+      return null;
+    }
+
+    const row = ((data ?? []) as any[])[0];
+    if (!row?.id) {
+      return null;
+    }
+
+    return {
+      id: row.id as string,
+      artist_name: (row.artist_name as string | null) ?? '',
+      is_tjs_artist: !!row.is_tjs_artist,
+      is_invited_artist: !!row.is_invited_artist,
+    };
+  }
+
   async listTjsArtistsForRequestSelection(): Promise<Array<{ id: string; artist_name: string; profile_id: string; instruments: string[] }>> {
     const { data, error } = await this.adminSupabase
       .from('tjs_artists')
@@ -3296,16 +3563,14 @@ export class SupabaseService {
         return { artistId: null, error: updateError.message };
       }
 
-      const { error: insertExistingError } = await this.adminSupabase
-        .from('tjs_artist_request_artists')
-        .insert({
-          request_id: requestId,
-          invited_artist_id: existingArtistId,
-          invited_email: normalizedEmail,
-        });
+      if (!existingArtistId) {
+        return { artistId: null, error: 'Artist record was not found.' };
+      }
+
+      const insertExistingError = await this.linkArtistToRequest(requestId, existingArtistId, normalizedEmail);
 
       if (insertExistingError) {
-        return { artistId: null, error: insertExistingError.message };
+        return { artistId: null, error: insertExistingError };
       }
 
       return { artistId: existingArtistId, error: null };
@@ -3322,19 +3587,49 @@ export class SupabaseService {
       return { artistId: null, error: inviteResult.error ?? 'Failed to invite artist.' };
     }
 
+    const error = await this.linkArtistToRequest(requestId, inviteResult.artist.id, normalizedEmail);
+
+    if (error) {
+      return { artistId: null, error };
+    }
+
+    return { artistId: inviteResult.artist.id, error: null };
+  }
+
+  /**
+   * Attaches an artist to a request, doing nothing if they are already on it.
+   * Re-inviting somebody used to add a second row, showing them twice to the host.
+   */
+  private async linkArtistToRequest(
+    requestId: string,
+    artistId: string,
+    invitedEmail: string,
+  ): Promise<string | null> {
+    const { data: existingRows, error: lookupError } = await this.adminSupabase
+      .from('tjs_artist_request_artists')
+      .select('id')
+      .eq('request_id', requestId)
+      .or(`artist_id.eq.${artistId},invited_artist_id.eq.${artistId}`)
+      .limit(1);
+
+    if (lookupError) {
+      console.error('linkArtistToRequest lookup error:', lookupError.message);
+      return lookupError.message;
+    }
+
+    if (((existingRows ?? []) as any[]).length > 0) {
+      return null;
+    }
+
     const { error } = await this.adminSupabase
       .from('tjs_artist_request_artists')
       .insert({
         request_id: requestId,
-        invited_artist_id: inviteResult.artist.id,
-        invited_email: normalizedEmail,
+        invited_artist_id: artistId,
+        invited_email: invitedEmail,
       });
 
-    if (error) {
-      return { artistId: null, error: error.message };
-    }
-
-    return { artistId: inviteResult.artist.id, error: null };
+    return error ? error.message : null;
   }
 
   private summarizeArtistRequestDates(rows: any[]): string {
@@ -4731,7 +5026,15 @@ export class SupabaseService {
       return null;
     }
 
-    const [workspaceResult, performanceResult, instrumentsResult, mediaResult, eventArtistsResult] = await Promise.all([
+    const [
+      workspaceResult,
+      performanceResult,
+      instrumentsResult,
+      mediaResult,
+      educationsResult,
+      awardsResult,
+      eventArtistsResult,
+    ] = await Promise.all([
       this.adminSupabase
         .from('tjs_artist_profiles')
         .select('profile_id, banner_url, first_name, last_name, tagline, short_biography, long_biography')
@@ -4747,9 +5050,19 @@ export class SupabaseService {
         .eq('profile_id', profileId),
       this.adminSupabase
         .from('tjs_artist_media')
-        .select('id, media_type, image_url, name, description, urls')
+        .select('*')
         .eq('profile_id', profileId)
         .order('created_at', { ascending: true }),
+      this.adminSupabase
+        .from('tjs_artist_educations')
+        .select('id, school_name, course_name, year')
+        .eq('profile_id', profileId)
+        .order('year', { ascending: false }),
+      this.adminSupabase
+        .from('tjs_artist_awards')
+        .select('id, award, description, year')
+        .eq('profile_id', profileId)
+        .order('year', { ascending: false }),
       this.adminSupabase
         .from('tjs_event_artists')
         .select(`
@@ -4767,6 +5080,14 @@ export class SupabaseService {
 
     if (workspaceResult.error && !this.isMissingSchemaError(workspaceResult.error)) {
       console.error('getPublicTjsArtistDetail workspace error:', workspaceResult.error.message);
+    }
+
+    if (educationsResult.error && !this.isMissingSchemaError(educationsResult.error)) {
+      console.error('getPublicTjsArtistDetail educations error:', educationsResult.error.message);
+    }
+
+    if (awardsResult.error && !this.isMissingSchemaError(awardsResult.error)) {
+      console.error('getPublicTjsArtistDetail awards error:', awardsResult.error.message);
     }
 
     if (performanceResult.error && !this.isMissingSchemaError(performanceResult.error)) {
@@ -4928,12 +5249,27 @@ export class SupabaseService {
         .filter((value): value is string => !!value)
         .filter((value, index, values) => values.indexOf(value) === index)
         .sort(),
+      educations: ((educationsResult.data ?? []) as any[])
+        .map((row) => ({
+          school_name: (row.school_name ?? '').trim(),
+          course_name: (row.course_name ?? '').trim(),
+          year: row.year ? Number(row.year) || null : null,
+        }))
+        .filter((entry) => entry.school_name || entry.course_name),
+      awards: ((awardsResult.data ?? []) as any[])
+        .map((row) => ({
+          award: (row.award ?? '').trim(),
+          description: (row.description ?? '').trim(),
+          year: row.year ? Number(row.year) || null : null,
+        }))
+        .filter((entry) => entry.award),
       media: ((mediaResult.data ?? []) as any[]).map((row) => ({
         id: row.id,
         media_type: row.media_type ?? 'media',
         image_url: row.image_url ?? null,
         name: row.name ?? 'Untitled media',
         description: row.description ?? '',
+        copyright_text: row.copyright_text ?? '',
         urls: Array.isArray(row.urls)
           ? row.urls.filter((value: unknown): value is string => typeof value === 'string' && !!value.trim())
           : [],
@@ -5453,7 +5789,13 @@ export class SupabaseService {
         (row.notes as string | null | undefined) ?? '',
         existingEntries,
       ).filter((_, index) => {
+        // The two lists are built from different parts of the notes, so an event can have
+        // more schedule lines than parsed entries. A line with no entry cannot be compared.
         const existing = existingEntries[index];
+        if (!existing) {
+          return false;
+        }
+
         const existingEnd = existing.mode === 'period' ? (existing.end_date || existing.start_date) : existing.start_date;
         const existingLineLocationLabel = this.extractScheduleLineLocationLabel(existingScheduleLines[index] ?? null);
         const normalizedExistingLineLocationLabel = this.normalizeLocationComparisonValue(existingLineLocationLabel);
@@ -6287,7 +6629,7 @@ export class SupabaseService {
       updated_at: new Date().toISOString(),
     };
     if (imageCopyright !== undefined) {
-      requestUpdate['image_copyright'] = imageCopyright.trim().slice(0, 20) || null;
+      requestUpdate['image_copyright'] = normalizeCopyrightInput(imageCopyright) || null;
     }
 
     const { error } = await this.adminSupabase
@@ -6360,7 +6702,7 @@ export class SupabaseService {
       updated_at: new Date().toISOString(),
     };
     if (imageCopyright !== undefined) {
-      requestUpdate['image_copyright'] = imageCopyright.trim().slice(0, 20) || null;
+      requestUpdate['image_copyright'] = normalizeCopyrightInput(imageCopyright) || null;
     }
 
     const { error } = await this.adminSupabase
@@ -6412,7 +6754,7 @@ export class SupabaseService {
         updated_at: new Date().toISOString(),
       };
       if (imageCopyright !== undefined) {
-        requestUpdate['image_copyright'] = imageCopyright.trim().slice(0, 20) || null;
+        requestUpdate['image_copyright'] = normalizeCopyrightInput(imageCopyright) || null;
       }
 
       const { error } = await this.adminSupabase
@@ -9755,7 +10097,7 @@ export class SupabaseService {
         .insert(location.images.slice(0, 5).map((image, index) => ({
           location_id: locationId,
           image_url: image.image_url,
-          copyright_text: image.copyright_text?.trim().slice(0, 20) || null,
+          copyright_text: normalizeCopyrightInput(image.copyright_text) || null,
           sort_order: index,
         })));
 
@@ -9856,7 +10198,7 @@ export class SupabaseService {
         .insert(location.images.slice(0, 5).map((image, index) => ({
           location_id: locationId,
           image_url: image.image_url,
-          copyright_text: image.copyright_text?.trim().slice(0, 20) || null,
+          copyright_text: normalizeCopyrightInput(image.copyright_text) || null,
           sort_order: index,
         })));
 
@@ -11314,6 +11656,7 @@ export class SupabaseService {
         image_url: row.image ?? null,
         name: row.title ?? '',
         description: row.description ?? '',
+        copyright_text: row.copyright ?? '',
         urls: row.url ? [row.url] : [],
       })),
       availability: ((availabilityResult.data ?? []) as any[]).map((row) => ({
@@ -12524,8 +12867,8 @@ export class SupabaseService {
       values.eventType ? `Event Type: ${values.eventType}` : null,
       values.showTime ? `Show Time: ${values.showTime}` : null,
       values.eventImageUrl ? `Event Image: ${values.eventImageUrl}` : null,
-      values.eventImageCopyright?.trim()
-        ? `Event Image Copyright: ${values.eventImageCopyright.trim().slice(0, 20)}`
+      normalizeCopyrightInput(values.eventImageCopyright)
+        ? `Event Image Copyright: ${normalizeCopyrightInput(values.eventImageCopyright)}`
         : null,
       values.callToActionUrl ? `Call to Action URL: ${values.callToActionUrl}` : null,
       ...((values.scheduleEntries ?? []).map((entry) =>

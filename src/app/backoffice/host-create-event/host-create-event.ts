@@ -3,7 +3,7 @@ import { DatePipe, Location, NgFor, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
-import { validateHostScheduleEntries } from '../../shared/request-dates/request-dates.util';
+import { parseScheduleLine, validateHostScheduleEntries } from '../../shared/request-dates/request-dates.util';
 import { ImageCopyrightTag } from '../../shared/image-copyright/image-copyright-tag';
 import {
   ArtistInstrumentOption,
@@ -412,12 +412,26 @@ export class HostCreateEvent implements OnInit {
       return;
     }
 
-    const venueConflicts = await this.supabase.getHostVenueScheduleConflicts(entries);
-    if (venueConflicts.length > 0) {
-      this.pendingCreateEntries = entries;
-      this.venueConflicts = venueConflicts;
-      this.showVenueConflictModal = true;
+    // Held across the venue check as well, so the spinner covers the whole action.
+    this.error = '';
+    this.isSaving = true;
+
+    try {
+      const venueConflicts = await this.supabase.getHostVenueScheduleConflicts(entries);
+      if (venueConflicts.length > 0) {
+        this.pendingCreateEntries = entries;
+        this.venueConflicts = venueConflicts;
+        this.showVenueConflictModal = true;
+        return;
+      }
+    } catch (error) {
+      // Without this the rejection is swallowed and the button just looks dead.
+      this.error = error instanceof Error
+        ? `Venue availability could not be checked: ${error.message}`
+        : 'Venue availability could not be checked.';
       return;
+    } finally {
+      this.isSaving = false;
     }
 
     await this.submitEventCreation(entries);
@@ -458,46 +472,52 @@ export class HostCreateEvent implements OnInit {
     this.successMessage = '';
     this.isSaving = true;
 
-    const firstEntry = entries[0];
-    const persistedLocationId = this.resolvePersistedLocationId(firstEntry.locationId);
+    try {
+      const firstEntry = entries[0];
+      const persistedLocationId = this.resolvePersistedLocationId(firstEntry.locationId);
 
-    const payload: CreateHostEventFromRequestPayload = {
-      ...this.form,
-      callToActionUrl: this.form.callToActionUrl.trim(),
-      entries: entries.map((entry) => ({
-        mode: entry.mode,
-        startDate: entry.startDate,
-        endDate: entry.endDate,
-      })),
-      locationId: persistedLocationId,
-      showTime: firstEntry.showTime,
-      notes: this.buildEventNotes(entries),
-    };
+      const payload: CreateHostEventFromRequestPayload = {
+        ...this.form,
+        callToActionUrl: this.form.callToActionUrl.trim(),
+        entries: entries.map((entry) => ({
+          mode: entry.mode,
+          startDate: entry.startDate,
+          endDate: entry.endDate,
+        })),
+        locationId: persistedLocationId,
+        showTime: firstEntry.showTime,
+        notes: this.buildEventNotes(entries),
+      };
 
-    const result = await this.supabase.createHostEventFromRequest(this.request.id, profileId, payload);
-    if (result.error) {
-      this.error = result.error;
+      const result = await this.supabase.createHostEventFromRequest(this.request.id, profileId, payload);
+      if (result.error || !result.eventId) {
+        this.error = result.error ?? 'Event could not be created.';
+        return;
+      }
+
+      this.createdEventId = result.eventId;
+      this.request = {
+        ...this.request,
+        status: 'published',
+      };
+      this.successMessage = 'Event created and the request is now published.';
+
+      await this.router.navigate([
+        this.isAdmin
+          ? '/backoffice/events'
+          : this.authService.isHostManager
+            ? '/backoffice/host-manager/events'
+            : '/backoffice/host/events',
+        result.eventId,
+      ], {
+        replaceUrl: true,
+      });
+    } catch (error) {
+      this.error = error instanceof Error ? error.message : 'Event could not be created.';
+    } finally {
+      // Always released, so a failure can never leave the button permanently disabled.
       this.isSaving = false;
-      return;
     }
-
-    this.createdEventId = result.eventId;
-    this.request = {
-      ...this.request,
-      status: 'published',
-    };
-    this.successMessage = 'Event created and the request is now published.';
-    this.isSaving = false;
-    await this.router.navigate([
-      this.isAdmin
-        ? '/backoffice/events'
-        : this.authService.isHostManager
-          ? '/backoffice/host-manager/events'
-          : '/backoffice/host/events',
-      result.eventId,
-    ], {
-      replaceUrl: true,
-    });
   }
 
   private prefillForm() {
@@ -587,16 +607,14 @@ export class HostCreateEvent implements OnInit {
   }
 
   private parseProposalLine(line: string): HostProposalEntry | null {
-    const segments = line.split('|').map((item) => item.trim());
-    if (segments.length < 4) {
+    const parsed = parseScheduleLine(line);
+    if (!parsed) {
       return null;
     }
 
-    const mode = segments[0].toLowerCase() === 'period' ? 'period' : 'one_day';
-    const dateLabel = segments[1];
-    const showTime = segments[2];
-    const locationLabel = segments.slice(3).join(' | ');
-    const locationId = this.findLocationIdByLabel(locationLabel);
+    const { mode, dateLabel, showTime, locationLabel } = parsed;
+    // The id the line carries wins; matching by label is only a fallback for older comments.
+    const locationId = parsed.locationId ?? this.findLocationIdByLabel(locationLabel);
 
     if (mode === 'period') {
       const [startDate, endDate] = dateLabel.split(' to ').map((item) => item.trim());

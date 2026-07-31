@@ -8,13 +8,16 @@ import {
 } from '../../shared/artist-request/artist-request-text.util';
 import { ImageCopyrightTag } from '../../shared/image-copyright/image-copyright-tag';
 import { validateArtistRequestDates } from '../../shared/request-dates/request-dates.util';
+import {
+  canEditArtistRequest,
+  COLLABORATOR_LOCKED_MESSAGE,
+} from '../../shared/artist-request/artist-request-permissions.util';
 import { DatePipe, NgClass, NgFor, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import {
   ArtistRequestArtistEntry,
-  ArtistAvailabilityEntry,
   ArtistRequestCommentEntry,
   ArtistRequestDateEntry,
   ArtistRequestDetail,
@@ -72,7 +75,6 @@ export class ArtistRequests implements OnInit {
   requests: ArtistRequestListItem[] = [];
   eventDomains: Array<{ id: number; name: string }> = [];
   tjsArtists: Array<{ id: string; artist_name: string; profile_id: string; instruments: string[] }> = [];
-  availabilityEntries: ArtistAvailabilityEntry[] = [];
   artistInstruments: ArtistInstrumentOption[] = [];
 
   isEditorOpen = false;
@@ -110,11 +112,28 @@ export class ArtistRequests implements OnInit {
     });
   }
 
+  /**
+   * Invited artists take part in requests raised by others; they do not raise their own.
+   */
+  get canCreateRequest(): boolean {
+    return !this.authService.isInvitedArtist;
+  }
+
   async openNewRequest() {
+    if (!this.canCreateRequest) {
+      return;
+    }
+
     await this.router.navigate(['/backoffice/artist-requests/new']);
   }
 
   private prepareNewRequest() {
+    // Guards the /new route for anyone who reaches it directly.
+    if (!this.canCreateRequest) {
+      void this.router.navigate(['/backoffice/artist-requests']);
+      return;
+    }
+
     if (this.hasPreparedNewRequestRoute && !this.pendingNewRequestDraft && this.isEditorOpen && !this.selectedRequestId) {
       return;
     }
@@ -165,7 +184,10 @@ export class ArtistRequests implements OnInit {
       return;
     }
 
-    this.request = this.applyPrimaryArtist(detail);
+    this.request = this.applyPrimaryArtist({
+      ...detail,
+      dates: this.normalizeRequestDates(detail.dates),
+    });
     this.markRequestCommentsAsSeen(requestId, detail.comments.at(-1)?.created_at ?? null);
     this.originalDatesSignature = this.buildDatesSignature(this.request.dates);
     this.isEditing = false;
@@ -196,8 +218,8 @@ export class ArtistRequests implements OnInit {
       return;
     }
 
-    if (this.isPublishedRequestLocked()) {
-      this.error = 'Published requests cannot be edited.';
+    if (!this.canEditSelectedRequest()) {
+      this.error = this.requestLockReason;
       return;
     }
 
@@ -233,6 +255,7 @@ export class ArtistRequests implements OnInit {
     const duplicatedRequest = this.applyPrimaryArtist({
       ...detail,
       id: undefined,
+      created_by: null,
       event_title: `${detail.event_title} Copy`,
       status: 'new_request',
       comments: [],
@@ -244,7 +267,7 @@ export class ArtistRequests implements OnInit {
         ...media,
         id: undefined,
       })),
-      dates: detail.dates.map((date) => ({
+      dates: this.normalizeRequestDates(detail.dates).map((date) => ({
         ...date,
         id: undefined,
       })),
@@ -301,7 +324,11 @@ export class ArtistRequests implements OnInit {
   }
 
   canDeleteSelectedRequest(): boolean {
-    return !!this.request.id && this.request.status !== 'approved' && !this.isPublishedRequestLocked();
+    // Deleting stays with the artist who created the request.
+    return !!this.request.id
+      && this.isRequestOwner
+      && this.request.status !== 'approved'
+      && !this.isPublishedRequestLocked();
   }
 
   addDate() {
@@ -310,6 +337,34 @@ export class ArtistRequests implements OnInit {
     }
 
     this.request.dates = [...this.request.dates, this.blankDate()];
+  }
+
+  /**
+   * A residence always runs over a period. Anything else may be booked either as a
+   * single day show or as a period, so both choices stay open.
+   */
+  setResidence(date: ArtistRequestDateEntry, isResidence: boolean) {
+    if (!this.isEditing) {
+      return;
+    }
+
+    date.is_residence = isResidence;
+
+    if (isResidence) {
+      date.request_type = 'period';
+    }
+  }
+
+  setRequestType(date: ArtistRequestDateEntry, requestType: 'day_show' | 'period') {
+    if (!this.isEditing || date.is_residence) {
+      return;
+    }
+
+    date.request_type = requestType;
+
+    if (requestType === 'day_show') {
+      date.end_date = '';
+    }
   }
 
   removeDate(index: number) {
@@ -469,18 +524,16 @@ export class ArtistRequests implements OnInit {
       return;
     }
 
-    const availabilityValidationError = this.validateDatesAgainstAvailability(this.request.dates);
-    if (availabilityValidationError) {
-      this.error = availabilityValidationError;
-      this.activeTab = 'dates';
-      return;
-    }
-
     const isNewRequestSubmission = !this.request.id;
     const datesChanged = !isNewRequestSubmission
       && this.buildDatesSignature(this.request.dates) !== this.originalDatesSignature;
 
-    if (datesChanged) {
+    // Artist Proposed only ever follows Host Proposed — it is the artist's counter to a
+    // host proposal. Until a host proposes, the request stays a New Request however much
+    // the artists on it edit: creator, TJS artists or invited artists alike.
+    const isCounterToHostProposal = this.request.status === 'host_proposed';
+
+    if (datesChanged && isCounterToHostProposal) {
       this.request.status = 'artist_proposed';
       this.isSubmittingArtistProposal = true;
     }
@@ -723,7 +776,8 @@ export class ArtistRequests implements OnInit {
   }
 
   get invitedArtists() {
-    return this.request.artists.filter((artist) => this.isInvitedArtist(artist));
+    // The primary artist is never listed as an invited one, whatever their row holds.
+    return this.request.artists.filter((artist) => !artist.is_primary && this.isInvitedArtist(artist));
   }
 
   get additionalArtists() {
@@ -772,6 +826,90 @@ export class ArtistRequests implements OnInit {
 
   isPublishedRequestLocked(): boolean {
     return !!this.request.id && this.request.status === 'published';
+  }
+
+  /** Tabs actually on screen — Proposed Dates only exists once a host has proposed. */
+  get visibleTabs(): RequestTab[] {
+    const tabs: RequestTab[] = ['details', 'dates'];
+
+    if (this.latestHostProposal && this.request.status !== 'published') {
+      tabs.push('proposed_dates');
+    }
+
+    return [...tabs, 'image', 'media', 'artist', 'comments'];
+  }
+
+  tabLabel(tab: RequestTab): string {
+    switch (tab) {
+      case 'details':
+        return 'Details';
+      case 'dates':
+        return 'Dates';
+      case 'proposed_dates':
+        return 'Proposed Dates';
+      case 'image':
+        return 'Image';
+      case 'media':
+        return 'Media';
+      case 'artist':
+        return 'Artist';
+      default:
+        return 'Comments';
+    }
+  }
+
+  private get activeTabIndex(): number {
+    return this.visibleTabs.indexOf(this.activeTab);
+  }
+
+  get previousTab(): RequestTab | null {
+    return this.visibleTabs[this.activeTabIndex - 1] ?? null;
+  }
+
+  get nextTab(): RequestTab | null {
+    return this.visibleTabs[this.activeTabIndex + 1] ?? null;
+  }
+
+  get isLastTab(): boolean {
+    return this.nextTab === null;
+  }
+
+  goToPreviousTab() {
+    if (this.previousTab) {
+      this.activeTab = this.previousTab;
+    }
+  }
+
+  goToNextTab() {
+    if (this.nextTab) {
+      this.activeTab = this.nextTab;
+    }
+  }
+
+  /** False when the open request was created by another artist who invited this one onto it. */
+  get isRequestOwner(): boolean {
+    if (!this.request.id || !this.request.created_by) {
+      return true;
+    }
+
+    return this.request.created_by === this.currentProfileId;
+  }
+
+  canEditSelectedRequest(): boolean {
+    if (!this.request.id) {
+      return true;
+    }
+
+    return canEditArtistRequest(this.request.status, this.isRequestOwner);
+  }
+
+  /** Explains why the editor is locked, so an invited artist is not left guessing. */
+  get requestLockReason(): string {
+    if (!this.request.id || this.canEditSelectedRequest()) {
+      return '';
+    }
+
+    return this.isRequestOwner ? 'Published requests cannot be edited.' : COLLABORATOR_LOCKED_MESSAGE;
   }
 
   async acceptHostProposal() {
@@ -844,29 +982,97 @@ export class ArtistRequests implements OnInit {
     });
   }
 
+  dateTypeLabel(date: ArtistRequestDateEntry): string {
+    if (date.is_residence) {
+      return 'Residence';
+    }
+
+    return date.request_type === 'period' ? 'Period' : 'Day Show';
+  }
+
+  /** Readable day for the card summary; falls back to a dash while the field is empty. */
+  formatDateLabel(value: string | null | undefined): string {
+    const trimmed = value?.trim();
+    if (!trimmed) {
+      return '—';
+    }
+
+    const parsed = new Date(`${trimmed}T00:00:00`);
+    if (Number.isNaN(parsed.getTime())) {
+      return trimmed;
+    }
+
+    return parsed.toLocaleDateString(undefined, {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+  }
+
+  dateRangeLabel(date: ArtistRequestDateEntry): string {
+    const start = this.formatDateLabel(date.start_date);
+
+    if (date.request_type !== 'period') {
+      return start;
+    }
+
+    return `${start} → ${this.formatDateLabel(date.end_date)}`;
+  }
+
+  /** Inclusive length of a period, shown next to the range. Null when it cannot be worked out. */
+  periodDayCount(date: ArtistRequestDateEntry): number | null {
+    if (date.request_type !== 'period' || !date.start_date?.trim() || !date.end_date?.trim()) {
+      return null;
+    }
+
+    const start = new Date(`${date.start_date}T00:00:00`).getTime();
+    const end = new Date(`${date.end_date}T00:00:00`).getTime();
+    if (Number.isNaN(start) || Number.isNaN(end) || end < start) {
+      return null;
+    }
+
+    return Math.round((end - start) / 86_400_000) + 1;
+  }
+
+  /** True once the row has everything it needs to be submitted. */
+  isDateComplete(date: ArtistRequestDateEntry): boolean {
+    if (!date.start_date?.trim()) {
+      return false;
+    }
+
+    return date.request_type !== 'period' || !!date.end_date?.trim();
+  }
+
   private blankDate(): ArtistRequestDateEntry {
     return {
       request_type: 'day_show',
+      is_residence: false,
       start_date: '',
       end_date: '',
       event_time: '',
     };
   }
 
+  /** A residence is always a period, whatever an older row may have stored. */
+  private normalizeRequestDates(dates: ArtistRequestDateEntry[]): ArtistRequestDateEntry[] {
+    return dates.map((date) => (
+      date.is_residence ? { ...date, request_type: 'period' as const } : date
+    ));
+  }
+
   private async loadData(profileId: string) {
     try {
-      const [requests, eventDomains, tjsArtists, availabilityEntries, artistInstruments] = await Promise.all([
+      const [requests, eventDomains, tjsArtists, artistInstruments] = await Promise.all([
         this.supabase.getArtistWorkspaceRequests(profileId),
         this.supabase.listEventDomains(),
         this.supabase.listTjsArtistsForRequestSelection(),
-        this.supabase.getArtistWorkspaceAvailability(profileId),
         this.supabase.getArtistWorkspaceInstruments(profileId),
       ]);
 
       this.requests = requests;
       this.eventDomains = eventDomains;
       this.tjsArtists = tjsArtists;
-      this.availabilityEntries = availabilityEntries;
       this.artistInstruments = artistInstruments;
       const currentArtist = this.tjsArtists.find((artist) => artist.profile_id === profileId) ?? null;
       this.currentArtistId = currentArtist?.id ?? null;
@@ -950,6 +1156,29 @@ export class ArtistRequests implements OnInit {
   }
 
   private applyPrimaryArtist(request: ArtistRequestDetail): ArtistRequestDetail {
+    // On a saved request the primary artist is whoever created it — never whoever
+    // happens to be logged in. An invited artist opening the request must still see
+    // the creator as the primary artist, and themselves as invited.
+    if (request.id && request.created_by) {
+      const artists = request.artists.map((artist) => ({
+        ...artist,
+        is_primary: !!artist.profile_id && artist.profile_id === request.created_by,
+      }));
+
+      if (!artists.some((artist) => artist.is_primary)) {
+        return { ...request, artists };
+      }
+
+      return {
+        ...request,
+        artists: [
+          ...artists.filter((artist) => artist.is_primary),
+          ...artists.filter((artist) => !artist.is_primary),
+        ],
+      };
+    }
+
+    // A request being created: the artist writing it is the primary artist.
     if (!this.currentArtistId) {
       return request;
     }
@@ -1000,32 +1229,4 @@ export class ArtistRequests implements OnInit {
     return rawDraft as ArtistRequestDetail;
   }
 
-  private validateDatesAgainstAvailability(dates: ArtistRequestDateEntry[]): string | null {
-    const availability = this.availabilityEntries
-      .filter((entry) => !!entry.start_date && !!entry.end_date)
-      .map((entry) => ({
-        start: entry.start_date,
-        end: entry.end_date,
-      }));
-
-    if (availability.length === 0) {
-      return 'The selected dates are outside your availability. Adjust your availability first, then create the request.';
-    }
-
-    for (let index = 0; index < dates.length; index += 1) {
-      const date = dates[index];
-      const start = date.start_date;
-      const end = date.request_type === 'period' ? (date.end_date || '') : date.start_date;
-
-      const fitsAvailability = availability.some((entry) => start >= entry.start && end <= entry.end);
-      if (!fitsAvailability) {
-        const label = date.request_type === 'period'
-          ? `${start} to ${end || 'TBD'}`
-          : start;
-        return `Date entry ${index + 1} (${label}) is outside your availability. Adjust your availability first, then create the request.`;
-      }
-    }
-
-    return null;
-  }
 }

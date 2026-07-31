@@ -454,7 +454,21 @@
               <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Media</span>
             </a>
           </li>
-          <li *ngIf="!isInvitedArtist">
+          <li>
+            <a
+              routerLink="/backoffice/artist-preview"
+              routerLinkActive="bg-zinc-700 text-white"
+              class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors duration-200 hover:bg-zinc-700 hover:text-white"
+            >
+              <svg class="h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="4" width="14" height="12" rx="2"></rect>
+                <rect x="17" y="8" width="5" height="12" rx="1.5"></rect>
+                <line x1="7" y1="20" x2="13" y2="20"></line>
+              </svg>
+              <span *ngIf="!sidebarCollapsed" class="text-sm font-medium">Device Preview</span>
+            </a>
+          </li>
+          <li>
             <a
               routerLink="/backoffice/artist-requests"
               routerLinkActive="bg-zinc-700 text-white"

@@ -13,6 +13,7 @@ import {
   TjsLocation,
 } from '../../services/supabase.service';
 import { validateLocationForActivation } from '../../shared/location-profile/location-public-profile.util';
+import { normalizeCopyrightInput } from '../../shared/image-copyright/image-copyright.util';
 
 interface LocationForm {
   name: string;
@@ -334,7 +335,7 @@ export class HostManagerPublicLocations implements OnInit {
       if (url) {
         this.form.images = [
           ...this.form.images,
-          { image_url: url, copyright_text: this.defaultImageCopyright.trim().slice(0, 20) },
+          { image_url: url, copyright_text: normalizeCopyrightInput(this.defaultImageCopyright) },
         ].slice(0, 5);
       }
     }

@@ -7,6 +7,7 @@ import {
   remainingCharacters,
 } from '../../shared/artist-biography/artist-biography.util';
 import { ImageCopyrightTag } from '../../shared/image-copyright/image-copyright-tag';
+import { MAX_COPYRIGHT_TEXT_LENGTH } from '../../shared/image-copyright/image-copyright.util';
 import { DatePipe, NgClass, NgFor, NgIf } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -66,6 +67,7 @@ export class CommitteeArtistDetail implements OnInit {
   readonly maxTaglineLength = MAX_ARTIST_TAGLINE_LENGTH;
   readonly maxShortBiographyLength = MAX_ARTIST_SHORT_BIOGRAPHY_LENGTH;
   readonly maxLongBiographyLength = MAX_ARTIST_LONG_BIOGRAPHY_LENGTH;
+  readonly maxCopyrightLength = MAX_COPYRIGHT_TEXT_LENGTH;
   editableInstruments: ArtistInstrumentOption[] = [];
   editableMedia: ArtistMediaEntry[] = [];
   editableAvailability: ArtistAvailabilityEntry[] = [];
@@ -839,7 +841,7 @@ export class CommitteeArtistDetail implements OnInit {
   }
 
   private blankMedia(mediaType: ArtistMediaType): ArtistMediaEntry {
-    return { media_type: mediaType, image_url: null, name: '', description: '', urls: [''] };
+    return { media_type: mediaType, image_url: null, name: '', description: '', copyright_text: '', urls: [''] };
   }
 
   private blankAvailability(): ArtistAvailabilityEntry {

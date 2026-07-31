@@ -34,8 +34,8 @@
         class="relative h-56 bg-zinc-900 bg-cover bg-center"
         [style.background-image]="profile.banner_url ? 'url(' + profile.banner_url + ')' : 'linear-gradient(135deg, #18181b, #3f3f46)'"
       >
-        <div class="absolute inset-0 bg-black/20"></div>
-        <app-image-copyright-tag *ngIf="profile.banner_url" [copyrightText]="profile.banner_copyright"></app-image-copyright-tag>
+        <div class="absolute inset-0 bg-black/10"></div>
+        <app-image-copyright-tag *ngIf="profile.banner_url" [copyrightText]="profile.banner_copyright" position="bottom-left"></app-image-copyright-tag>
         <div class="absolute right-4 top-4 flex items-center gap-2">
           <app-image-preview-open
             *ngIf="profile.banner_url"
@@ -47,45 +47,61 @@
           />
         </div>
         <div class="absolute bottom-4 right-4">
-          <label
-            class="inline-flex items-center rounded-lg bg-white/90 px-3 py-2 text-xs font-medium text-zinc-800 shadow-sm transition-colors"
-            [class.cursor-pointer]="isEditing"
-            [class.hover:bg-white]="isEditing"
-            [class.cursor-not-allowed]="!isEditing"
-            [class.opacity-60]="!isEditing"
+          <button
+            *ngIf="isEditing"
+            type="button"
+            (click)="openBannerEditor()"
+            [disabled]="isUploadingBanner"
+            class="inline-flex items-center gap-2 rounded-lg bg-white/90 px-3 py-2 text-xs font-medium text-zinc-800 shadow-sm transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {{ isUploadingBanner ? 'Uploading...' : 'Upload Banner' }}
-            <input type="file" accept="image/*" class="hidden" (change)="onBannerSelected($event)" [disabled]="!isEditing" />
-          </label>
-        </div>
-        <div *ngIf="profile.banner_url" class="absolute bottom-4 left-4 w-56">
-          <label class="text-xs font-medium text-white/90">Copyright text (20 char)</label>
-          <input [(ngModel)]="profile.banner_copyright" [disabled]="!isEditing" type="text" maxlength="20" placeholder="Copyright" class="mt-1 w-full rounded-lg border border-white/20 bg-black/40 px-2.5 py-2 text-xs text-white outline-none backdrop-blur-sm focus:border-red-400 disabled:cursor-not-allowed disabled:opacity-60" />
+            <svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z"></path>
+              <circle cx="12" cy="13" r="3"></circle>
+            </svg>
+            {{ isUploadingBanner ? 'Uploading...' : (profile.banner_url ? 'Change banner' : 'Add banner') }}
+          </button>
         </div>
       </div>
 
       <div class="flex flex-col gap-6 px-6 pb-6 pt-0 md:flex-row md:items-end">
         <div class="-mt-12 flex flex-col items-center gap-3 z-100">
-          <div class="relative flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-zinc-200 shadow-lg">
+          <div class="group relative flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-zinc-200 shadow-lg">
             <img *ngIf="profile.profile_picture_url; else avatarFallback" [src]="profile.profile_picture_url" alt="Profile picture" [attr.data-preview-copyright]="profile.profile_picture_copyright" class="h-full w-full object-cover" />
-            <app-image-copyright-tag *ngIf="profile.profile_picture_url" [copyrightText]="profile.profile_picture_copyright"></app-image-copyright-tag>
             <ng-template #avatarFallback>
               <span class="text-2xl font-bold text-zinc-500">{{ (profile.first_name || profile.last_name || 'A').charAt(0).toUpperCase() }}</span>
             </ng-template>
+            <button
+              *ngIf="isEditing"
+              type="button"
+              (click)="openAvatarEditor()"
+              class="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/55 text-[10px] font-semibold uppercase tracking-wide text-white opacity-0 transition-opacity duration-200 group-hover:opacity-100 focus:opacity-100 focus:outline-none"
+              [attr.aria-label]="profile.profile_picture_url ? 'Change profile picture' : 'Add profile picture'"
+            >
+              <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z"></path>
+                <circle cx="12" cy="13" r="3"></circle>
+              </svg>
+              Change
+            </button>
           </div>
-          <label
-            class="inline-flex items-center rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-700 transition-colors"
-            [class.cursor-pointer]="isEditing"
-            [class.hover:bg-zinc-50]="isEditing"
-            [class.cursor-not-allowed]="!isEditing"
-            [class.opacity-60]="!isEditing"
+          <button
+            *ngIf="isEditing"
+            type="button"
+            (click)="openAvatarEditor()"
+            [disabled]="isUploadingAvatar"
+            class="inline-flex items-center rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {{ isUploadingAvatar ? 'Uploading...' : 'Upload Picture' }}
-            <input type="file" accept="image/*" class="hidden" (change)="onAvatarSelected($event)" [disabled]="!isEditing" />
-          </label>
-          <div *ngIf="profile.profile_picture_url" class="w-full max-w-xs">
-            <label class="text-xs font-medium text-zinc-600">Copyright text (20 char)</label>
-            <input [(ngModel)]="profile.profile_picture_copyright" [disabled]="!isEditing" type="text" maxlength="20" placeholder="Copyright" class="mt-1 w-full rounded-lg border border-zinc-300 px-2.5 py-2 text-xs outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-500" />
+            {{ isUploadingAvatar ? 'Uploading...' : (profile.profile_picture_url ? 'Change Picture' : 'Add Picture') }}
+          </button>
+          <div *ngIf="isEditing && profile.profile_picture_url" class="w-full max-w-[13rem] space-y-1">
+            <label class="text-xs font-medium text-zinc-600">Picture copyright</label>
+            <div class="flex items-center rounded-lg border border-zinc-300 bg-white px-2.5 focus-within:border-red-500 focus-within:ring-2 focus-within:ring-red-100">
+              <span class="text-xs font-semibold text-zinc-400">&#64;</span>
+              <input [(ngModel)]="profile.profile_picture_copyright" type="text" [maxlength]="maxCopyrightLength" placeholder="Credit name" class="w-full bg-transparent py-2 pl-1 text-xs outline-none" />
+            </div>
+          </div>
+          <div *ngIf="!isEditing && profile.profile_picture_url" class="text-xs text-zinc-500">
+            {{ pictureCopyrightLabel }}
           </div>
         </div>
 
@@ -99,6 +115,15 @@
             <input [(ngModel)]="profile.last_name" [disabled]="!isEditing" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-500" />
           </div>
         </div>
+      </div>
+
+      <div *ngIf="isEditing && profile.banner_url" class="border-t border-zinc-200 bg-zinc-50 px-6 py-3">
+        <label class="text-xs font-medium text-zinc-600">Banner copyright</label>
+        <div class="mt-1 flex max-w-xs items-center rounded-lg border border-zinc-300 bg-white px-2.5 focus-within:border-red-500 focus-within:ring-2 focus-within:ring-red-100">
+          <span class="text-xs font-semibold text-zinc-400">&#64;</span>
+          <input [(ngModel)]="profile.banner_copyright" type="text" [maxlength]="maxCopyrightLength" placeholder="Credit name" class="w-full bg-transparent py-2 pl-1 text-xs outline-none" />
+        </div>
+        <p class="mt-1 text-[11px] text-zinc-500">Shown on the banner. Leave empty to show just &#169;.</p>
       </div>
     </section>
 
@@ -130,26 +155,22 @@
     </section>
 
     <section class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-      <div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h2 class="text-lg font-semibold text-zinc-900">Performance Type</h2>
-          <p class="mt-1 text-sm text-zinc-500">Select one or more performance types from the system list.</p>
-        </div>
-        <div class="flex gap-2">
-          <select [(ngModel)]="selectedPerformanceId" [disabled]="!isEditing" class="min-w-64 rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-500">
-            <option value="">Select performance type</option>
-            <option *ngFor="let option of performanceOptions; trackBy: trackByPerformance" [value]="option.id">{{ option.name }}</option>
-          </select>
-          <button type="button" (click)="addPerformanceType()" [disabled]="!isEditing" class="rounded-xl bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60">
-            Add
-          </button>
-        </div>
+      <div>
+        <h2 class="text-lg font-semibold text-zinc-900">Performance Type</h2>
+        <p class="mt-1 text-sm text-zinc-500">All TJS artists perform classical music, so this is set for you.</p>
       </div>
 
-      <div class="mt-4 flex flex-wrap gap-2">
-        <span *ngFor="let item of profile.performance_types; trackBy: trackByPerformance" class="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700">
-          {{ item.name }}
-          <button *ngIf="isEditing" type="button" (click)="removePerformanceType(item.id)" class="text-blue-500 hover:text-blue-700">x</button>
+      <div class="mt-4 flex flex-wrap items-center gap-2">
+        <span *ngIf="lockedPerformanceType" class="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700">
+          <svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+          {{ lockedPerformanceType.name }}
+        </span>
+
+        <span *ngIf="!lockedPerformanceType" class="text-sm text-zinc-500">
+          Classical music is not configured in the system list yet — ask an administrator to add it.
         </span>
       </div>
     </section>
@@ -300,4 +321,19 @@
       </div>
     </section>
   </div>
+
+  <app-image-cropper-modal
+    [open]="cropperTarget !== null"
+    [title]="cropperTarget === 'banner' ? 'Update banner' : 'Update profile picture'"
+    [hint]="cropperTarget === 'banner' ? 'Drag to reposition, zoom to frame the banner.' : 'Drag to reposition, zoom to frame your face.'"
+    [saveLabel]="cropperTarget === 'banner' ? 'Save banner' : 'Save picture'"
+    [shape]="cropperTarget === 'banner' ? 'rect' : 'circle'"
+    [aspectRatio]="cropperTarget === 'banner' ? 3.2 : 1"
+    [viewportWidth]="cropperTarget === 'banner' ? 416 : 260"
+    [outputWidth]="cropperTarget === 'banner' ? 1600 : 640"
+    [initialCopyright]="cropperTarget === 'banner' ? profile.banner_copyright : profile.profile_picture_copyright"
+    [isSaving]="isUploadingBanner || isUploadingAvatar"
+    (save)="onCroppedImageSaved($event)"
+    (cancel)="closeImageEditor()"
+  />
 </div>
