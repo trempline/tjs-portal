@@ -908,6 +908,19 @@ export interface ArtistRequestMediaEntry {
   name: string;
   description: string;
   url: string;
+  /** Credit shown on the media image, max 20 chars. Absent on host-built entries. */
+  copyright_text?: string;
+}
+
+/** One city an artist is willing to play in, as listed in tjs_geographical_zone. */
+export interface GeographicalZoneOption {
+  id_dept: number | null;
+  departement: string;
+  ville: string;
+}
+
+export interface ArtistRequestZoneEntry extends GeographicalZoneOption {
+  id?: string;
 }
 
 export interface ArtistRequestArtistEntry {
@@ -919,9 +932,30 @@ export interface ArtistRequestArtistEntry {
   display_name: string;
   invited_full_name?: string;
   is_primary?: boolean;
+  /** Set while a PAG artist is queued on an unsaved request, before the invitation goes out. */
+  pag_artist_id?: string | null;
+  /** True once the co-artist's profile is flagged as coming from PAG. */
+  is_pag_artist?: boolean;
   tagline?: string | null;
   image_url?: string | null;
   instruments?: string[];
+}
+
+/** An already-invited artist, offered for reuse before a fresh invitation is sent. */
+export interface InvitedArtistOption {
+  id: string;
+  artist_name: string;
+  email: string;
+  /** 'pending' until they activate their account; they can still be added as a co-artist. */
+  activation_status: string;
+}
+
+export interface PagArtistOption {
+  pag_artist_id: string;
+  full_name: string;
+  email: string;
+  /** Set when this PAG artist already has a TJS artist record. */
+  tjs_artist_id: string | null;
 }
 
 export interface ArtistRequestCommentEntry {
@@ -947,6 +981,7 @@ export interface ArtistRequestDetail {
   image_copyright: string;
   status: 'new_request' | 'accepted_by_host' | 'host_proposed' | 'artist_proposed' | 'artist_accepted' | 'approved' | 'published' | 'rejected';
   dates: ArtistRequestDateEntry[];
+  zones: ArtistRequestZoneEntry[];
   media: ArtistRequestMediaEntry[];
   artists: ArtistRequestArtistEntry[];
   comments: ArtistRequestCommentEntry[];
@@ -1030,6 +1065,12 @@ export class SupabaseService {
   private supabase: SupabaseClient;
   /** Admin client uses the service-role key – only for server-side-like admin ops. */
   private adminSupabase: SupabaseClient;
+  /**
+   * Same key as the admin client, but pinned: its own auth storage and an explicit
+   * Authorization header, so a signed-in user's JWT can never be sent in place of the
+   * service-role key. Reference tables closed off by RLS stay readable through it.
+   */
+  private serviceRoleSupabase: SupabaseClient;
   private roleIdCache = new Map<string, string>();
   private artistAuditLogAvailable: boolean | null = null;
 
@@ -1055,6 +1096,25 @@ export class SupabaseService {
           persistSession: false,
           autoRefreshToken: false,
         }
+      }
+    );
+
+    const serviceRoleKey = (environment.supabase as any).serviceRoleKey || environment.supabase.anonKey;
+    this.serviceRoleSupabase = createClient(
+      environment.supabase.url,
+      serviceRoleKey,
+      {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+          storageKey: 'tjs-service-role-no-session',
+        },
+        global: {
+          headers: {
+            apikey: serviceRoleKey,
+            Authorization: `Bearer ${serviceRoleKey}`,
+          },
+        },
       }
     );
   }
@@ -2580,6 +2640,58 @@ export class SupabaseService {
     return (data ?? []) as Array<{ id: number; name: string }>;
   }
 
+  /**
+   * Every city an event request can be pointed at, ordered department then city.
+   *
+   * Read through the admin client first: it bypasses RLS, so the list still loads when
+   * tjs_geographical_zone carries no SELECT policy. Builds without a service-role key
+   * fall back to the signed-in client, which needs that policy to return anything.
+   */
+  async listGeographicalZones(): Promise<GeographicalZoneOption[]> {
+    const pinnedZones = await this.fetchGeographicalZones(this.serviceRoleSupabase);
+    if (pinnedZones.length > 0) {
+      return pinnedZones;
+    }
+
+    const adminZones = await this.fetchGeographicalZones(this.adminSupabase);
+    if (adminZones.length > 0) {
+      return adminZones;
+    }
+
+    // Last resort: the signed-in client, which needs a SELECT policy on the table.
+    const sessionZones = await this.fetchGeographicalZones(this.supabase);
+    if (sessionZones.length === 0) {
+      console.warn(
+        'listGeographicalZones: tjs_geographical_zone returned no rows through any client. '
+        + 'The table most likely has RLS enabled without a SELECT policy.'
+      );
+    }
+
+    return sessionZones;
+  }
+
+  private async fetchGeographicalZones(client: SupabaseClient): Promise<GeographicalZoneOption[]> {
+    const { data, error } = await client
+      .from('tjs_geographical_zone')
+      .select('id_dept, departement, ville')
+      .order('departement', { ascending: true })
+      .order('ville', { ascending: true });
+
+    if (error) {
+      console.error('listGeographicalZones error:', error.message);
+      return [];
+    }
+
+    // An empty list here is almost always RLS: the table exists but hides its rows.
+    return ((data ?? []) as any[])
+      .filter((row) => row.departement && row.ville)
+      .map((row) => ({
+        id_dept: row.id_dept ?? null,
+        departement: row.departement as string,
+        ville: row.ville as string,
+      }));
+  }
+
   /** Artist records (TJS and invited) belonging to a profile. */
   private async getArtistIdsForProfile(profileId: string): Promise<string[]> {
     const { data, error } = await this.adminSupabase
@@ -2775,7 +2887,7 @@ export class SupabaseService {
   }
 
   async getArtistWorkspaceRequestDetail(requestId: string): Promise<ArtistRequestDetail | null> {
-    const [requestResult, datesResult, mediaResult, artistsResult, commentsResult] = await Promise.all([
+    const [requestResult, datesResult, zonesResult, mediaResult, artistsResult, commentsResult] = await Promise.all([
       this.adminSupabase
         .from('tjs_artist_requests')
         .select(`
@@ -2789,6 +2901,11 @@ export class SupabaseService {
         .select('*')
         .eq('request_id', requestId)
         .order('start_date', { ascending: true }),
+      this.adminSupabase
+        .from('tjs_artist_request_zones')
+        .select('*')
+        .eq('request_id', requestId)
+        .order('departement', { ascending: true }),
       this.adminSupabase
         .from('tjs_artist_request_media')
         .select('*')
@@ -2839,7 +2956,7 @@ export class SupabaseService {
     if (linkedArtistIds.length > 0) {
       const { data: linkedArtists, error: linkedArtistsError } = await this.adminSupabase
         .from('tjs_artists')
-        .select('id, artist_name, profile_id')
+        .select('id, artist_name, profile_id, pag_artist_id')
         .in('id', linkedArtistIds);
 
       if (linkedArtistsError) {
@@ -2861,7 +2978,7 @@ export class SupabaseService {
           const [linkedProfilesResult, linkedArtistProfilesResult, linkedArtistInstrumentsResult] = await Promise.all([
             this.adminSupabase
               .from('tjs_profiles')
-              .select('id, full_name, email, avatar_url')
+              .select('id, full_name, email, avatar_url, is_pag_artist')
               .in('id', linkedProfileIds),
             this.adminSupabase
               .from('tjs_artist_profiles')
@@ -3006,6 +3123,13 @@ export class SupabaseService {
         end_date: row.end_date ?? '',
         event_time: row.event_time ?? '',
       })),
+      // An empty list is also what a database missing db/034_artist_request_zones.sql returns.
+      zones: ((zonesResult.data ?? []) as any[]).map((row) => ({
+        id: row.id,
+        id_dept: row.id_dept ?? null,
+        departement: row.departement ?? '',
+        ville: row.ville ?? '',
+      })),
       media: ((mediaResult.data ?? []) as any[]).map((row) => ({
         id: row.id,
         media_type: row.media_type ?? 'Video',
@@ -3013,6 +3137,7 @@ export class SupabaseService {
         name: row.name ?? '',
         description: row.description ?? '',
         url: row.url ?? '',
+        copyright_text: row.copyright_text ?? '',
       })),
       artists: this.dedupeRequestArtists(artistRows.map((row) => {
         const selectedArtist = row.artist_id ? artistsById.get(row.artist_id) : null;
@@ -3030,6 +3155,7 @@ export class SupabaseService {
           invited_email: row.invited_email ?? invitedProfile?.email ?? '',
           display_name: selectedArtist?.artist_name || invitedProfile?.full_name || invitedArtist?.artist_name || row.invited_email || '',
           invited_full_name: invitedProfile?.full_name || invitedArtist?.artist_name || '',
+          is_pag_artist: !!(selectedProfile?.is_pag_artist || invitedProfile?.is_pag_artist),
           tagline: artistProfilesById.get(artistProfileId)?.tagline ?? null,
           image_url: selectedProfile?.avatar_url ?? invitedProfile?.avatar_url ?? null,
           instruments: instrumentsByProfileId.get(artistProfileId) ?? [],
@@ -3077,6 +3203,8 @@ export class SupabaseService {
         invited_email: existing.invited_email || entry.invited_email,
         display_name: existing.display_name || entry.display_name,
         invited_full_name: existing.invited_full_name || entry.invited_full_name,
+        pag_artist_id: existing.pag_artist_id ?? entry.pag_artist_id,
+        is_pag_artist: existing.is_pag_artist || entry.is_pag_artist,
         tagline: existing.tagline ?? entry.tagline,
         image_url: existing.image_url ?? entry.image_url,
         instruments: existing.instruments?.length ? existing.instruments : entry.instruments,
@@ -3295,6 +3423,11 @@ export class SupabaseService {
       }
     }
 
+    const zonesSaveError = await this.saveArtistRequestZones(requestId, request.zones ?? []);
+    if (zonesSaveError) {
+      return { requestId: null, error: zonesSaveError };
+    }
+
     const { error: mediaDeleteError } = await this.adminSupabase
       .from('tjs_artist_request_media')
       .delete()
@@ -3312,6 +3445,7 @@ export class SupabaseService {
         name: item.name.trim(),
         description: item.description.trim() || null,
         url: item.url.trim() || null,
+        copyright_text: normalizeCopyrightInput(item.copyright_text) || null,
         updated_at: new Date().toISOString(),
       }));
 
@@ -3320,6 +3454,10 @@ export class SupabaseService {
         .from('tjs_artist_request_media')
         .insert(mediaPayload);
       if (mediaInsertError) {
+        if (mediaInsertError.message?.toLowerCase().includes('copyright_text')) {
+          return { requestId: null, error: 'Media copyright column is missing in the database. Run db/035_request_media_copyright.sql and try again.' };
+        }
+
         return { requestId: null, error: mediaInsertError.message };
       }
     }
@@ -3352,6 +3490,62 @@ export class SupabaseService {
     }
 
     return { requestId, error: null };
+  }
+
+  /** Replaces the zones on a request with the current selection. Returns an error message, or null. */
+  private async saveArtistRequestZones(
+    requestId: string,
+    zones: ArtistRequestZoneEntry[]
+  ): Promise<string | null> {
+    const missingTableError = 'Geographical zone tables are missing in the database. Run db/033_geographical_zone.sql and db/034_artist_request_zones.sql.';
+
+    // The same city can reach here twice when a request is duplicated, and the table
+    // holds each one once per request.
+    const seen = new Set<string>();
+    const payload = zones
+      .filter((zone) => {
+        const key = `${zone.departement}::${zone.ville}`.toLowerCase();
+        if (!zone.departement?.trim() || !zone.ville?.trim() || seen.has(key)) {
+          return false;
+        }
+
+        seen.add(key);
+        return true;
+      })
+      .map((zone) => ({
+        request_id: requestId,
+        id_dept: zone.id_dept ?? null,
+        departement: zone.departement,
+        ville: zone.ville,
+      }));
+
+    const { error: deleteError } = await this.adminSupabase
+      .from('tjs_artist_request_zones')
+      .delete()
+      .eq('request_id', requestId);
+
+    if (deleteError) {
+      // A missing table holds no zones to clear, so it only matters once one is picked.
+      if (!this.isMissingSchemaError(deleteError)) {
+        return deleteError.message;
+      }
+
+      return payload.length > 0 ? missingTableError : null;
+    }
+
+    if (payload.length === 0) {
+      return null;
+    }
+
+    const { error: insertError } = await this.adminSupabase
+      .from('tjs_artist_request_zones')
+      .insert(payload);
+
+    if (insertError) {
+      return this.isMissingSchemaError(insertError) ? missingTableError : insertError.message;
+    }
+
+    return null;
   }
 
   async deleteArtistWorkspaceRequest(
@@ -3502,6 +3696,118 @@ export class SupabaseService {
       ...artist,
       instruments: instrumentsByProfileId.get(artist.profile_id) ?? [],
     }));
+  }
+
+  /** Invited artists already on the platform, so a co-artist need not be invited twice. */
+  async listInvitedArtistsForRequestSelection(): Promise<InvitedArtistOption[]> {
+    // Everyone still on the books: an invitation not yet activated ('pending') is a
+    // perfectly good co-artist, so only deactivated records are left out.
+    const { data, error } = await this.adminSupabase
+      .from('tjs_artists')
+      .select('id, artist_name, profile_id, activation_status')
+      .eq('is_invited_artist', true)
+      .neq('activation_status', 'inactive')
+      .order('artist_name', { ascending: true });
+
+    if (error) {
+      console.error('listInvitedArtistsForRequestSelection error:', error.message);
+      return [];
+    }
+
+    const artists = (data ?? []) as Array<{
+      id: string;
+      artist_name: string | null;
+      profile_id: string | null;
+      activation_status: string | null;
+    }>;
+    const profileIds = artists
+      .map((artist) => artist.profile_id)
+      .filter((profileId): profileId is string => !!profileId);
+
+    const emailsByProfileId = new Map<string, string>();
+    if (profileIds.length > 0) {
+      const { data: profiles, error: profilesError } = await this.adminSupabase
+        .from('tjs_profiles')
+        .select('id, email')
+        .in('id', profileIds);
+
+      if (profilesError) {
+        console.error('listInvitedArtistsForRequestSelection profiles error:', profilesError.message);
+      } else {
+        for (const profile of (profiles ?? []) as Array<{ id: string; email: string | null }>) {
+          if (profile.email) {
+            emailsByProfileId.set(profile.id, profile.email);
+          }
+        }
+      }
+    }
+
+    return artists.map((artist) => ({
+      id: artist.id,
+      artist_name: artist.artist_name?.trim() || emailsByProfileId.get(artist.profile_id ?? '') || 'Invited artist',
+      email: emailsByProfileId.get(artist.profile_id ?? '') ?? '',
+      activation_status: artist.activation_status ?? 'pending',
+    }));
+  }
+
+  /** Active PAG artists that can be pulled onto a request. An email is required to invite them. */
+  async listPagArtistsForRequestSelection(): Promise<PagArtistOption[]> {
+    const pagArtists = await this.getPagArtists();
+
+    return pagArtists
+      .filter((artist) => artist.is_active !== false && !!artist.email?.trim())
+      .map((artist) => ({
+        // PAG ids come back as numbers; a select option value is always a string, so
+        // matching the two later only works if this is a string from the start.
+        pag_artist_id: String(artist.id),
+        full_name: `${artist.fname ?? ''} ${artist.lname ?? ''}`.trim() || (artist.email as string),
+        email: (artist.email as string).trim().toLowerCase(),
+        tjs_artist_id: artist.tjs_artist_id ?? null,
+      }));
+  }
+
+  /**
+   * Invites a PAG artist onto a request. They join as an invited artist like anyone else,
+   * then their profile is flagged as PAG.
+   *
+   * The flag goes on tjs_profiles.is_pag_artist, not tjs_artists.pag_artist_id: that column
+   * is a uuid, while PAG artists are keyed by an integer id, so the two cannot meet.
+   */
+  async invitePagArtistForRequest(
+    assignedBy: string,
+    requestId: string,
+    pagArtist: { pag_artist_id: string; email: string; full_name: string }
+  ): Promise<{ artistId: string | null; error: string | null }> {
+    const result = await this.inviteArtistForRequest(assignedBy, requestId, pagArtist.email, pagArtist.full_name);
+    if (result.error || !result.artistId) {
+      return result;
+    }
+
+    const { data: artistRow, error: artistError } = await this.adminSupabase
+      .from('tjs_artists')
+      .select('profile_id')
+      .eq('id', result.artistId)
+      .maybeSingle();
+
+    if (artistError || !artistRow?.profile_id) {
+      console.error('invitePagArtistForRequest profile lookup error:', artistError?.message ?? 'no profile');
+      return result;
+    }
+
+    const { error } = await this.adminSupabase
+      .from('tjs_profiles')
+      .update({
+        is_pag_artist: true,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', artistRow.profile_id);
+
+    if (error) {
+      console.error('invitePagArtistForRequest flag error:', error.message);
+      return { artistId: result.artistId, error: error.message };
+    }
+
+    return result;
   }
 
   async inviteArtistForRequest(

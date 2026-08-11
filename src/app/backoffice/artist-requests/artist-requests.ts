@@ -21,13 +21,20 @@ import {
   ArtistRequestCommentEntry,
   ArtistRequestDateEntry,
   ArtistRequestDetail,
+  ArtistRequestZoneEntry,
   ArtistInstrumentOption,
   ArtistRequestListItem,
   ArtistRequestMediaEntry,
+  GeographicalZoneOption,
+  InvitedArtistOption,
+  PagArtistOption,
   SupabaseService,
 } from '../../services/supabase.service';
 
-type RequestTab = 'details' | 'dates' | 'proposed_dates' | 'image' | 'media' | 'artist' | 'comments';
+type RequestTab = 'details' | 'dates' | 'zones' | 'proposed_dates' | 'image' | 'media' | 'artist' | 'comments';
+
+/** A residence runs over a period; a concert is a single day show. */
+type RequestFormat = 'residence' | 'concert';
 
 interface HostProposalSummary {
   edition: string | null;
@@ -44,6 +51,11 @@ interface HostProposalSummary {
 })
 export class ArtistRequests implements OnInit {
   private static readonly DUPLICATE_DRAFT_STATE_KEY = 'artistRequestDuplicateDraft';
+  /**
+   * Temporary: new requests go out under this domain and the field is locked.
+   * Remove this constant and the two getters below to hand the choice back.
+   */
+  private static readonly FROZEN_EVENT_DOMAIN_NAME = 'Musique Classique';
   private authService = inject(AuthService);
   private supabase = inject(SupabaseService);
   private route = inject(ActivatedRoute);
@@ -54,6 +66,7 @@ export class ArtistRequests implements OnInit {
   private seenCommentMap: Record<string, string> = {};
   private isSubmittingArtistProposal = false;
   private originalDatesSignature = '';
+  private chosenRequestFormat: RequestFormat | null = null;
   private pendingNewRequestDraft: ArtistRequestDetail | null = null;
   private hasPreparedNewRequestRoute = false;
 
@@ -74,8 +87,18 @@ export class ArtistRequests implements OnInit {
 
   requests: ArtistRequestListItem[] = [];
   eventDomains: Array<{ id: number; name: string }> = [];
+  geographicalZones: GeographicalZoneOption[] = [];
+  selectedZoneKey = '';
   tjsArtists: Array<{ id: string; artist_name: string; profile_id: string; instruments: string[] }> = [];
+  invitedArtistOptions: InvitedArtistOption[] = [];
+  pagArtistOptions: PagArtistOption[] = [];
   artistInstruments: ArtistInstrumentOption[] = [];
+
+  selectedTjsArtistId = '';
+  selectedInvitedArtistId = '';
+  selectedPagArtistId = '';
+
+  requestSearch = '';
 
   isEditorOpen = false;
   activeTab: RequestTab = 'details';
@@ -153,6 +176,11 @@ export class ArtistRequests implements OnInit {
     this.initialCommentPreview = '';
     this.inviteArtist = { email: '', fullName: '' };
     this.showInviteArtistForm = false;
+    this.selectedZoneKey = '';
+    this.selectedTjsArtistId = '';
+    this.selectedInvitedArtistId = '';
+    this.selectedPagArtistId = '';
+    this.chosenRequestFormat = null;
     this.isSubmittingArtistProposal = false;
     this.originalDatesSignature = this.buildDatesSignature(this.request.dates);
     this.isEditing = true;
@@ -175,6 +203,11 @@ export class ArtistRequests implements OnInit {
     this.initialCommentPreview = '';
     this.inviteArtist = { email: '', fullName: '' };
     this.showInviteArtistForm = false;
+    this.selectedZoneKey = '';
+    this.selectedTjsArtistId = '';
+    this.selectedInvitedArtistId = '';
+    this.selectedPagArtistId = '';
+    this.chosenRequestFormat = null;
     this.isSubmittingArtistProposal = false;
 
     const detail = await this.supabase.getArtistWorkspaceRequestDetail(requestId);
@@ -208,6 +241,11 @@ export class ArtistRequests implements OnInit {
     this.commentDraft = '';
     this.initialCommentPreview = '';
     this.showInviteArtistForm = false;
+    this.selectedZoneKey = '';
+    this.selectedTjsArtistId = '';
+    this.selectedInvitedArtistId = '';
+    this.selectedPagArtistId = '';
+    this.chosenRequestFormat = null;
     this.isSubmittingArtistProposal = false;
     this.originalDatesSignature = this.buildDatesSignature(this.request.dates);
     this.hasPreparedNewRequestRoute = false;
@@ -269,6 +307,10 @@ export class ArtistRequests implements OnInit {
       })),
       dates: this.normalizeRequestDates(detail.dates).map((date) => ({
         ...date,
+        id: undefined,
+      })),
+      zones: detail.zones.map((zone) => ({
+        ...zone,
         id: undefined,
       })),
     });
@@ -336,35 +378,37 @@ export class ArtistRequests implements OnInit {
       return;
     }
 
-    this.request.dates = [...this.request.dates, this.blankDate()];
+    this.request.dates = [...this.request.dates, this.applyFormatToDate(this.blankDate(), this.requestFormat)];
   }
 
   /**
-   * A residence always runs over a period. Anything else may be booked either as a
-   * single day show or as a period, so both choices stay open.
+   * Read off the dates themselves, so a saved request comes back on the right choice.
+   * With no dates left to read, the last choice made on this form stands in.
    */
-  setResidence(date: ArtistRequestDateEntry, isResidence: boolean) {
+  get requestFormat(): RequestFormat {
+    if (this.request.dates.length === 0 && this.chosenRequestFormat) {
+      return this.chosenRequestFormat;
+    }
+
+    return this.request.dates.some((date) => date.is_residence) ? 'residence' : 'concert';
+  }
+
+  /** The choice drives every date on the request: a residence is a period, a concert a day show. */
+  setRequestFormat(format: RequestFormat) {
     if (!this.isEditing) {
       return;
     }
 
-    date.is_residence = isResidence;
-
-    if (isResidence) {
-      date.request_type = 'period';
-    }
+    this.chosenRequestFormat = format;
+    this.request.dates = this.request.dates.map((date) => this.applyFormatToDate(date, format));
   }
 
-  setRequestType(date: ArtistRequestDateEntry, requestType: 'day_show' | 'period') {
-    if (!this.isEditing || date.is_residence) {
-      return;
+  private applyFormatToDate(date: ArtistRequestDateEntry, format: RequestFormat): ArtistRequestDateEntry {
+    if (format === 'residence') {
+      return { ...date, is_residence: true, request_type: 'period' };
     }
 
-    date.request_type = requestType;
-
-    if (requestType === 'day_show') {
-      date.end_date = '';
-    }
+    return { ...date, is_residence: false, request_type: 'day_show', end_date: '' };
   }
 
   removeDate(index: number) {
@@ -374,6 +418,74 @@ export class ArtistRequests implements OnInit {
 
     this.request.dates = this.request.dates.filter((_, itemIndex) => itemIndex !== index);
   }
+
+  /** Identity of a zone: the list has no key of its own, so department + city stands in. */
+  private zoneKey(zone: { departement: string; ville: string }): string {
+    return `${zone.departement}::${zone.ville}`.toLowerCase();
+  }
+
+  /** Option value of the multi-select; the key doubles as the option identity. */
+  zoneOptionKey(zone: { departement: string; ville: string }): string {
+    return this.zoneKey(zone);
+  }
+
+  /** How a zone reads everywhere it is shown: "departement - ville". */
+  zoneLabel(zone: { departement: string; ville: string }): string {
+    return `${zone.departement} - ${zone.ville}`;
+  }
+
+  /** Zones still on offer: the dropdown drops whatever is already on the request. */
+  get availableZones(): GeographicalZoneOption[] {
+    return this.geographicalZones.filter((zone) => !this.isZoneSelected(zone));
+  }
+
+  /** Adds the zone picked in the dropdown, one at a time, as the instruments tab does. */
+  addZone() {
+    if (!this.isEditing || !this.selectedZoneKey) {
+      return;
+    }
+
+    const zone = this.geographicalZones.find((item) => this.zoneKey(item) === this.selectedZoneKey);
+    if (zone && !this.isZoneSelected(zone)) {
+      this.request.zones = [...this.request.zones, { ...zone }];
+    }
+
+    this.selectedZoneKey = '';
+  }
+
+  get selectedZones(): ArtistRequestZoneEntry[] {
+    return [...this.request.zones].sort((a, b) =>
+      a.departement.localeCompare(b.departement) || a.ville.localeCompare(b.ville)
+    );
+  }
+
+  isZoneSelected(zone: GeographicalZoneOption): boolean {
+    return this.request.zones.some((selected) => this.zoneKey(selected) === this.zoneKey(zone));
+  }
+
+  toggleZone(zone: GeographicalZoneOption) {
+    if (!this.isEditing) {
+      return;
+    }
+
+    this.request.zones = this.isZoneSelected(zone)
+      ? this.request.zones.filter((selected) => this.zoneKey(selected) !== this.zoneKey(zone))
+      : [...this.request.zones, { ...zone }];
+  }
+
+  clearZones() {
+    if (!this.isEditing) {
+      return;
+    }
+
+    this.request.zones = [];
+  }
+
+  /**
+   * An arrow property, not a method: ngFor calls trackBy unbound, so a plain method
+   * would lose `this` and fail on zoneKey.
+   */
+  trackByZone = (_: number, item: { departement: string; ville: string }) => this.zoneKey(item);
 
   addMedia(mediaType: 'CD' | 'Video') {
     if (!this.isEditing) {
@@ -388,6 +500,7 @@ export class ArtistRequests implements OnInit {
         name: '',
         description: '',
         url: '',
+        copyright_text: '',
       },
     ];
   }
@@ -398,24 +511,6 @@ export class ArtistRequests implements OnInit {
     }
 
     this.request.media = this.request.media.filter((_, itemIndex) => itemIndex !== index);
-  }
-
-  addArtistSelection() {
-    if (!this.isEditing) {
-      return;
-    }
-
-    this.request.artists = [
-      ...this.request.artists,
-      {
-        artist_id: null,
-        invited_artist_id: null,
-        invited_email: '',
-        display_name: '',
-        invited_full_name: '',
-        is_primary: false,
-      },
-    ];
   }
 
   removeArtistSelection(index: number) {
@@ -430,20 +525,137 @@ export class ArtistRequests implements OnInit {
     this.request.artists = this.request.artists.filter((_, itemIndex) => itemIndex !== index);
   }
 
-  onArtistSelected(index: number) {
-    const item = this.request.artists[index];
-    const selected = this.tjsArtists.find((artist) => artist.id === item.artist_id);
-    if (!selected) {
+  /** TJS artists not already on the request — the primary artist included. */
+  get availableTjsArtists() {
+    return this.tjsArtists.filter(
+      (option) => !this.request.artists.some((artist) => artist.artist_id === option.id)
+    );
+  }
+
+  get availableInvitedArtists(): InvitedArtistOption[] {
+    return this.invitedArtistOptions.filter((option) => !this.isArtistOnRequest(option.id, option.email));
+  }
+
+  get availablePagArtists(): PagArtistOption[] {
+    return this.pagArtistOptions.filter(
+      (option) => !this.isArtistOnRequest(option.tjs_artist_id, option.email)
+        && !this.request.artists.some((artist) => artist.pag_artist_id === option.pag_artist_id)
+    );
+  }
+
+  /** True once this person sits on the request, by artist record or by email. */
+  private isArtistOnRequest(artistId: string | null, email: string): boolean {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    return this.request.artists.some((artist) => {
+      if (artistId && (artist.artist_id === artistId || artist.invited_artist_id === artistId)) {
+        return true;
+      }
+
+      return !!normalizedEmail && artist.invited_email.trim().toLowerCase() === normalizedEmail;
+    });
+  }
+
+  addTjsArtist() {
+    const selected = this.tjsArtists.find((artist) => artist.id === this.selectedTjsArtistId);
+    if (!this.isEditing || !selected) {
       return;
     }
 
-    this.request.artists[index] = {
-      ...item,
-      invited_artist_id: null,
-      invited_email: '',
-      display_name: selected.artist_name,
-      invited_full_name: '',
-    };
+    this.request.artists = [
+      ...this.request.artists,
+      {
+        artist_id: selected.id,
+        invited_artist_id: null,
+        invited_email: '',
+        display_name: selected.artist_name,
+        invited_full_name: '',
+        is_primary: false,
+      },
+    ];
+    this.selectedTjsArtistId = '';
+  }
+
+  /** Adds an artist who was invited before: they exist already, so no new invitation is sent. */
+  addExistingInvitedArtist() {
+    const selected = this.invitedArtistOptions.find((artist) => artist.id === this.selectedInvitedArtistId);
+    if (!this.isEditing || !selected) {
+      return;
+    }
+
+    this.request.artists = [
+      ...this.request.artists,
+      {
+        artist_id: null,
+        invited_artist_id: selected.id,
+        invited_email: selected.email,
+        display_name: selected.artist_name,
+        invited_full_name: selected.artist_name,
+        is_primary: false,
+      },
+    ];
+    this.selectedInvitedArtistId = '';
+  }
+
+  /** Queues a PAG artist; the invitation and the PAG flag are applied on submit. */
+  addPagArtist() {
+    const selected = this.pagArtistOptions.find((artist) => artist.pag_artist_id === this.selectedPagArtistId);
+    if (!this.isEditing || !selected) {
+      return;
+    }
+
+    this.request.artists = [
+      ...this.request.artists,
+      {
+        artist_id: null,
+        invited_artist_id: null,
+        invited_email: selected.email,
+        display_name: selected.full_name,
+        invited_full_name: selected.full_name,
+        pag_artist_id: selected.pag_artist_id,
+        is_primary: false,
+      },
+    ];
+    this.selectedPagArtistId = '';
+  }
+
+  /** What a row is, for its badge and for grouping. */
+  artistKind(artist: ArtistRequestArtistEntry): 'primary' | 'tjs' | 'pag' | 'invited' {
+    if (artist.is_primary) {
+      return 'primary';
+    }
+
+    // pag_artist_id while the pick is still queued; is_pag_artist once it has been saved.
+    if (artist.pag_artist_id || artist.is_pag_artist) {
+      return 'pag';
+    }
+
+    return artist.artist_id ? 'tjs' : 'invited';
+  }
+
+  get coArtists(): ArtistRequestArtistEntry[] {
+    return this.request.artists.filter((artist) => !artist.is_primary);
+  }
+
+  /** Removes by identity: the list shown skips the primary artist, so indexes would not line up. */
+  removeCoArtist(artist: ArtistRequestArtistEntry) {
+    if (!this.isEditing || artist.is_primary) {
+      return;
+    }
+
+    this.request.artists = this.request.artists.filter((item) => item !== artist);
+  }
+
+  trackByArtistOption(_: number, item: { id: string }) {
+    return item.id;
+  }
+
+  trackByInvitedOption(_: number, item: InvitedArtistOption) {
+    return item.id;
+  }
+
+  trackByPagOption(_: number, item: PagArtistOption) {
+    return item.pag_artist_id;
   }
 
   async onRequestImageSelected(event: Event) {
@@ -509,6 +721,11 @@ export class ArtistRequests implements OnInit {
       this.error = 'Event title is required.';
       this.activeTab = 'details';
       return;
+    }
+
+    // Catches a request drafted before the domain list had loaded.
+    if (this.frozenEventDomain && !this.request.event_domain_id) {
+      this.request.event_domain_id = this.frozenEventDomain.id;
     }
 
     this.artistInstruments = await this.supabase.getArtistWorkspaceInstruments(profileId);
@@ -581,12 +798,21 @@ export class ArtistRequests implements OnInit {
     );
 
     for (const invite of pendingInvites) {
-      const inviteResult = await this.supabase.inviteArtistForRequest(
-        profileId,
-        result.requestId,
-        invite.invited_email,
-        invite.invited_full_name?.trim() || invite.display_name.trim()
-      );
+      const fullName = invite.invited_full_name?.trim() || invite.display_name.trim();
+
+      // A PAG co-artist is invited the same way, then flagged with their PAG record.
+      const inviteResult = invite.pag_artist_id
+        ? await this.supabase.invitePagArtistForRequest(profileId, result.requestId, {
+            pag_artist_id: invite.pag_artist_id,
+            email: invite.invited_email,
+            full_name: fullName,
+          })
+        : await this.supabase.inviteArtistForRequest(
+            profileId,
+            result.requestId,
+            invite.invited_email,
+            fullName
+          );
 
       if (inviteResult.error) {
         this.error = inviteResult.error;
@@ -742,6 +968,40 @@ export class ArtistRequests implements OnInit {
     return item.id;
   }
 
+  /** The status as it reads on screen, so searching for "Host Proposed" finds it. */
+  statusLabel(status: ArtistRequestListItem['status']): string {
+    switch (status) {
+      case 'new_request':
+        return 'New Request';
+      case 'accepted_by_host':
+        return 'Accepted by Host';
+      case 'host_proposed':
+        return 'Host Proposed';
+      case 'artist_proposed':
+        return 'Artist Proposed';
+      case 'artist_accepted':
+        return 'Artist Accepted';
+      default:
+        return status;
+    }
+  }
+
+  /** Free-text search over the columns the table shows. */
+  get filteredRequests(): ArtistRequestListItem[] {
+    const search = this.requestSearch.trim().toLowerCase();
+    if (!search) {
+      return this.requests;
+    }
+
+    return this.requests.filter((request) => [
+      request.event_title,
+      request.event_domain_name,
+      request.date_summary,
+      this.statusLabel(request.status),
+      request.status,
+    ].some((field) => (field ?? '').toLowerCase().includes(search)));
+  }
+
   trackByMedia(index: number, item: ArtistRequestMediaEntry) {
     return item.id ?? `${item.media_type}-${index}`;
   }
@@ -788,6 +1048,32 @@ export class ArtistRequests implements OnInit {
     return this.eventDomains.find((domain) => domain.id === this.request.event_domain_id)?.name ?? 'Not selected';
   }
 
+  /**
+   * The domain the field is pinned to. Matched by name so it survives whatever id the
+   * row carries, and loosely enough to catch it in either language: "Musique Classique",
+   * "Classical Music", "Classical Musiq".
+   */
+  get frozenEventDomain(): { id: number; name: string } | null {
+    const normalize = (value: string) => value
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '');
+
+    const target = normalize(ArtistRequests.FROZEN_EVENT_DOMAIN_NAME);
+
+    return this.eventDomains.find((domain) => normalize(domain.name) === target)
+      ?? this.eventDomains.find((domain) => {
+        const name = normalize(domain.name);
+        return name.includes('classi') && name.includes('musi');
+      })
+      ?? null;
+  }
+
+  get isEventDomainFrozen(): boolean {
+    return !!this.frozenEventDomain;
+  }
+
   isInvitedArtist(artist: ArtistRequestArtistEntry): boolean {
     return !!artist.invited_email || (!!artist.invited_artist_id && !artist.artist_id);
   }
@@ -830,7 +1116,7 @@ export class ArtistRequests implements OnInit {
 
   /** Tabs actually on screen — Proposed Dates only exists once a host has proposed. */
   get visibleTabs(): RequestTab[] {
-    const tabs: RequestTab[] = ['details', 'dates'];
+    const tabs: RequestTab[] = ['details', 'dates', 'zones'];
 
     if (this.latestHostProposal && this.request.status !== 'published') {
       tabs.push('proposed_dates');
@@ -845,6 +1131,8 @@ export class ArtistRequests implements OnInit {
         return 'Details';
       case 'dates':
         return 'Dates';
+      case 'zones':
+        return 'Geographical Zone';
       case 'proposed_dates':
         return 'Proposed Dates';
       case 'image':
@@ -967,7 +1255,7 @@ export class ArtistRequests implements OnInit {
 
   private blankRequest(): ArtistRequestDetail {
     return this.applyPrimaryArtist({
-      event_domain_id: null,
+      event_domain_id: this.frozenEventDomain?.id ?? null,
       event_title: '',
       teaser: '',
       long_teaser: '',
@@ -976,6 +1264,7 @@ export class ArtistRequests implements OnInit {
       image_copyright: '',
       status: 'new_request',
       dates: [this.blankDate()],
+      zones: [],
       media: [],
       artists: [],
       comments: [],
@@ -1063,16 +1352,30 @@ export class ArtistRequests implements OnInit {
 
   private async loadData(profileId: string) {
     try {
-      const [requests, eventDomains, tjsArtists, artistInstruments] = await Promise.all([
+      const [
+        requests,
+        eventDomains,
+        geographicalZones,
+        tjsArtists,
+        invitedArtistOptions,
+        pagArtistOptions,
+        artistInstruments,
+      ] = await Promise.all([
         this.supabase.getArtistWorkspaceRequests(profileId),
         this.supabase.listEventDomains(),
+        this.supabase.listGeographicalZones(),
         this.supabase.listTjsArtistsForRequestSelection(),
+        this.supabase.listInvitedArtistsForRequestSelection(),
+        this.supabase.listPagArtistsForRequestSelection(),
         this.supabase.getArtistWorkspaceInstruments(profileId),
       ]);
 
       this.requests = requests;
       this.eventDomains = eventDomains;
+      this.geographicalZones = geographicalZones;
       this.tjsArtists = tjsArtists;
+      this.invitedArtistOptions = invitedArtistOptions;
+      this.pagArtistOptions = pagArtistOptions;
       this.artistInstruments = artistInstruments;
       const currentArtist = this.tjsArtists.find((artist) => artist.profile_id === profileId) ?? null;
       this.currentArtistId = currentArtist?.id ?? null;
