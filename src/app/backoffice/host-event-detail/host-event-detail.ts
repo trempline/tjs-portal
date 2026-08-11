@@ -993,7 +993,7 @@ export class HostEventDetail implements OnInit {
     const authorRole = this.authService.isAdmin
       ? 'Admin'
       : this.isCommitteeMember
-        ? 'Committee Member'
+        ? 'Community Member'
         : this.authService.isHostManager
           ? 'Host Manager'
           : this.isArtistWorkspace

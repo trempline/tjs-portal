@@ -111,7 +111,7 @@ export class BackofficeLayout implements OnInit, OnDestroy {
     }
 
     if (this.isCommitteeMember) {
-      return 'Committee Workspace';
+      return 'Community Workspace';
     }
 
     if (this.isHostManager) {
@@ -180,7 +180,7 @@ export class BackofficeLayout implements OnInit, OnDestroy {
     }
 
     if (this.isCommitteeMember) {
-      return 'Committee Workspace';
+      return 'Community Workspace';
     }
 
     if (this.isHostManager) {

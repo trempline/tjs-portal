@@ -97,9 +97,21 @@ export class AuthService {
     return this.authState$.getValue().roles;
   }
 
+  /**
+   * "Committee Member" was renamed to "Community Member". Either spelling satisfies the
+   * other, so access holds whether or not the database row has been renamed yet.
+   */
+  private static readonly ROLE_ALIASES: Record<string, string[]> = {
+    'community member': ['community member', 'committee member'],
+    'committee member': ['community member', 'committee member'],
+  };
+
   hasRole(roleName: string): boolean {
+    const target = roleName.toLowerCase();
+    const accepted = AuthService.ROLE_ALIASES[target] ?? [target];
+
     return this.authState$.getValue().roles.some(
-      r => r.name.toLowerCase() === roleName.toLowerCase()
+      r => accepted.includes(r.name.toLowerCase())
     );
   }
 
@@ -112,7 +124,7 @@ export class AuthService {
   }
 
   get isCommitteeMember(): boolean {
-    return this.hasRole('Committee Member');
+    return this.hasRole('Community Member');
   }
 
   get isHostManager(): boolean {
@@ -216,8 +228,8 @@ export class AuthService {
   getPostLoginRoute(): string {
     const roleNames = this.currentRoles.map((role) => role.name.toLowerCase());
 
-    // Committee Member gets their own dedicated dashboard
-    if (roleNames.includes('committee member')) {
+    // Community Member gets their own dedicated dashboard
+    if (roleNames.includes('community member') || roleNames.includes('committee member')) {
       return '/backoffice/committee-dashboard';
     }
 

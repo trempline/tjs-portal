@@ -110,7 +110,7 @@ export class Artists implements OnInit {
   }
 
   get isCommittee(): boolean {
-    return this.authService.hasRole('Committee Member');
+    return this.authService.hasRole('Community Member');
   }
 
   get isHostManagerWorkspace(): boolean {

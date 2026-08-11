@@ -69,17 +69,23 @@ export class CommitteeMembers implements OnInit {
   // ── Computed / filtered ──────────────────────────────────────────────────
   get filteredCommitteeMembers(): TjsUserWithRoles[] {
     return this.committeeMembers.filter(u => 
-      this.hasRole(u, 'Committee Member') || 
+      this.hasRole(u, 'Community Member') || 
       this.hasRole(u, 'Admin')
     );
   }
 
   private hasRole(user: TjsUserWithRoles, roleName: string): boolean {
-    return user.roles.some(r => r.name.toLowerCase() === roleName.toLowerCase());
+    // 'Committee Member' was renamed to 'Community Member'; either spelling counts.
+    const target = roleName.toLowerCase();
+    const accepted = target === 'community member'
+      ? ['community member', 'committee member']
+      : [target];
+
+    return user.roles.some(r => accepted.includes(r.name.toLowerCase()));
   }
 
   get adminCount() { return this.committeeMembers.filter(u => this.hasRole(u, 'Admin')).length; }
-  get committeeCount() { return this.committeeMembers.filter(u => this.hasRole(u, 'Committee Member')).length; }
+  get committeeCount() { return this.committeeMembers.filter(u => this.hasRole(u, 'Community Member')).length; }
 
   get currentUserId(): string {
     return this.authService.currentUser?.id ?? '';
@@ -280,6 +286,7 @@ export class CommitteeMembers implements OnInit {
   roleBadgeClass(roleName: string): string {
     switch (roleName.toLowerCase()) {
       case 'admin':            return 'bg-red-100 text-red-700';
+      case 'community member':
       case 'committee member': return 'bg-blue-100 text-blue-700';
       case 'member':           return 'bg-green-100 text-green-700';
       case 'host':             return 'bg-orange-100 text-orange-700';
@@ -294,7 +301,8 @@ export class CommitteeMembers implements OnInit {
   roleLabelFr(roleName: string): string {
     switch (roleName.toLowerCase()) {
       case 'admin':            return 'Admin';
-      case 'committee member': return 'Comité';
+      case 'community member':
+      case 'committee member': return 'Communauté';
       case 'member':           return 'Membre';
       case 'host':             return 'Hôte';
       case 'host+':            return 'Hôte+';

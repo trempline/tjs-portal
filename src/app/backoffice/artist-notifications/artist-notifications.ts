@@ -55,7 +55,7 @@ export class ArtistNotifications implements OnInit {
   }
 
   get isCommittee(): boolean {
-    return this.authService.hasRole('Committee Member');
+    return this.authService.hasRole('Community Member');
   }
 
   get canComposeNotifications(): boolean {
@@ -77,7 +77,7 @@ export class ArtistNotifications implements OnInit {
   get pageDescription(): string {
     return this.isCommittee
       ? 'Review incoming notifications, track everything you have sent, and remove sent notifications before they expire.'
-      : 'Review notifications sent by Hosts, Host Managers, Host+, Committee Members, and Admins.';
+      : 'Review notifications sent by Hosts, Host Managers, Host+, Community Members, and Admins.';
   }
 
   get emptyStateMessage(): string {

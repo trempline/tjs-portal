@@ -43,7 +43,7 @@ export class CommitteeDashboard implements OnInit {
 
   async ngOnInit(): Promise<void> {
     if (!this.authService.isCommitteeMember) {
-      this.error = 'Access denied. Committee Member role required.';
+      this.error = 'Access denied. Community Member role required.';
       this.isLoading = false;
       return;
     }

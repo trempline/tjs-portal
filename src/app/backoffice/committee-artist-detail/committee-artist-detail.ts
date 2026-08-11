@@ -165,7 +165,7 @@ export class CommitteeArtistDetail implements OnInit {
   }
 
   get canEditTjsArtist(): boolean {
-    return (this.authService.hasRole('Committee Member') || this.isAdminWorkspace)
+    return (this.authService.hasRole('Community Member') || this.isAdminWorkspace)
       && !!this.artist?.is_tjs_artist
       && !this.isPagOnlyProfile;
   }

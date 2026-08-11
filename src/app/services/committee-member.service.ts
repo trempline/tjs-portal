@@ -100,7 +100,7 @@ export class CommitteeMemberService {
    * Check if the current user is a Committee Member
    */
   isCommitteeMember(): boolean {
-    return this.authService.hasRole('Committee Member');
+    return this.authService.hasRole('Community Member');
   }
 
   /**

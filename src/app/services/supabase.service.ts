@@ -2215,7 +2215,7 @@ export class SupabaseService {
         is_read: false,
         created_at: row.created_at,
         sender_name: fallbackName,
-        sender_role: row.sender_role || 'Committee Member',
+        sender_role: row.sender_role || 'Community Member',
         sender_avatar_url: sender?.avatar_url ?? null,
         recipient_role_id: row.recipient_role_id ?? null,
         recipient_role_name: row.recipient_role?.name ?? null,
@@ -12070,7 +12070,8 @@ export class SupabaseService {
     const committeeMemberIds = Array.from(
       new Set(
         ((userRoles ?? []) as any[])
-          .filter((row) => row.role?.name === 'Committee Member')
+          // Accepts the pre-rename spelling too, in case the role row is still 'Committee Member'.
+          .filter((row) => row.role?.name === 'Community Member' || row.role?.name === 'Committee Member')
           .map((row) => row.user_id as string | null)
           .filter((value): value is string => !!value)
       )
