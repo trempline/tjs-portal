@@ -580,10 +580,13 @@ export interface SaveTjsLocationInput {
 
 export interface TjsPrivateLocation extends TjsLocation {
   id_host: number | null;
+  /** Opts this private location into showing its address and restricted details on the website. */
+  is_address_visible: boolean;
 }
 
 export interface SaveTjsPrivateLocationInput {
   id_host: number | null;
+  is_address_visible: boolean;
   name: string;
   address?: string | null;
   lat?: number | null;
@@ -9999,22 +10002,36 @@ export class SupabaseService {
     return {
       ...this.mapLocationRow(row),
       id_host: typeof row.id_host === 'number' ? row.id_host : null,
+      // Restricted by default: a location only goes public once the host opts in.
+      is_address_visible: row.is_address_visible === true,
     };
   }
 
+  /**
+   * A private location keeps its address and restricted details off the website unless the host
+   * ticked the visibility flag. Public locations are never restricted.
+   */
+  private hidesRestrictedInfo(location: TjsLocation, isPrivate: boolean): boolean {
+    return isPrivate && (location as TjsPrivateLocation).is_address_visible !== true;
+  }
+
   private mapPublicLocationItem(location: TjsLocation, isPrivate: boolean, hostName: string | null): PublicLocationItem {
+    const isRestricted = this.hidesRestrictedInfo(location, isPrivate);
+
     return {
       id: location.id,
       name: location.name,
       image_url: location.images[0]?.image_url ?? null,
       image_copyright: location.images[0]?.copyright_text ?? null,
-      description: location.public_description?.trim()
-        || location.description?.trim()
-        || location.restricted_description?.trim()
-        || 'Location details will be available soon.',
-      address: location.address,
-      lat: location.lat,
-      long: location.long,
+      description: isRestricted
+        ? location.public_description?.trim() || 'Location details will be available soon.'
+        : location.public_description?.trim()
+          || location.description?.trim()
+          || location.restricted_description?.trim()
+          || 'Location details will be available soon.',
+      address: isRestricted ? null : location.address,
+      lat: isRestricted ? null : location.lat,
+      long: isRestricted ? null : location.long,
       city: location.city,
       country: location.country,
       capacity: location.capacity,
@@ -10033,6 +10050,8 @@ export class SupabaseService {
     upcomingEvents: PublicLocationUpcomingEvent[],
   ): PublicLocationDetail {
     const item = this.mapPublicLocationItem(location, isPrivate, hostName);
+    const isRestricted = this.hidesRestrictedInfo(location, isPrivate);
+
     return {
       ...item,
       image_urls: location.images.map((image) => image.image_url).filter(Boolean),
@@ -10042,14 +10061,16 @@ export class SupabaseService {
           image_url: image.image_url,
           copyright_text: image.copyright_text ?? null,
         })),
-      long_description: location.description?.trim()
-        || location.public_description?.trim()
-        || location.restricted_description?.trim()
-        || '',
-      access_info: location.access_info,
-      phone: location.phone,
-      email: location.email,
-      website: location.website,
+      long_description: isRestricted
+        ? location.public_description?.trim() || ''
+        : location.description?.trim()
+          || location.public_description?.trim()
+          || location.restricted_description?.trim()
+          || '',
+      access_info: isRestricted ? null : location.access_info,
+      phone: isRestricted ? null : location.phone,
+      email: isRestricted ? null : location.email,
+      website: isRestricted ? null : location.website,
       upcoming_events: upcomingEvents,
     };
   }
@@ -10445,6 +10466,7 @@ export class SupabaseService {
   private buildPrivateLocationPayload(location: SaveTjsPrivateLocationInput, isUpdate: boolean) {
     return {
       id_host: location.id_host,
+      is_address_visible: location.is_address_visible === true,
       name: location.name.trim(),
       address: location.address?.trim() || null,
       lat: location.lat ?? null,

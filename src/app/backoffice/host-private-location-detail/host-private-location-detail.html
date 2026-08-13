@@ -59,6 +59,10 @@
               <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/60">Status</div>
               <div class="mt-1 font-medium text-white">{{ location.is_active ? 'Active' : 'Inactive' }}</div>
             </div>
+            <div class="rounded-2xl border border-white/10 bg-black/25 px-4 py-3 shadow-lg shadow-black/10 backdrop-blur-sm">
+              <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/60">Website</div>
+              <div class="mt-1 font-medium text-white">{{ location.is_address_visible ? 'Address visible' : 'Address hidden' }}</div>
+            </div>
             <button
               type="button"
               (click)="toggleLocationStatus()"

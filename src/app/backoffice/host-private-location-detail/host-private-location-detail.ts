@@ -214,6 +214,7 @@ export class HostPrivateLocationDetail implements OnInit {
       email: location.email,
       website: location.website,
       is_active: isActive,
+      is_address_visible: location.is_address_visible === true,
       access_info: location.access_info,
       created_by: location.created_by ?? this.currentUserId,
       updated_by: this.currentUserId,

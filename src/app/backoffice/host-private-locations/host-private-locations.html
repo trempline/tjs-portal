@@ -251,6 +251,18 @@
             <input [(ngModel)]="form.is_active" type="checkbox" class="h-4 w-4 rounded border-zinc-300 text-red-600 focus:ring-red-500" />
             <span>Location is active</span>
           </label>
+
+          <label class="flex items-start gap-3 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-700">
+            <input [(ngModel)]="form.is_address_visible" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-zinc-300 text-red-600 focus:ring-red-500" />
+            <span>
+              <span class="font-medium">Address visible on the website</span>
+              <span class="mt-1 block text-xs text-zinc-500">
+                {{ form.is_address_visible
+                  ? 'Visitors see the address, the map and the full descriptions of this location.'
+                  : 'Visitors only see the public description. The address, map, contact details and restricted description stay hidden.' }}
+              </span>
+            </span>
+          </label>
         </div>
       </section>
     </div>
@@ -297,9 +309,21 @@
             <td class="px-5 py-4 text-zinc-700">{{ location.city || '-' }}</td>
             <td class="px-5 py-4 text-zinc-700">{{ location.capacity || '-' }}</td>
             <td class="px-5 py-4">
-              <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold" [class.bg-green-100]="location.is_active" [class.text-green-700]="location.is_active" [class.bg-zinc-200]="!location.is_active" [class.text-zinc-700]="!location.is_active">
-                {{ location.is_active ? 'Active' : 'Inactive' }}
-              </span>
+              <div class="flex flex-wrap gap-1.5">
+                <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold" [class.bg-green-100]="location.is_active" [class.text-green-700]="location.is_active" [class.bg-zinc-200]="!location.is_active" [class.text-zinc-700]="!location.is_active">
+                  {{ location.is_active ? 'Active' : 'Inactive' }}
+                </span>
+                <span
+                  class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
+                  [class.bg-blue-100]="location.is_address_visible"
+                  [class.text-blue-700]="location.is_address_visible"
+                  [class.bg-amber-100]="!location.is_address_visible"
+                  [class.text-amber-700]="!location.is_address_visible"
+                  [title]="location.is_address_visible ? 'Address and details are shown on the website' : 'Only the public description is shown on the website'"
+                >
+                  {{ location.is_address_visible ? 'Address visible' : 'Address hidden' }}
+                </span>
+              </div>
             </td>
             <td class="px-5 py-4 text-right">
               <div class="flex justify-end gap-3">
