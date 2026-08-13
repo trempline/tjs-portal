@@ -345,9 +345,9 @@
                 <tbody class="divide-y divide-zinc-100 bg-white">
                   <tr *ngFor="let entry of scheduleEntries; let i = index; trackBy: trackByProposalIndex">
                     <td class="px-4 py-3">
-                      <select [(ngModel)]="scheduleEntries[i].mode" [disabled]="isRequestPublished" class="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none disabled:bg-zinc-100 disabled:text-zinc-400 focus:border-red-500 focus:ring-2 focus:ring-red-100">
-                        <option value="day_show">Day Show</option>
-                        <option value="period">Period</option>
+                      <select [(ngModel)]="scheduleEntries[i].mode" (ngModelChange)="onScheduleModeChange(i)" [disabled]="isRequestPublished" class="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none disabled:bg-zinc-100 disabled:text-zinc-400 focus:border-red-500 focus:ring-2 focus:ring-red-100">
+                        <option value="day_show">Concert (Day Show)</option>
+                        <option value="period">Residence (Period)</option>
                       </select>
                     </td>
                     <td class="px-4 py-3">
@@ -357,7 +357,16 @@
                       <input [(ngModel)]="scheduleEntries[i].endDate" type="date" [disabled]="isRequestPublished || scheduleEntries[i].mode !== 'period'" class="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none disabled:bg-zinc-100 disabled:text-zinc-400 focus:border-red-500 focus:ring-2 focus:ring-red-100" />
                     </td>
                     <td class="px-4 py-3">
-                      <input [(ngModel)]="scheduleEntries[i].showTime" [disabled]="isRequestPublished" type="time" class="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none disabled:bg-zinc-100 disabled:text-zinc-400 focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+                      <input
+                        *ngIf="scheduleHasTime(scheduleEntries[i].mode); else residenceHasNoTime"
+                        [(ngModel)]="scheduleEntries[i].showTime"
+                        [disabled]="isRequestPublished"
+                        type="time"
+                        class="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none disabled:bg-zinc-100 disabled:text-zinc-400 focus:border-red-500 focus:ring-2 focus:ring-red-100"
+                      />
+                      <ng-template #residenceHasNoTime>
+                        <div class="w-full rounded-2xl border border-dashed border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-400">No time for a residence</div>
+                      </ng-template>
                     </td>
                     <td class="px-4 py-3">
                       <select [(ngModel)]="scheduleEntries[i].locationId" [disabled]="isRequestPublished" class="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none disabled:bg-zinc-100 disabled:text-zinc-400 focus:border-red-500 focus:ring-2 focus:ring-red-100">
@@ -386,7 +395,7 @@
             <h2 class="text-lg font-semibold text-zinc-900">Last Agreed Host Proposal</h2>
             <div class="mt-4 space-y-3">
               <div *ngFor="let item of hostProposalEntries; trackBy: trackByProposalIndex" class="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
-                <div class="text-xs font-semibold uppercase tracking-wide text-zinc-500">{{ item.mode === 'period' ? 'Period' : 'One Day' }}</div>
+                <div class="text-xs font-semibold uppercase tracking-wide text-zinc-500">{{ scheduleTypeLabel(item.mode) }}</div>
                 <div class="mt-2 text-sm font-medium text-zinc-900">
                   {{ item.startDate }}<span *ngIf="item.mode === 'period'"> to {{ item.endDate || 'TBD' }}</span>
                   <span *ngIf="item.showTime"> | {{ item.showTime }}</span>

@@ -32,6 +32,10 @@ export class Artists implements OnInit {
   committeeMembers: TjsArtistUserSummary[] = [];
   activeTab: ArtistTab = 'tjs';
 
+  searchTerm = '';
+  instrumentFilter = '';
+  private instrumentsByArtistId = new Map<string, string[]>();
+
   showAuditModal = false;
   selectedArtist: TjsArtist | null = null;
   auditLogs: TjsArtistAuditLog[] = [];
@@ -53,9 +57,11 @@ export class Artists implements OnInit {
 
   setTab(tab: ArtistTab) {
     this.activeTab = tab;
+    this.clearFilters();
   }
 
-  get currentArtists(): TjsArtist[] {
+  /** Artists of the active tab, before the search and instrument filters are applied. */
+  get scopedArtists(): TjsArtist[] {
     if (this.isCommittee) {
       const scopedArtists = this.activeTab === 'invited'
         ? this.allArtists.filter((artist) => artist.is_invited_artist)
@@ -71,6 +77,64 @@ export class Artists implements OnInit {
       return this.allArtists.filter((artist) => artist.is_tjs_artist);
     }
     return this.allArtists.filter((artist) => artist.is_invited_artist);
+  }
+
+  get currentArtists(): TjsArtist[] {
+    return this.scopedArtists.filter((artist) =>
+      this.matchesSearchTerm(artist) && this.matchesInstrumentFilter(artist)
+    );
+  }
+
+  /** Instruments available in the active tab, so the filter never offers an empty result. */
+  get instrumentOptions(): string[] {
+    const options = new Set<string>();
+
+    for (const artist of this.scopedArtists) {
+      for (const instrument of this.artistInstruments(artist)) {
+        options.add(instrument);
+      }
+    }
+
+    return Array.from(options).sort((a, b) => a.localeCompare(b));
+  }
+
+  get hasActiveFilters(): boolean {
+    return !!this.searchTerm.trim() || !!this.instrumentFilter;
+  }
+
+  clearFilters() {
+    this.searchTerm = '';
+    this.instrumentFilter = '';
+  }
+
+  artistInstruments(artist: TjsArtist): string[] {
+    return this.instrumentsByArtistId.get(artist.id) ?? [];
+  }
+
+  instrumentsLabel(artist: TjsArtist): string {
+    return this.artistInstruments(artist).join(', ');
+  }
+
+  private matchesSearchTerm(artist: TjsArtist): boolean {
+    const terms = this.searchTerm.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (terms.length === 0) {
+      return true;
+    }
+
+    const haystack = [artist.profile?.full_name, artist.artist_name]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+
+    return terms.every((term) => haystack.includes(term));
+  }
+
+  private matchesInstrumentFilter(artist: TjsArtist): boolean {
+    if (!this.instrumentFilter) {
+      return true;
+    }
+
+    return this.artistInstruments(artist).includes(this.instrumentFilter);
   }
 
   get tjsCount() {
@@ -114,7 +178,7 @@ export class Artists implements OnInit {
   }
 
   get isHostManagerWorkspace(): boolean {
-    return this.authService.isHostManager && this.router.url.includes('/host-manager/artists/tjs');
+    return this.authService.isHostManager && this.router.url.includes('/host-manager/artists');
   }
 
   get canManageArtists(): boolean {
@@ -122,11 +186,44 @@ export class Artists implements OnInit {
   }
 
   get showFeaturedColumn(): boolean {
-    return this.activeTab !== 'invited';
+    return !this.isCommittee && this.activeTab !== 'invited';
+  }
+
+  get canToggleFeatured(): boolean {
+    return this.canManageArtists && !this.isCommittee;
   }
 
   get defaultCommitteeMemberLabel(): string {
     return this.isCommittee ? this.authService.displayName : 'Not assigned by default';
+  }
+
+  /** The artist already holding the email typed in the invite modal, if any. */
+  get duplicateArtistForInvite(): TjsArtist | null {
+    const email = this.inviteArtistForm.email.trim().toLowerCase();
+
+    if (!email) {
+      return null;
+    }
+
+    return this.allArtists.find(
+      (artist) => (artist.profile?.email ?? '').trim().toLowerCase() === email
+    ) ?? null;
+  }
+
+  get duplicateArtistMessage(): string {
+    const artist = this.duplicateArtistForInvite;
+
+    if (!artist) {
+      return '';
+    }
+
+    const types: string[] = [];
+    if (artist.is_tjs_artist) types.push('a TJS artist');
+    if (artist.is_invited_artist) types.push('an invited artist');
+
+    const typeLabel = types.join(' and ') || 'an artist';
+
+    return `${this.displayName(artist)} already uses this email as ${typeLabel}.`;
   }
 
   get inviteRoleLabel(): string {
@@ -139,7 +236,7 @@ export class Artists implements OnInit {
 
   get pageTitle(): string {
     if (this.isHostManagerWorkspace) {
-      return 'TJS Artists';
+      return this.activeTab === 'invited' ? 'Invited Artists' : 'TJS Artists';
     }
 
     if (this.isCommittee && this.activeTab === 'invited') {
@@ -151,7 +248,9 @@ export class Artists implements OnInit {
 
   get pageDescription(): string {
     if (this.isHostManagerWorkspace) {
-      return 'Review the TJS artist directory and open each artist profile for requests, availability, media, and upcoming events.';
+      return this.activeTab === 'invited'
+        ? 'Review the invited artist directory and open each activated artist for their full profile.'
+        : 'Review the TJS artist directory and open each artist profile for requests, availability, media, and upcoming events.';
     }
 
     if (this.isCommittee && this.activeTab === 'invited') {
@@ -169,14 +268,7 @@ export class Artists implements OnInit {
 
   async ngOnInit() {
     // Set activeTab based on route
-    const url = this.router.url;
-    if (this.isHostManagerWorkspace) {
-      this.activeTab = 'tjs';
-    } else if (url.includes('/artists/invited')) {
-      this.activeTab = 'invited';
-    } else {
-      this.activeTab = 'tjs';
-    }
+    this.activeTab = this.router.url.includes('/artists/invited') ? 'invited' : 'tjs';
 
     await this.loadData();
   }
@@ -210,7 +302,36 @@ export class Artists implements OnInit {
 
     this.allArtists = artists;
     this.committeeMembers = committeeMembers;
+    await this.loadArtistInstruments(artists);
     this.isLoading = false;
+  }
+
+  /** Instruments come from the artist workspace, plus the legacy PAG profile when the artist has one. */
+  private async loadArtistInstruments(artists: TjsArtist[]) {
+    const [workspaceInstruments, pagInstruments] = await Promise.all([
+      this.supabase.getArtistInstrumentNamesByProfileIds(
+        artists.map((artist) => artist.profile_id).filter((id): id is string => !!id)
+      ),
+      this.supabase.getPagArtistInstrumentNamesByArtistIds(
+        artists.map((artist) => artist.pag_artist_id).filter((id): id is string => !!id)
+      ),
+    ]);
+
+    const instrumentsByArtistId = new Map<string, string[]>();
+
+    for (const artist of artists) {
+      const names = [
+        ...(artist.profile_id ? workspaceInstruments.get(artist.profile_id) ?? [] : []),
+        ...(artist.pag_artist_id ? pagInstruments.get(String(artist.pag_artist_id)) ?? [] : []),
+      ];
+
+      instrumentsByArtistId.set(
+        artist.id,
+        Array.from(new Set(names)).sort((a, b) => a.localeCompare(b))
+      );
+    }
+
+    this.instrumentsByArtistId = instrumentsByArtistId;
   }
 
   canOpenArtistDetail(artist: TjsArtist): boolean {
@@ -222,7 +343,7 @@ export class Artists implements OnInit {
       return true;
     }
 
-    if (this.isCommittee && this.activeTab === 'invited') {
+    if ((this.isCommittee || this.isHostManagerWorkspace) && this.activeTab === 'invited') {
       return artist.activation_status === 'active';
     }
 
@@ -290,6 +411,7 @@ export class Artists implements OnInit {
 
   closeCreateArtistModal() {
     this.showCreateArtistModal = false;
+    this.error = '';
     this.inviteArtistForm = {
       email: '',
       fullName: '',
@@ -310,6 +432,11 @@ export class Artists implements OnInit {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       this.error = 'Please enter a valid email address.';
+      return;
+    }
+
+    if (this.duplicateArtistMessage) {
+      this.error = this.duplicateArtistMessage;
       return;
     }
 

@@ -165,7 +165,8 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label class="block text-sm font-medium text-zinc-700 mb-1">Name <span class="text-red-500">*</span></label>
-            <input type="text" [(ngModel)]="hostForm.name" class="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent" />
+            <input type="text" [(ngModel)]="hostForm.name" class="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent" [ngClass]="hostFormErrors.name ? 'border-red-400' : 'border-zinc-300'" />
+            <p *ngIf="hostFormErrors.name" class="mt-1 text-xs font-medium text-red-600">{{ hostFormErrors.name }}</p>
           </div>
           <div>
             <label class="block text-sm font-medium text-zinc-700 mb-1">Public Name</label>
@@ -200,12 +201,14 @@
         <h3 class="text-sm font-semibold text-zinc-700 mb-3 uppercase tracking-wide">Address</h3>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div class="md:col-span-2">
-            <label class="block text-sm font-medium text-zinc-700 mb-1">Address</label>
-            <input type="text" [(ngModel)]="hostForm.address" class="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent" />
+            <label class="block text-sm font-medium text-zinc-700 mb-1">Address <span class="text-red-500">*</span></label>
+            <input type="text" [(ngModel)]="hostForm.address" class="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent" [ngClass]="hostFormErrors.address ? 'border-red-400' : 'border-zinc-300'" />
+            <p *ngIf="hostFormErrors.address" class="mt-1 text-xs font-medium text-red-600">{{ hostFormErrors.address }}</p>
           </div>
           <div>
-            <label class="block text-sm font-medium text-zinc-700 mb-1">City</label>
-            <input type="text" [(ngModel)]="hostForm.city" class="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent" />
+            <label class="block text-sm font-medium text-zinc-700 mb-1">City <span class="text-red-500">*</span></label>
+            <input type="text" [(ngModel)]="hostForm.city" class="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent" [ngClass]="hostFormErrors.city ? 'border-red-400' : 'border-zinc-300'" />
+            <p *ngIf="hostFormErrors.city" class="mt-1 text-xs font-medium text-red-600">{{ hostFormErrors.city }}</p>
           </div>
           <div>
             <label class="block text-sm font-medium text-zinc-700 mb-1">Province</label>
@@ -242,8 +245,9 @@
             <input type="text" [(ngModel)]="hostForm.contact_phone2" class="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent" />
           </div>
           <div class="md:col-span-2">
-            <label class="block text-sm font-medium text-zinc-700 mb-1">Email</label>
-            <input type="email" [(ngModel)]="hostForm.contact_email" class="w-full px-3 py-2 rounded-lg border border-zinc-300 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent" />
+            <label class="block text-sm font-medium text-zinc-700 mb-1">Email <span class="text-red-500">*</span></label>
+            <input type="email" [(ngModel)]="hostForm.contact_email" class="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent" [ngClass]="hostFormErrors.contact_email ? 'border-red-400' : 'border-zinc-300'" />
+            <p *ngIf="hostFormErrors.contact_email" class="mt-1 text-xs font-medium text-red-600">{{ hostFormErrors.contact_email }}</p>
           </div>
         </div>
       </div>

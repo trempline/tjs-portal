@@ -310,7 +310,11 @@
                 </thead>
                 <tbody class="divide-y divide-zinc-200 bg-white">
                   <tr *ngFor="let entry of event.schedule_entries || []">
-                    <td class="px-5 py-4 text-sm text-zinc-700">{{ entry.mode === 'period' ? 'Period' : 'Day Show' }}</td>
+                    <td class="px-5 py-4 text-sm">
+                      <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium" [ngClass]="entry.mode === 'period' ? 'bg-violet-100 text-violet-700' : 'bg-blue-100 text-blue-700'">
+                        {{ scheduleTypeLabel(entry.mode) }}
+                      </span>
+                    </td>
                     <td class="px-5 py-4 text-sm font-medium text-zinc-900">
                       <ng-container *ngIf="entry.mode === 'period'; else singleDateView">
                         {{ entry.start_date | date:'dd/MM/yyyy' }} to {{ entry.end_date | date:'dd/MM/yyyy' }}
@@ -319,7 +323,7 @@
                         {{ entry.start_date | date:'dd/MM/yyyy' }}
                       </ng-template>
                     </td>
-                    <td class="px-5 py-4 text-sm text-zinc-700">{{ event.show_time || 'Not set' }}</td>
+                    <td class="px-5 py-4 text-sm text-zinc-700">{{ scheduleHasTime(entry.mode) ? (event.show_time || 'Not set') : '-' }}</td>
                     <td class="px-5 py-4 text-sm text-zinc-700">{{ event.location_name || 'Not set' }}</td>
                   </tr>
                 </tbody>
@@ -349,7 +353,7 @@
                   <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <div class="text-sm font-semibold text-zinc-900">Schedule Entry {{ i + 1 }}</div>
-                      <div class="mt-1 text-xs uppercase tracking-[0.14em] text-zinc-500">{{ entry.mode === 'period' ? 'Period' : 'Day Show' }}</div>
+                      <div class="mt-1 text-xs uppercase tracking-[0.14em] text-zinc-500">{{ scheduleTypeLabel(entry.mode) }}</div>
                     </div>
                     <button
                       type="button"
@@ -373,8 +377,8 @@
                       [class.bg-white]="entry.mode !== 'day_show'"
                       [class.text-zinc-700]="entry.mode !== 'day_show'"
                     >
-                      <div class="text-sm font-semibold">Day Show</div>
-                      <div class="mt-1 text-xs">Single event date.</div>
+                      <div class="text-sm font-semibold">Concert</div>
+                      <div class="mt-1 text-xs">Single event date, with a show time.</div>
                     </button>
                     <button
                       type="button"
@@ -387,8 +391,8 @@
                       [class.bg-white]="entry.mode !== 'period'"
                       [class.text-zinc-700]="entry.mode !== 'period'"
                     >
-                      <div class="text-sm font-semibold">Period</div>
-                      <div class="mt-1 text-xs">Start date and end date.</div>
+                      <div class="text-sm font-semibold">Residence</div>
+                      <div class="mt-1 text-xs">Start date and end date, no show time.</div>
                     </button>
                   </div>
 
@@ -407,10 +411,15 @@
               </div>
 
               <div class="grid gap-5 md:grid-cols-2">
-                <div>
+                <div *ngIf="scheduleSupportsTime; else residenceOnlySchedule">
                   <label class="text-sm font-medium text-zinc-700">Time</label>
                   <input [(ngModel)]="scheduleForm.showTime" type="time" class="mt-2 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
                 </div>
+                <ng-template #residenceOnlySchedule>
+                  <div class="rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-3 text-sm text-zinc-500">
+                    A residence has no show time.
+                  </div>
+                </ng-template>
 
                 <div>
                   <label class="text-sm font-medium text-zinc-700">Location</label>

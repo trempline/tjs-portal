@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import { parseScheduleLine, validateHostScheduleEntries } from '../../shared/request-dates/request-dates.util';
+import { eventScheduleHasTime, eventScheduleTypeLabel } from '../../shared/event-schedule/event-schedule.util';
 import { ImageCopyrightTag } from '../../shared/image-copyright/image-copyright-tag';
 import {
   ArtistInstrumentOption,
@@ -219,6 +220,22 @@ export class HostCreateEvent implements OnInit {
     ];
   }
 
+  /** A residence has no show time, so switching to one drops whatever time was typed. */
+  onScheduleModeChange(index: number) {
+    const entry = this.scheduleEntries[index];
+    if (entry && !eventScheduleHasTime(entry.mode)) {
+      entry.showTime = '';
+    }
+  }
+
+  scheduleTypeLabel(mode: string): string {
+    return eventScheduleTypeLabel(mode);
+  }
+
+  scheduleHasTime(mode: string): boolean {
+    return eventScheduleHasTime(mode);
+  }
+
   removeScheduleEntry(index: number) {
     this.scheduleEntries = this.scheduleEntries.filter((_, currentIndex) => currentIndex !== index);
     if (this.scheduleEntries.length === 0) {
@@ -395,7 +412,7 @@ export class HostCreateEvent implements OnInit {
         mode: entry.mode,
         startDate: entry.startDate,
         endDate: entry.mode === 'period' ? entry.endDate : '',
-        showTime: entry.showTime,
+        showTime: eventScheduleHasTime(entry.mode) ? entry.showTime : '',
         locationId: entry.locationId,
       }));
 

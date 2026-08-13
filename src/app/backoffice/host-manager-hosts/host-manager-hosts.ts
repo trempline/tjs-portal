@@ -43,6 +43,15 @@ interface InviteHostUserForm {
   phone: string;
 }
 
+interface HostFormErrors {
+  name?: string;
+  address?: string;
+  city?: string;
+  contact_email?: string;
+}
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 @Component({
   selector: 'app-host-manager-hosts',
   standalone: true,
@@ -77,6 +86,7 @@ export class HostManagerHosts implements OnInit {
   showInviteHostUserModal = false;
 
   hostForm: HostForm = this.blankForm();
+  hostFormErrors: HostFormErrors = {};
   inviteHostUserForm: InviteHostUserForm = this.blankInviteHostUserForm();
   hostRoleId = '';
   hostPlusRoleId = '';
@@ -186,16 +196,50 @@ export class HostManagerHosts implements OnInit {
     this.error = '';
     this.successMessage = '';
     this.hostForm = this.blankForm();
+    this.hostFormErrors = {};
     this.showCreateModal = true;
   }
 
   closeCreateModal() {
     this.showCreateModal = false;
+    this.hostFormErrors = {};
+  }
+
+  /**
+   * A host is only workable once we can name them, reach them and place them, so the contact
+   * email and the address are required alongside the name.
+   */
+  private validateHostForm(): boolean {
+    const errors: HostFormErrors = {};
+    const email = this.hostForm.contact_email.trim();
+
+    if (!this.hostForm.name.trim()) {
+      errors.name = 'Host name is required.';
+    }
+
+    if (!this.hostForm.address.trim()) {
+      errors.address = 'Address is required.';
+    }
+
+    if (!this.hostForm.city.trim()) {
+      errors.city = 'City is required.';
+    }
+
+    if (!email) {
+      errors.contact_email = 'Contact email is required.';
+    } else if (!EMAIL_PATTERN.test(email)) {
+      errors.contact_email = 'Please enter a valid email address.';
+    }
+
+    this.hostFormErrors = errors;
+    const isValid = Object.keys(errors).length === 0;
+    this.error = isValid ? '' : 'Please complete the required host details before saving.';
+
+    return isValid;
   }
 
   async submitCreate() {
-    if (!this.hostForm.name.trim()) {
-      this.error = 'Host name is required.';
+    if (!this.validateHostForm()) {
       return;
     }
 
@@ -242,6 +286,7 @@ export class HostManagerHosts implements OnInit {
   openEditModal(host: TjsHost) {
     this.selectedHost = host;
     this.error = '';
+    this.hostFormErrors = {};
     this.hostForm = {
       name: host.name ?? '',
       public_name: host.public_name ?? '',
@@ -268,6 +313,7 @@ export class HostManagerHosts implements OnInit {
   closeEditModal() {
     this.showEditModal = false;
     this.selectedHost = null;
+    this.hostFormErrors = {};
   }
 
   async submitEdit() {
@@ -275,8 +321,7 @@ export class HostManagerHosts implements OnInit {
       return;
     }
 
-    if (!this.hostForm.name.trim()) {
-      this.error = 'Host name is required.';
+    if (!this.validateHostForm()) {
       return;
     }
 

@@ -91,6 +91,39 @@
     </button>
   </div>
 
+  <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+    <div class="relative w-full sm:max-w-sm">
+      <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"></circle>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+      </svg>
+      <input
+        [(ngModel)]="searchTerm"
+        type="text"
+        placeholder="Search by first name or last name"
+        class="w-full rounded-xl border border-zinc-300 bg-white py-2.5 pl-9 pr-3 text-sm text-zinc-900 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+      />
+    </div>
+    <select
+      [(ngModel)]="instrumentFilter"
+      class="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:w-56"
+    >
+      <option value="">All instruments</option>
+      <option *ngFor="let instrument of instrumentOptions" [value]="instrument">{{ instrument }}</option>
+    </select>
+    <button
+      *ngIf="hasActiveFilters"
+      type="button"
+      (click)="clearFilters()"
+      class="rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-50"
+    >
+      Clear filters
+    </button>
+    <p *ngIf="!isLoading" class="text-sm text-zinc-500 sm:ml-auto">
+      {{ currentArtists.length }} of {{ scopedArtists.length }} artists
+    </p>
+  </div>
+
   <div class="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
     <div *ngIf="isLoading" class="flex items-center justify-center py-16">
       <div class="h-8 w-8 animate-spin rounded-full border-4 border-zinc-200 border-t-red-600"></div>
@@ -105,11 +138,13 @@
       </svg>
       <p class="text-sm font-medium">No artists found</p>
       <p class="mt-1 text-xs">
-        {{ isCommittee
-          ? 'No artists are assigned to you yet.'
-          : activeTab === 'tjs'
-            ? 'No TJS artists have been recorded yet.'
-            : 'No invited artists have been recorded yet.' }}
+        {{ hasActiveFilters
+          ? 'No artist matches the current search or instrument filter.'
+          : isCommittee
+            ? 'No artists are assigned to you yet.'
+            : activeTab === 'tjs'
+              ? 'No TJS artists have been recorded yet.'
+              : 'No invited artists have been recorded yet.' }}
       </p>
     </div>
 
@@ -143,8 +178,9 @@
                 </div>
                 <div class="space-y-1">
                   <p class="font-medium text-zinc-900">{{ displayName(artist) }}</p>
+                  <p *ngIf="artistInstruments(artist).length" class="text-xs text-zinc-500">{{ instrumentsLabel(artist) }}</p>
                   <p *ngIf="artist.profile?.phone" class="text-xs text-zinc-400">{{ artist.profile?.phone }}</p>
-                  <span *ngIf="isCommittee && activeTab === 'invited' && !canOpenArtistDetail(artist)" class="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-600">
+                  <span *ngIf="(isCommittee || isHostManagerWorkspace) && activeTab === 'invited' && !canOpenArtistDetail(artist)" class="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-600">
                     Details available after activation
                   </span>
                   <span *ngIf="needsAssignment(artist) && !isCommittee" class="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">
@@ -304,8 +340,19 @@
           [(ngModel)]="inviteArtistForm.email"
           type="email"
           placeholder="artist@example.com"
-          class="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100"
+          class="w-full rounded-xl border bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none transition-colors focus:ring-2"
+          [ngClass]="duplicateArtistMessage
+            ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
+            : 'border-zinc-300 focus:border-red-500 focus:ring-red-100'"
         />
+        <p *ngIf="duplicateArtistMessage" class="flex items-start gap-1.5 text-xs font-medium text-red-600">
+          <svg class="mt-0.5 h-3.5 w-3.5 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          {{ duplicateArtistMessage }}
+        </p>
       </div>
 
       <div class="space-y-2">
@@ -342,6 +389,15 @@
       </div>
     </div>
 
+    <div *ngIf="error" class="mx-6 mb-5 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
+      <svg class="mt-0.5 h-4 w-4 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="15" y1="9" x2="9" y2="15"></line>
+        <line x1="9" y1="9" x2="15" y2="15"></line>
+      </svg>
+      {{ error }}
+    </div>
+
     <div class="flex justify-end gap-2 border-t border-zinc-100 px-6 py-4">
       <button type="button" (click)="closeCreateArtistModal()" class="rounded-lg px-4 py-2 text-sm text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900">
         Cancel
@@ -349,7 +405,7 @@
       <button
         type="button"
         (click)="submitCreateArtist()"
-        [disabled]="isSaving"
+        [disabled]="isSaving || !!duplicateArtistMessage"
         class="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
       >
         Send invitation

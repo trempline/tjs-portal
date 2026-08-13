@@ -24,13 +24,14 @@ import {
   ArtistRequestDetail,
   ArtistRequestListItem,
   ArtistWorkspaceProfile,
+  ArtistWorkspaceRequirements,
   HostWorkspaceEventItem,
   PagArtistProfile,
   SupabaseService,
   TjsArtist,
 } from '../../services/supabase.service';
 
-type CommitteeArtistDetailTab = 'profile' | 'instruments' | 'media' | 'availability' | 'events' | 'request';
+type CommitteeArtistDetailTab = 'profile' | 'requirements' | 'instruments' | 'media' | 'availability' | 'events' | 'request';
 
 @Component({
   selector: 'app-committee-artist-detail',
@@ -63,6 +64,7 @@ export class CommitteeArtistDetail implements OnInit {
   instruments: ArtistInstrumentOption[] = [];
   media: ArtistMediaEntry[] = [];
   availability: ArtistAvailabilityEntry[] = [];
+  requirements: ArtistWorkspaceRequirements | null = null;
   editableProfile: ArtistWorkspaceProfile | null = null;
   readonly maxTaglineLength = MAX_ARTIST_TAGLINE_LENGTH;
   readonly maxShortBiographyLength = MAX_ARTIST_SHORT_BIOGRAPHY_LENGTH;
@@ -157,7 +159,8 @@ export class CommitteeArtistDetail implements OnInit {
   }
 
   get isHostManagerWorkspace(): boolean {
-    return this.route.snapshot.routeConfig?.path === 'host-manager/artists/tjs/:id';
+    const path = this.route.snapshot.routeConfig?.path ?? '';
+    return path === 'host-manager/artists/tjs/:id' || path === 'host-manager/artists/non-tjs/:id';
   }
 
   get isAdminWorkspace(): boolean {
@@ -176,7 +179,9 @@ export class CommitteeArtistDetail implements OnInit {
     }
 
     if (this.isHostManagerWorkspace) {
-      return '/backoffice/host-manager/artists/tjs';
+      return this.isPagOnlyProfile
+        ? '/backoffice/host-manager/artists/non-tjs'
+        : '/backoffice/host-manager/artists/tjs';
     }
 
     return this.isPagOnlyProfile
@@ -190,11 +195,11 @@ export class CommitteeArtistDetail implements OnInit {
     }
 
     if (this.isHostManagerWorkspace) {
-      return 'Back to TJS Artists';
+      return this.isPagOnlyProfile ? 'Back to Other Artist' : 'Back to TJS Artists';
     }
 
     return this.isPagOnlyProfile
-      ? 'Back to PAG Artists'
+      ? 'Back to Other Artist'
       : (this.isInvitedArtistProfile ? 'Back to Invited Artists' : 'Back to TJS Artists');
   }
 
@@ -245,6 +250,74 @@ export class CommitteeArtistDetail implements OnInit {
       default:
         return 'Pending';
     }
+  }
+
+  /** The artist's own requirements, falling back to the legacy PAG record when they are empty. */
+  get currentRequirements(): ArtistWorkspaceRequirements | null {
+    const legacyRequirements = this.pagProfile?.requirements ?? null;
+
+    if (this.isPagOnlyProfile) {
+      return legacyRequirements;
+    }
+
+    return this.hasRequirementValues(this.requirements)
+      ? this.requirements
+      : legacyRequirements ?? this.requirements;
+  }
+
+  get hasAnyRequirements(): boolean {
+    return this.hasRequirementValues(this.currentRequirements);
+  }
+
+  private hasRequirementValues(requirements: ArtistWorkspaceRequirements | null): boolean {
+    if (!requirements) {
+      return false;
+    }
+
+    return [
+      requirements.rib_number,
+      requirements.guso_number,
+      requirements.security_number,
+      requirements.allergies,
+      requirements.food_restriction,
+      requirements.additional_requirements,
+    ].some((value) => !!value?.trim());
+  }
+
+  /** Requirements carry bank and social security data, so hosts do not get this tab. */
+  get canViewRequirements(): boolean {
+    return !this.isHostWorkspace && !this.isHostManagerWorkspace;
+  }
+
+  maskedRibNumber(): string {
+    return this.maskIdentifier(this.currentRequirements?.rib_number);
+  }
+
+  maskedGusoNumber(): string {
+    return this.maskIdentifier(this.currentRequirements?.guso_number);
+  }
+
+  maskedSecurityNumber(): string {
+    return this.maskIdentifier(this.currentRequirements?.security_number);
+  }
+
+  requirementText(value: string | null | undefined): string {
+    return value?.trim() || 'Not provided';
+  }
+
+  /** Sensitive identifiers are never shown in full here: only the last 4 characters stay readable. */
+  private maskIdentifier(value: string | null | undefined): string {
+    const normalized = (value ?? '').replace(/\s+/g, '').trim();
+
+    if (!normalized) {
+      return '-';
+    }
+
+    const hidden = '•••• •••• ••••';
+
+    return normalized.length <= 4
+      ? hidden
+      : `${hidden} ${normalized.slice(-4)}`;
   }
 
   performanceTypeLabel(): string {
@@ -762,6 +835,7 @@ export class CommitteeArtistDetail implements OnInit {
         this.instruments = [];
         this.media = [];
         this.availability = [];
+        this.requirements = null;
         this.pendingRequests = [];
         this.upcomingEvents = [];
         this.selectedRequest = null;
@@ -784,11 +858,12 @@ export class CommitteeArtistDetail implements OnInit {
 
       this.artist = artist;
 
-      const [profile, instruments, media, availability, requests, upcomingEvents, pagProfile, performanceOptions, instrumentOptions] = await Promise.all([
+      const [profile, instruments, media, availability, requirements, requests, upcomingEvents, pagProfile, performanceOptions, instrumentOptions] = await Promise.all([
         this.supabase.getArtistWorkspaceProfile(artist.profile_id),
         this.supabase.getArtistWorkspaceInstruments(artist.profile_id),
         this.supabase.getArtistWorkspaceMedia(artist.profile_id),
         this.supabase.getArtistWorkspaceAvailability(artist.profile_id),
+        this.supabase.getArtistWorkspaceRequirements(artist.profile_id),
         this.supabase.getArtistWorkspaceRequests(artist.profile_id),
         this.supabase.getArtistWorkspaceEvents(artist.profile_id),
         artist.pag_artist_id ? this.supabase.getPagArtistProfile(artist.pag_artist_id) : Promise.resolve(null),
@@ -796,6 +871,7 @@ export class CommitteeArtistDetail implements OnInit {
         this.supabase.listArtistInstrumentOptions(),
       ]);
 
+      this.requirements = requirements;
       this.profile = profile;
       this.editableProfile = profile ? this.cloneProfile(profile) : null;
       this.pagProfile = pagProfile;

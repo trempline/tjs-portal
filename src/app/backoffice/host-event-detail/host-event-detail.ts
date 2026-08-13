@@ -2,6 +2,7 @@ import { DatePipe, Location, NgClass, NgFor, NgIf } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { WorkspaceEditActions } from '../../shared/workspace-edit/workspace-edit-actions';
 import { ImageCopyrightTag } from '../../shared/image-copyright/image-copyright-tag';
+import { eventScheduleHasTime, eventScheduleTypeLabel } from '../../shared/event-schedule/event-schedule.util';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
@@ -510,6 +511,19 @@ export class HostEventDetail implements OnInit {
     };
   }
 
+  /** True while at least one entry is a concert; a residence-only schedule has no show time. */
+  get scheduleSupportsTime(): boolean {
+    return this.scheduleForm.entries.some((entry) => eventScheduleHasTime(entry.mode));
+  }
+
+  scheduleTypeLabel(mode: string): string {
+    return eventScheduleTypeLabel(mode);
+  }
+
+  scheduleHasTime(mode: string): boolean {
+    return eventScheduleHasTime(mode);
+  }
+
   setScheduleEntryMode(index: number, mode: 'day_show' | 'period') {
     this.scheduleForm = {
       ...this.scheduleForm,
@@ -565,7 +579,10 @@ export class HostEventDetail implements OnInit {
 
     const payload: UpdateHostWorkspaceEventSchedulePayload = {
       entries,
-      showTime: this.scheduleForm.showTime.trim(),
+      // A schedule made only of residences carries no show time.
+      showTime: entries.some((entry) => eventScheduleHasTime(entry.mode))
+        ? this.scheduleForm.showTime.trim()
+        : '',
       locationId: this.resolvePersistedLocationId(this.scheduleForm.locationId),
     };
 

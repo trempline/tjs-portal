@@ -987,6 +987,8 @@ export interface ArtistRequestDetail {
   comments: ArtistRequestCommentEntry[];
 }
 
+export type PagArtistPromotionTarget = 'tjs' | 'invited';
+
 export interface PagArtist {
   id: string;
   id_profile: string | null;
@@ -999,6 +1001,9 @@ export interface PagArtist {
   is_active: boolean | null;
   created_on: string | null;
   tjs_artist_id?: string | null;
+  /** Flags of the linked TJS artist record, so the list can say what this artist became. */
+  tjs_artist_is_tjs?: boolean;
+  tjs_artist_is_invited?: boolean;
 }
 
 export interface PagArtistProfile {
@@ -1798,6 +1803,90 @@ export class SupabaseService {
     return ((data ?? []) as any[])
       .map((row) => row.instrument)
       .filter((item): item is ArtistInstrumentOption => !!item?.id && !!item?.name);
+  }
+
+  /** Instrument names for several TJS artist profiles at once, keyed by profile id. */
+  async getArtistInstrumentNamesByProfileIds(profileIds: string[]): Promise<Map<string, string[]>> {
+    const instrumentsByProfileId = new Map<string, string[]>();
+    const uniqueProfileIds = Array.from(new Set(profileIds.filter((id) => !!id)));
+
+    if (uniqueProfileIds.length === 0) {
+      return instrumentsByProfileId;
+    }
+
+    const { data, error } = await this.adminSupabase
+      .from('tjs_artist_instruments')
+      .select('profile_id, instrument:sys_instruments(name)')
+      .in('profile_id', uniqueProfileIds);
+
+    if (error) {
+      if (!this.isMissingSchemaError(error)) {
+        console.error('getArtistInstrumentNamesByProfileIds error:', error.message);
+      }
+      return instrumentsByProfileId;
+    }
+
+    for (const row of ((data ?? []) as any[])) {
+      const profileId = row.profile_id as string | null;
+      const instrumentName = (Array.isArray(row.instrument)
+        ? row.instrument[0]?.name
+        : row.instrument?.name) as string | null | undefined;
+
+      if (!profileId || !instrumentName) {
+        continue;
+      }
+
+      const existing = instrumentsByProfileId.get(profileId) ?? [];
+      if (!existing.includes(instrumentName)) {
+        existing.push(instrumentName);
+      }
+      instrumentsByProfileId.set(profileId, existing);
+    }
+
+    return instrumentsByProfileId;
+  }
+
+  /** Instrument names for several PAG artists at once, keyed by the PAG artist id as a string. */
+  async getPagArtistInstrumentNamesByArtistIds(pagArtistIds: Array<string | number>): Promise<Map<string, string[]>> {
+    const instrumentsByArtistId = new Map<string, string[]>();
+    const numericIds = Array.from(new Set(
+      pagArtistIds
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id))
+    ));
+
+    if (numericIds.length === 0) {
+      return instrumentsByArtistId;
+    }
+
+    const { data, error } = await this.adminSupabase
+      .from('vw_artist_instruments')
+      .select('id_artist, instrument')
+      .in('id_artist', numericIds);
+
+    if (error) {
+      if (!this.isMissingSchemaError(error)) {
+        console.error('getPagArtistInstrumentNamesByArtistIds error:', error.message);
+      }
+      return instrumentsByArtistId;
+    }
+
+    for (const row of ((data ?? []) as any[])) {
+      const artistId = row.id_artist === null || row.id_artist === undefined ? '' : String(row.id_artist);
+      const instrumentName = typeof row.instrument === 'string' ? row.instrument.trim() : '';
+
+      if (!artistId || !instrumentName) {
+        continue;
+      }
+
+      const existing = instrumentsByArtistId.get(artistId) ?? [];
+      if (!existing.includes(instrumentName)) {
+        existing.push(instrumentName);
+      }
+      instrumentsByArtistId.set(artistId, existing);
+    }
+
+    return instrumentsByArtistId;
   }
 
   async saveArtistWorkspaceInstruments(profileId: string, instruments: ArtistInstrumentOption[]): Promise<string | null> {
@@ -10990,37 +11079,47 @@ export class SupabaseService {
 
     const { data: tjsArtists, error: tjsError } = await this.adminSupabase
       .from('tjs_artists')
-      .select('id, profile_id, artist_name');
+      .select('id, profile_id, artist_name, is_tjs_artist, is_invited_artist');
 
     if (tjsError) {
       console.error('getPagArtists tjs lookup error:', tjsError.message);
       return pagArtists.map((artist) => ({ ...artist, tjs_artist_id: null }));
     }
 
-    const tjsRows = (tjsArtists ?? []) as Array<{ id: string; profile_id: string | null; artist_name: string | null }>;
-    const tjsByProfileId = new Map<string, string>();
-    const tjsByName = new Map<string, string>();
+    type TjsArtistLookupRow = {
+      id: string;
+      profile_id: string | null;
+      artist_name: string | null;
+      is_tjs_artist: boolean | null;
+      is_invited_artist: boolean | null;
+    };
+
+    const tjsRows = (tjsArtists ?? []) as TjsArtistLookupRow[];
+    const tjsByProfileId = new Map<string, TjsArtistLookupRow>();
+    const tjsByName = new Map<string, TjsArtistLookupRow>();
 
     for (const row of tjsRows) {
       if (row.profile_id) {
-        tjsByProfileId.set(row.profile_id, row.id);
+        tjsByProfileId.set(row.profile_id, row);
       }
 
       const normalizedName = (row.artist_name ?? '').trim().toLowerCase();
       if (normalizedName) {
-        tjsByName.set(normalizedName, row.id);
+        tjsByName.set(normalizedName, row);
       }
     }
 
     return pagArtists.map((artist) => {
       const normalizedName = `${artist.fname ?? ''} ${artist.lname ?? ''}`.trim().toLowerCase();
-      const matchedTjsId = (artist.id_profile ? tjsByProfileId.get(artist.id_profile) : null)
+      const matchedTjsArtist = (artist.id_profile ? tjsByProfileId.get(artist.id_profile) : null)
         ?? (normalizedName ? tjsByName.get(normalizedName) : null)
         ?? null;
 
       return {
         ...artist,
-        tjs_artist_id: matchedTjsId,
+        tjs_artist_id: matchedTjsArtist?.id ?? null,
+        tjs_artist_is_tjs: !!matchedTjsArtist?.is_tjs_artist,
+        tjs_artist_is_invited: !!matchedTjsArtist?.is_invited_artist,
       };
     });
   }
@@ -11985,12 +12084,58 @@ export class SupabaseService {
     };
   }
 
-  async promotePagArtistToTjs(
+  /**
+   * Finds the portal profile behind a legacy PAG artist. `artists.id_profile` holds legacy PAG ids
+   * that do not exist in tjs_profiles, so it is only used when it really resolves; email is the
+   * reliable link.
+   */
+  private async findProfileIdForPagArtist(pagArtist: PagArtist): Promise<string | null> {
+    if (pagArtist.id_profile) {
+      const { data, error } = await this.adminSupabase
+        .from('tjs_profiles')
+        .select('id')
+        .eq('id', pagArtist.id_profile)
+        .maybeSingle();
+
+      if (error) {
+        console.error('findProfileIdForPagArtist id lookup error:', error.message);
+      } else if (data?.id) {
+        return data.id as string;
+      }
+    }
+
+    const email = (pagArtist.email ?? '').trim().toLowerCase();
+    if (!email) {
+      return null;
+    }
+
+    const { data, error } = await this.adminSupabase
+      .from('tjs_profiles')
+      .select('id')
+      .ilike('email', email)
+      .maybeSingle();
+
+    if (error) {
+      console.error('findProfileIdForPagArtist email lookup error:', error.message);
+      return null;
+    }
+
+    return (data?.id as string) ?? null;
+  }
+
+  /** Creates the TJS artist record behind a legacy PAG artist, as a TJS or an invited artist. */
+  async promotePagArtist(
     pagArtist: PagArtist,
+    target: PagArtistPromotionTarget,
     committeeMemberId?: string | null
-  ): Promise<{ artist: TjsArtist | null; error: string | null }> {
+  ): Promise<{ artist: TjsArtist | null; error: string | null; invitationSent?: boolean }> {
     if (!pagArtist.is_active) {
-      return { artist: null, error: 'Only active non-TJS artists can be converted to TJS artists.' };
+      return {
+        artist: null,
+        error: target === 'invited'
+          ? 'Only active non-TJS artists can be converted to invited artists.'
+          : 'Only active non-TJS artists can be converted to TJS artists.',
+      };
     }
 
     if (pagArtist.tjs_artist_id) {
@@ -12008,7 +12153,7 @@ export class SupabaseService {
         .maybeSingle();
 
       if (error) {
-        console.error('promotePagArtistToTjs existing fetch error:', error.message);
+        console.error('promotePagArtist existing fetch error:', error.message);
         return { artist: null, error: error.message };
       }
 
@@ -12017,32 +12162,91 @@ export class SupabaseService {
     }
 
     const artistName = `${pagArtist.fname ?? ''} ${pagArtist.lname ?? ''}`.trim() || 'Unknown Artist';
-    const payload: Record<string, any> = {
-      profile_id: pagArtist.id_profile,
-      artist_name: artistName,
-      is_tjs_artist: true,
-      activation_status: 'active',
-    };
+    const isInvited = target === 'invited';
+    const profileId = await this.findProfileIdForPagArtist(pagArtist);
 
-    if (committeeMemberId) {
+    // No portal account yet: invite them, which creates the profile and the artist record together.
+    if (!profileId) {
+      const email = (pagArtist.email ?? '').trim().toLowerCase();
+
+      if (!email) {
+        return {
+          artist: null,
+          error: `${artistName} has no email address in PAG, so no portal account can be created. Add an email to the PAG record first.`,
+        };
+      }
+
+      if (!committeeMemberId) {
+        return { artist: null, error: 'Your account could not be identified. Please sign in again.' };
+      }
+
+      const inviteResult = await this.inviteArtist({
+        email,
+        full_name: artistName,
+        phone: pagArtist.phone,
+        committee_member_id: committeeMemberId,
+        assigned_by: committeeMemberId,
+        role_name: isInvited ? 'Artist Invited' : 'Artist',
+      });
+
+      return { ...inviteResult, invitationSent: !inviteResult.error };
+    }
+
+    const artistSelect = `
+      *,
+      profile:tjs_profiles (
+        id, email, full_name, phone, bio, avatar_url,
+        is_member, member_since, member_until, is_pag_artist,
+        created_at, updated_at
+      )
+    `;
+
+    // The profile may already carry an artist record; flag that one instead of inserting a second.
+    const { data: linkedArtist, error: linkedArtistError } = await this.adminSupabase
+      .from('tjs_artists')
+      .select('id, is_tjs_artist, is_invited_artist')
+      .eq('profile_id', profileId)
+      .maybeSingle();
+
+    if (linkedArtistError) {
+      console.error('promotePagArtist existing artist lookup error:', linkedArtistError.message);
+      return { artist: null, error: linkedArtistError.message };
+    }
+
+    const payload: Record<string, any> = linkedArtist
+      ? {
+          is_tjs_artist: !!linkedArtist.is_tjs_artist || !isInvited,
+          is_invited_artist: !!linkedArtist.is_invited_artist || isInvited,
+          updated_at: new Date().toISOString(),
+        }
+      : {
+          profile_id: profileId,
+          artist_name: artistName,
+          is_tjs_artist: !isInvited,
+          is_invited_artist: isInvited,
+          // Invited artists still have to activate their account, TJS artists are live right away.
+          activation_status: isInvited ? 'pending' : 'active',
+        };
+
+    if (committeeMemberId && !linkedArtist) {
       payload['committee_member_id'] = committeeMemberId;
     }
 
-    const { data, error } = await this.adminSupabase
-      .from('tjs_artists')
-      .insert(payload)
-      .select(`
-        *,
-        profile:tjs_profiles (
-          id, email, full_name, phone, bio, avatar_url,
-          is_member, member_since, member_until, is_pag_artist,
-          created_at, updated_at
-        )
-      `)
-      .single();
+    const { data, error } = linkedArtist
+      ? await this.adminSupabase
+          .from('tjs_artists')
+          .update(payload)
+          .eq('id', linkedArtist.id)
+          .select(artistSelect)
+          .single()
+      : await this.adminSupabase
+          .from('tjs_artists')
+          .insert(payload)
+          .select(artistSelect)
+          .single();
 
     if (error) {
-      console.error('promotePagArtistToTjs insert error:', error.message);
+      console.error('promotePagArtist write error:', error.message);
       return { artist: null, error: error.message };
     }
 
@@ -12136,6 +12340,30 @@ export class SupabaseService {
     return { artist: mappedArtists[0] ?? null, error: null };
   }
 
+  /** Says whether an email is taken by an existing artist, so the invite form can name the clash. */
+  private async describeEmailConflict(existingUser: ExistingUserLookup): Promise<string> {
+    const { data, error } = await this.adminSupabase
+      .from('tjs_artists')
+      .select('artist_name, is_tjs_artist, is_invited_artist')
+      .eq('profile_id', existingUser.id)
+      .maybeSingle();
+
+    if (!error && data) {
+      const types: string[] = [];
+      if (data.is_tjs_artist) types.push('a TJS artist');
+      if (data.is_invited_artist) types.push('an invited artist');
+
+      if (types.length > 0) {
+        const name = existingUser.full_name?.trim() || (data.artist_name ?? '').trim();
+        return `${name || 'Someone'} already uses this email as ${types.join(' and ')}.`;
+      }
+    }
+
+    return existingUser.account_status === 'active'
+      ? 'An account already exists with this email.'
+      : 'This email has already been invited.';
+  }
+
   async inviteArtist(input: InviteArtistInput): Promise<{ artist: TjsArtist | null; error: string | null }> {
     const normalizedEmail = input.email.trim().toLowerCase();
     const fullName = input.full_name.trim();
@@ -12146,12 +12374,7 @@ export class SupabaseService {
 
     const existingUser = await this.findExistingUserByEmail(normalizedEmail);
     if (existingUser) {
-      return {
-        artist: null,
-        error: existingUser.account_status === 'active'
-          ? 'An account already exists with this email.'
-          : 'This email has already been invited.',
-      };
+      return { artist: null, error: await this.describeEmailConflict(existingUser) };
     }
 
     const redirectTo = this.getInviteRedirectUrl();
