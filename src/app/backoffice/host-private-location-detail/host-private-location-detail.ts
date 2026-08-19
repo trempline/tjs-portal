@@ -109,6 +109,12 @@ export class HostPrivateLocationDetail implements OnInit {
     this.isUpdatingStatus = false;
   }
 
+  /** The location's single geographical zone, read as "departement - ville". */
+  get zoneLabel(): string {
+    const zone = this.location?.geographical_zone;
+    return zone ? `${zone.departement} - ${zone.ville}` : '-';
+  }
+
   trackByImage(index: number, image: { id: string; image_url: string }) {
     return image.id || `${index}:${image.image_url}`;
   }
@@ -214,8 +220,10 @@ export class HostPrivateLocationDetail implements OnInit {
       email: location.email,
       website: location.website,
       is_active: isActive,
-      is_address_visible: location.is_address_visible === true,
+      is_anonymous: location.is_anonymous === true,
+      public_name: location.public_name,
       access_info: location.access_info,
+      geographical_zone: location.geographical_zone,
       created_by: location.created_by ?? this.currentUserId,
       updated_by: this.currentUserId,
       images: location.images.map((image) => ({

@@ -128,6 +128,12 @@ export class HostManagerPublicLocationDetail implements OnInit {
     this.isUpdatingStatus = false;
   }
 
+  /** The location's single geographical zone, read as "departement - ville". */
+  get zoneLabel(): string {
+    const zone = this.location?.geographical_zone;
+    return zone ? `${zone.departement} - ${zone.ville}` : '-';
+  }
+
   trackByImage(index: number, image: { id: string; image_url: string }) {
     return image.id || `${index}:${image.image_url}`;
   }
@@ -216,6 +222,7 @@ export class HostManagerPublicLocationDetail implements OnInit {
       website: location.website,
       is_active: isActive,
       access_info: location.access_info,
+      geographical_zone: location.geographical_zone,
       created_by: location.created_by ?? this.currentUserId,
       updated_by: this.currentUserId,
       images: location.images.map((image) => ({

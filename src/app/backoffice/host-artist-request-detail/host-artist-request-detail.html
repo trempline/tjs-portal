@@ -185,6 +185,27 @@
               </div>
             </section>
 
+            <!-- Where the artist is willing to play: the zones picked on the request. -->
+            <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+              <div class="flex items-center justify-between gap-3">
+                <h3 class="text-lg font-semibold text-zinc-900">Geographical Zones</h3>
+                <span class="rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600">
+                  {{ requestZones.length }} selected
+                </span>
+              </div>
+              <div *ngIf="requestZones.length === 0" class="mt-4 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-8 text-center text-sm text-zinc-500">
+                The artist did not select any geographical zone.
+              </div>
+              <div *ngIf="requestZones.length > 0" class="mt-4 flex flex-wrap gap-2">
+                <span
+                  *ngFor="let zone of requestZones; trackBy: trackByZone"
+                  class="inline-flex items-center rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-zinc-800"
+                >
+                  {{ zoneLabel(zone) }}
+                </span>
+              </div>
+            </section>
+
             <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
               <h3 class="text-lg font-semibold text-zinc-900">{{ request.status === 'published' ? 'Published Event Dates' : 'Artist Proposed Dates' }}</h3>
               <div *ngIf="request.status === 'published' && publishedEventDateLines.length === 0" class="mt-4 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-8 text-center text-sm text-zinc-500">
@@ -199,7 +220,7 @@
                 No proposed dates were added to this request.
               </div>
               <p *ngIf="request.status !== 'published' && request.dates.length > 0 && canManageRequestActions && !acceptedByHost" class="mt-1 text-sm text-zinc-500">
-                Tick only the dates you want to take, and give each one a show time and a venue. You do not have to accept them all.
+                Tick only the dates you want to take, and give each one a venue plus a show time when it is a concert. You do not have to accept them all.
               </p>
 
               <div *ngIf="request.status !== 'published' && request.dates.length > 0" class="mt-4 space-y-3">
@@ -219,16 +240,25 @@
                     />
                     <div class="min-w-0 flex-1">
                       <div class="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                        {{ date.request_type === 'period' ? 'Period' : 'One Day' }}
+                        {{ artistDateTypeLabel(date) }}
                       </div>
                       <div class="mt-2 text-sm font-medium text-zinc-900">{{ artistRequestedDateLabel(date) }}</div>
                     </div>
                   </div>
 
                   <div *ngIf="canManageRequestActions && !acceptedByHost && artistDateSelections[i]?.selected" class="mt-4 grid gap-4 md:grid-cols-2">
+                    <!-- Only a concert runs at a set hour; a residence spans days and has no time. -->
                     <div class="space-y-2">
                       <label class="text-sm font-medium text-zinc-700">Show Time</label>
-                      <input [(ngModel)]="artistDateSelections[i].show_time" type="time" class="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+                      <input
+                        *ngIf="artistDateHasTime(date); else artistDateHasNoTime"
+                        [(ngModel)]="artistDateSelections[i].show_time"
+                        type="time"
+                        class="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100"
+                      />
+                      <ng-template #artistDateHasNoTime>
+                        <div class="w-full rounded-2xl border border-dashed border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-400">No time for a residence</div>
+                      </ng-template>
                     </div>
                     <div class="space-y-2">
                       <label class="text-sm font-medium text-zinc-700">Location</label>
@@ -431,7 +461,7 @@
           <div class="flex items-center justify-between gap-3">
             <div>
               <h3 class="text-lg font-semibold text-zinc-900">Proposed Dates</h3>
-              <p class="mt-1 text-sm text-zinc-500">For each proposal, choose whether it is a one-day show or a period, then add show time and location.</p>
+              <p class="mt-1 text-sm text-zinc-500">For each proposal, choose whether it is a concert or a residence, then add the location. Only a concert takes a show time.</p>
             </div>
             <button type="button" (click)="addDraftProposedDate()" class="rounded-2xl border border-zinc-200 px-4 py-3 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50">
               Add Date
@@ -445,12 +475,12 @@
                   <label class="text-sm font-medium text-zinc-700">Proposal Type</label>
                   <div class="flex flex-wrap gap-3">
                     <label class="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm">
-                      <input [(ngModel)]="proposedDate.mode" type="radio" value="one_day" [name]="'modal-proposal-type-' + i" />
-                      One Day
+                      <input [(ngModel)]="proposedDate.mode" type="radio" value="one_day" [name]="'modal-proposal-type-' + i" (change)="onProposalModeChange(i)" />
+                      Concert (One Day)
                     </label>
                     <label class="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm">
-                      <input [(ngModel)]="proposedDate.mode" type="radio" value="period" [name]="'modal-proposal-type-' + i" />
-                      Period
+                      <input [(ngModel)]="proposedDate.mode" type="radio" value="period" [name]="'modal-proposal-type-' + i" (change)="onProposalModeChange(i)" />
+                      Residence (Period)
                     </label>
                   </div>
                 </div>
@@ -465,9 +495,18 @@
                   <input [(ngModel)]="proposedDate.end_date" type="date" class="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
                 </div>
 
+                <!-- Only a concert runs at a set hour; a residence spans days and has no time. -->
                 <div class="space-y-2">
                   <label class="text-sm font-medium text-zinc-700">Show Time</label>
-                  <input [(ngModel)]="proposedDate.show_time" type="time" class="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+                  <input
+                    *ngIf="scheduleHasTime(proposedDate.mode); else proposalHasNoTime"
+                    [(ngModel)]="proposedDate.show_time"
+                    type="time"
+                    class="w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100"
+                  />
+                  <ng-template #proposalHasNoTime>
+                    <div class="w-full rounded-2xl border border-dashed border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-400">No time for a residence</div>
+                  </ng-template>
                 </div>
 
                 <div class="space-y-2 md:col-span-2">

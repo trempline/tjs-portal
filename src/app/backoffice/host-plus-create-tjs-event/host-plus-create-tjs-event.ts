@@ -27,6 +27,7 @@ interface HostPlusTjsEventForm {
   callToActionUrl: string;
   isPublished: boolean;
   isMemberOnly: boolean;
+  isLocationAnonymous: boolean;
   notes: string;
 }
 
@@ -270,6 +271,7 @@ export class HostPlusCreateTjsEvent implements OnInit {
       callToActionUrl: this.form.callToActionUrl.trim(),
       isPublished: this.form.isPublished,
       isMemberOnly: this.form.isMemberOnly,
+      isLocationAnonymous: this.form.isLocationAnonymous,
       externalArtists: this.externalEvent.artists.map((artist) => ({
         id: artist.id,
         displayName: artist.display_name,
@@ -306,6 +308,7 @@ export class HostPlusCreateTjsEvent implements OnInit {
       callToActionUrl: event.booking_url ?? '',
       isPublished: true,
       isMemberOnly: false,
+      isLocationAnonymous: false,
       notes: '',
     };
 
@@ -437,6 +440,7 @@ export class HostPlusCreateTjsEvent implements OnInit {
       callToActionUrl: '',
       isPublished: true,
       isMemberOnly: false,
+      isLocationAnonymous: false,
       notes: '',
     };
   }

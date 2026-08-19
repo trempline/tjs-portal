@@ -87,6 +87,10 @@
               <div class="mt-1 text-sm font-medium text-zinc-900">{{ location.city || '-' }}<span *ngIf="location.city && location.country">, </span>{{ location.country || '-' }}</div>
             </div>
             <div class="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+              <div class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">Geographical Zone</div>
+              <div class="mt-1 text-sm font-medium text-zinc-900">{{ zoneLabel }}</div>
+            </div>
+            <div class="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
               <div class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">Latitude</div>
               <div class="mt-1 text-sm font-medium text-zinc-900">{{ location.lat ?? '-' }}</div>
             </div>

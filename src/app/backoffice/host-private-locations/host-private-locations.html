@@ -118,6 +118,18 @@
       </div>
 
       <div class="space-y-2">
+        <label class="text-sm font-medium text-zinc-700">Geographical Zone</label>
+        <select [(ngModel)]="form.zone_key" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100">
+          <option value="">Select geographical zone</option>
+          <option *ngFor="let zone of zoneOptions; trackBy: trackByZone" [value]="zoneKey(zone)">{{ zoneLabel(zone) }}</option>
+        </select>
+        <p *ngIf="geographicalZones.length === 0" class="text-xs text-amber-700">
+          No geographical zone is available. Run db/033_geographical_zone.sql and check that signed-in users can read tjs_geographical_zone.
+        </p>
+        <p *ngIf="geographicalZones.length > 0" class="text-xs text-zinc-500">Pick the one zone this location belongs to.</p>
+      </div>
+
+      <div class="space-y-2">
         <label class="text-sm font-medium text-zinc-700">City</label>
         <input [(ngModel)]="form.city" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100" />
       </div>
@@ -252,17 +264,52 @@
             <span>Location is active</span>
           </label>
 
-          <label class="flex items-start gap-3 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-700">
-            <input [(ngModel)]="form.is_address_visible" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-zinc-300 text-red-600 focus:ring-red-500" />
-            <span>
-              <span class="font-medium">Address visible on the website</span>
-              <span class="mt-1 block text-xs text-zinc-500">
-                {{ form.is_address_visible
-                  ? 'Visitors see the address, the map and the full descriptions of this location.'
-                  : 'Visitors only see the public description. The address, map, contact details and restricted description stay hidden.' }}
+          <!-- Anonymity is a private-location choice: hide who the host is and where they live. -->
+          <div class="rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-700">
+            <div class="flex items-start gap-3">
+              <label class="flex flex-1 items-start gap-3">
+                <input [(ngModel)]="form.is_anonymous" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-zinc-300 text-red-600 focus:ring-red-500" />
+                <span>
+                  <span class="font-medium">Anonymous location</span>
+                  <span class="mt-1 block text-xs text-zinc-500">
+                    {{ form.is_anonymous
+                      ? 'Visitors only see the public name, the town and the public description. The real name, host, address, map, photos and contact details stay hidden.'
+                      : 'Visitors see the name, address, map and photos of this location. The restricted description stays private either way.' }}
+                  </span>
+                </span>
+              </label>
+
+              <!-- Hover or keyboard focus opens it; no JS needed. -->
+              <span class="group relative shrink-0">
+                <button
+                  type="button"
+                  aria-label="About anonymous locations"
+                  class="flex h-6 w-6 items-center justify-center rounded-full border border-zinc-300 text-zinc-500 transition-colors hover:border-zinc-400 hover:text-zinc-700 focus:outline-none focus:ring-2 focus:ring-red-100"
+                >
+                  <svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M12 16v-4"></path>
+                    <path d="M12 8h.01"></path>
+                  </svg>
+                </button>
+                <span
+                  role="tooltip"
+                  class="pointer-events-none absolute right-0 top-8 z-20 w-72 rounded-xl bg-zinc-900 px-4 py-3 text-xs leading-5 text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+                >
+                  <span class="block font-semibold">Anonymous</span>
+                  <span class="mt-1 block">We should have anonym or not. If anonym is selected the location is not visible for visitors.</span>
+                  <span class="mt-2 block">The location is visible only for the artist.</span>
+                  <span class="mt-2 block">Member only: enables members to see the location and to access the booking info.</span>
+                </span>
               </span>
-            </span>
-          </label>
+            </div>
+          </div>
+
+          <div *ngIf="form.is_anonymous" class="space-y-1.5">
+            <label class="text-sm font-medium text-zinc-700">Public Name</label>
+            <input [(ngModel)]="form.public_name" type="text" placeholder="Mme O" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+            <p class="text-xs text-zinc-500">Shown to website visitors in place of the real name. Falls back to the town when left empty.</p>
+          </div>
         </div>
       </section>
     </div>
@@ -281,6 +328,7 @@
             <th *ngIf="canSelectHost" class="px-5 py-3 text-left font-semibold text-zinc-600">Host</th>
             <th class="px-5 py-3 text-left font-semibold text-zinc-600">Type</th>
             <th class="px-5 py-3 text-left font-semibold text-zinc-600">City</th>
+            <th class="px-5 py-3 text-left font-semibold text-zinc-600">Zone</th>
             <th class="px-5 py-3 text-left font-semibold text-zinc-600">Capacity</th>
             <th class="px-5 py-3 text-left font-semibold text-zinc-600">Status</th>
             <th class="px-5 py-3 text-right font-semibold text-zinc-600">Actions</th>
@@ -307,6 +355,7 @@
             <td *ngIf="canSelectHost" class="px-5 py-4 text-zinc-700">{{ hostNameForLocation(location) }}</td>
             <td class="px-5 py-4 text-zinc-700">{{ location.location_type?.name || '-' }}</td>
             <td class="px-5 py-4 text-zinc-700">{{ location.city || '-' }}</td>
+            <td class="px-5 py-4 text-zinc-700">{{ location.geographical_zone ? zoneLabel(location.geographical_zone) : '-' }}</td>
             <td class="px-5 py-4 text-zinc-700">{{ location.capacity || '-' }}</td>
             <td class="px-5 py-4">
               <div class="flex flex-wrap gap-1.5">
@@ -315,13 +364,13 @@
                 </span>
                 <span
                   class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold"
-                  [class.bg-blue-100]="location.is_address_visible"
-                  [class.text-blue-700]="location.is_address_visible"
-                  [class.bg-amber-100]="!location.is_address_visible"
-                  [class.text-amber-700]="!location.is_address_visible"
-                  [title]="location.is_address_visible ? 'Address and details are shown on the website' : 'Only the public description is shown on the website'"
+                  [class.bg-amber-100]="location.is_anonymous"
+                  [class.text-amber-700]="location.is_anonymous"
+                  [class.bg-blue-100]="!location.is_anonymous"
+                  [class.text-blue-700]="!location.is_anonymous"
+                  [title]="location.is_anonymous ? 'Visitors only see the public name, the town and the public description' : 'Name, address and photos are shown on the website'"
                 >
-                  {{ location.is_address_visible ? 'Address visible' : 'Address hidden' }}
+                  {{ location.is_anonymous ? 'Anonymous' : 'Identified' }}
                 </span>
               </div>
             </td>

@@ -61,7 +61,8 @@
             </div>
             <div class="rounded-2xl border border-white/10 bg-black/25 px-4 py-3 shadow-lg shadow-black/10 backdrop-blur-sm">
               <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/60">Website</div>
-              <div class="mt-1 font-medium text-white">{{ location.is_address_visible ? 'Address visible' : 'Address hidden' }}</div>
+              <div class="mt-1 font-medium text-white">{{ location.is_anonymous ? 'Anonymous' : 'Identified' }}</div>
+              <div *ngIf="location.is_anonymous" class="mt-1 text-xs text-white/60">Shown as {{ location.public_name || location.city || 'Private location' }}</div>
             </div>
             <button
               type="button"
@@ -88,6 +89,10 @@
             <div class="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
               <div class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">City / Country</div>
               <div class="mt-1 text-sm font-medium text-zinc-900">{{ location.city || '-' }}<span *ngIf="location.city && location.country">, </span>{{ location.country || '-' }}</div>
+            </div>
+            <div class="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+              <div class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">Geographical Zone</div>
+              <div class="mt-1 text-sm font-medium text-zinc-900">{{ zoneLabel }}</div>
             </div>
             <div class="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
               <div class="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">Latitude</div>

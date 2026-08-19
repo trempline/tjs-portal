@@ -101,6 +101,7 @@ export class HostCreateEvent implements OnInit {
     locationId: null,
     isActive: true,
     isOpenToMembers: false,
+    isLocationAnonymous: false,
     notes: '',
   };
 
@@ -558,6 +559,7 @@ export class HostCreateEvent implements OnInit {
       locationId: null,
       isActive: true,
       isOpenToMembers: false,
+      isLocationAnonymous: false,
       notes: '',
     };
     this.scheduleEntries = this.hostProposalEntries.length > 0

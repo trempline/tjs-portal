@@ -92,6 +92,7 @@ export class HostNewEvent implements OnInit {
     callToActionUrl: '',
     isPublished: true,
     isMemberOnly: false,
+    isLocationAnonymous: false,
     artistIds: [],
     additionalInstruments: [],
     mediaEntries: [],

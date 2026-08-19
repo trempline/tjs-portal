@@ -167,8 +167,12 @@ export class CommitteeArtistDetail implements OnInit {
     return this.authService.isAdmin;
   }
 
+  /**
+   * Host managers edit TJS artists the same way committee members do, but only from their own
+   * workspace routes: the same component also serves the read-only host view.
+   */
   get canEditTjsArtist(): boolean {
-    return (this.authService.hasRole('Community Member') || this.isAdminWorkspace)
+    return (this.authService.hasRole('Community Member') || this.isAdminWorkspace || this.isHostManagerWorkspace)
       && !!this.artist?.is_tjs_artist
       && !this.isPagOnlyProfile;
   }
@@ -209,7 +213,7 @@ export class CommitteeArtistDetail implements OnInit {
     }
 
     if (this.isHostManagerWorkspace) {
-      return 'Host manager workspace view of the artist profile, requests, availability, media, and upcoming events.';
+      return 'Host manager workspace view of the artist profile, requests, availability, media, and upcoming events. TJS artist details can be edited here.';
     }
 
     if (this.isAdminWorkspace) {

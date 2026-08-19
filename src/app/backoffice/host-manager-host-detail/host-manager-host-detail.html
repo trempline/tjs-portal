@@ -396,16 +396,23 @@
                   <textarea [(ngModel)]="form.access_info" rows="3" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-100"></textarea>
                 </label>
 
+                <!-- Anonymity is a private-location choice: hide who the host is and where they live. -->
                 <label class="flex items-start gap-3 rounded-lg border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-700 md:col-span-2">
-                  <input [(ngModel)]="form.is_address_visible" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-zinc-300 text-red-600 focus:ring-red-500" />
+                  <input [(ngModel)]="form.is_anonymous" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-zinc-300 text-red-600 focus:ring-red-500" />
                   <span>
-                    <span class="font-medium text-zinc-800">Address visible on the website</span>
+                    <span class="font-medium text-zinc-800">Anonymous location</span>
                     <span class="mt-1 block text-xs text-zinc-500">
-                      {{ form.is_address_visible
-                        ? 'Visitors see the address, the map and the full descriptions of this location.'
-                        : 'Visitors only see the public description. The address, map, contact details and restricted description stay hidden.' }}
+                      {{ form.is_anonymous
+                        ? 'Visitors only see the public name, the town and the public description. The real name, host, address, map, photos and contact details stay hidden.'
+                        : 'Visitors see the name, address, map and photos of this location. The restricted description stays private either way.' }}
                     </span>
                   </span>
+                </label>
+
+                <label *ngIf="form.is_anonymous" class="space-y-2 text-sm md:col-span-2">
+                  <span class="font-medium text-zinc-800">Public Name</span>
+                  <input [(ngModel)]="form.public_name" type="text" placeholder="Mme O" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-100" />
+                  <span class="block text-xs text-zinc-500">Shown to website visitors in place of the real name. Falls back to the town when left empty.</span>
                 </label>
                 </div>
 
@@ -553,7 +560,8 @@
                       </div>
                       <div class="rounded-lg bg-white px-4 py-3">
                         <div class="text-xs uppercase tracking-wide text-zinc-500">Website</div>
-                        <div class="mt-1 font-medium text-zinc-900">{{ selectedPrivateLocation.is_address_visible ? 'Address visible' : 'Address hidden' }}</div>
+                        <div class="mt-1 font-medium text-zinc-900">{{ selectedPrivateLocation.is_anonymous ? 'Anonymous' : 'Identified' }}</div>
+                        <div *ngIf="selectedPrivateLocation.is_anonymous" class="mt-1 text-xs text-zinc-500">Shown as {{ selectedPrivateLocation.public_name || selectedPrivateLocation.city || 'Private location' }}</div>
                       </div>
                     </div>
                   </section>

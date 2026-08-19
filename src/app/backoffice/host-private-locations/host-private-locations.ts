@@ -5,6 +5,7 @@ import { RouterLink } from '@angular/router';
 import { WorkspaceEditButton } from '../../shared/workspace-edit/workspace-edit-button';
 import { AuthService } from '../../services/auth.service';
 import {
+  GeographicalZoneOption,
   LocationImageInput,
   LocationLookupOption,
   SaveTjsPrivateLocationInput,
@@ -32,8 +33,11 @@ interface LocationForm {
   email: string;
   website: string;
   access_info: string;
+  /** "departement::ville" of the single zone picked for the location, or '' while none is. */
+  zone_key: string;
   is_active: boolean;
-  is_address_visible: boolean;
+  is_anonymous: boolean;
+  public_name: string;
   images: LocationImageInput[];
   location_type_id: number | null;
   amenities: LocationLookupOption[];
@@ -67,6 +71,7 @@ export class HostPrivateLocations implements OnInit {
   amenityOptions: LocationLookupOption[] = [];
   specOptions: LocationLookupOption[] = [];
   typeOptions: LocationLookupOption[] = [];
+  geographicalZones: GeographicalZoneOption[] = [];
   editingLocation: TjsPrivateLocation | null = null;
   form: LocationForm = this.blankForm();
 
@@ -137,12 +142,13 @@ export class HostPrivateLocations implements OnInit {
     this.error = '';
 
     try {
-      const [hosts, locations, amenityOptions, specOptions, typeOptions] = await Promise.all([
+      const [hosts, locations, amenityOptions, specOptions, typeOptions, geographicalZones] = await Promise.all([
         this.isAdminWorkspace ? this.supabase.getHosts() : this.supabase.getAccessibleHosts(this.currentUserId),
         this.isAdminWorkspace ? this.supabase.getAllPrivateLocations() : this.supabase.getPrivateLocations(this.currentUserId),
         this.supabase.listLocationAmenities(),
         this.supabase.listLocationSpecs(),
         this.supabase.listLocationTypes(),
+        this.supabase.listGeographicalZones(),
       ]);
 
       this.accessibleHosts = hosts;
@@ -151,6 +157,7 @@ export class HostPrivateLocations implements OnInit {
       this.amenityOptions = amenityOptions;
       this.specOptions = specOptions;
       this.typeOptions = typeOptions;
+      this.geographicalZones = geographicalZones;
     } finally {
       this.isLoading = false;
     }
@@ -191,8 +198,10 @@ export class HostPrivateLocations implements OnInit {
       email: location.email ?? '',
       website: location.website ?? '',
       access_info: location.access_info ?? '',
+      zone_key: location.geographical_zone ? this.zoneKey(location.geographical_zone) : '',
       is_active: location.is_active,
-      is_address_visible: location.is_address_visible === true,
+      is_anonymous: location.is_anonymous === true,
+      public_name: location.public_name ?? '',
       images: location.images.map((image) => ({
         image_url: image.image_url,
         copyright_text: image.copyright_text ?? '',
@@ -211,9 +220,44 @@ export class HostPrivateLocations implements OnInit {
     this.error = '';
   }
 
+  /**
+   * The dropdown list. A zone already saved on the location is appended when the reference
+   * table no longer lists it, so the select never renders blank on an existing choice.
+   */
+  get zoneOptions(): GeographicalZoneOption[] {
+    const saved = this.editingLocation?.geographical_zone;
+    if (!saved || this.geographicalZones.some((zone) => this.zoneKey(zone) === this.zoneKey(saved))) {
+      return this.geographicalZones;
+    }
+
+    return [...this.geographicalZones, saved];
+  }
+
+  /** Identity of a zone everywhere it is keyed: the pair "departement::ville", lowercased. */
+  zoneKey(zone: { departement: string; ville: string }): string {
+    return `${zone.departement}::${zone.ville}`.toLowerCase();
+  }
+
+  /** How a zone reads everywhere it is shown: "departement - ville". */
+  zoneLabel(zone: { departement: string; ville: string }): string {
+    return `${zone.departement} - ${zone.ville}`;
+  }
+
+  /**
+   * An arrow property, not a method: ngFor calls trackBy unbound, so a plain method
+   * would lose `this` and fail on zoneKey.
+   */
+  trackByZone = (_: number, zone: GeographicalZoneOption) => this.zoneKey(zone);
+
   async saveLocation() {
     if (!this.form.name.trim()) {
       this.error = 'Location name is required.';
+      return;
+    }
+
+    const selectedZone = this.selectedZone();
+    if (!selectedZone) {
+      this.error = 'Geographical zone is required.';
       return;
     }
 
@@ -256,8 +300,10 @@ export class HostPrivateLocations implements OnInit {
       email: this.form.email,
       website: this.form.website,
       is_active: this.form.is_active,
-      is_address_visible: this.form.is_address_visible,
+      is_anonymous: this.form.is_anonymous,
+      public_name: this.form.public_name,
       access_info: this.form.access_info,
+      geographical_zone: selectedZone,
       created_by: this.editingLocation?.created_by ?? this.currentUserId,
       updated_by: this.currentUserId,
       images: this.form.images.slice(0, 5),
@@ -337,8 +383,10 @@ export class HostPrivateLocations implements OnInit {
       email: location.email,
       website: location.website,
       is_active: nextStatus,
-      is_address_visible: location.is_address_visible === true,
+      is_anonymous: location.is_anonymous === true,
+      public_name: location.public_name,
       access_info: location.access_info,
+      geographical_zone: location.geographical_zone,
       created_by: location.created_by ?? this.currentUserId,
       updated_by: this.currentUserId,
       images: location.images.map((image) => ({
@@ -468,6 +516,24 @@ export class HostPrivateLocations implements OnInit {
     this.currentHostId = typeof hostId === 'number' ? hostId : null;
   }
 
+  /**
+   * The zone behind the dropdown selection. A zone already saved on the location is kept even
+   * when the reference list no longer offers it, so editing another field cannot silently drop it.
+   */
+  private selectedZone(): GeographicalZoneOption | null {
+    if (!this.form.zone_key) {
+      return null;
+    }
+
+    const listed = this.geographicalZones.find((zone) => this.zoneKey(zone) === this.form.zone_key);
+    if (listed) {
+      return { ...listed };
+    }
+
+    const saved = this.editingLocation?.geographical_zone;
+    return saved && this.zoneKey(saved) === this.form.zone_key ? { ...saved } : null;
+  }
+
   private blankForm(): LocationForm {
     return {
       name: '',
@@ -485,8 +551,10 @@ export class HostPrivateLocations implements OnInit {
       email: '',
       website: '',
       access_info: '',
+      zone_key: '',
       is_active: false,
-      is_address_visible: false,
+      is_anonymous: false,
+      public_name: '',
       images: [],
       location_type_id: null,
       amenities: [],

@@ -126,6 +126,8 @@ export interface AdminEventOverviewItem {
   updated_at: string;
   is_featured?: boolean;
   is_member_only?: boolean;
+  /** This concert's venue stays unnamed on the website, whatever the venue itself is. */
+  is_location_anonymous?: boolean;
   proposed_dates: string[] | null;
   department: string | null;
   city: string | null;
@@ -301,6 +303,8 @@ export interface PublicLocationDetail extends PublicLocationItem {
   image_urls: string[];
   images: PublicLocationImage[];
   long_description: string;
+  /** Only ever filled for the artist playing here or a member; null on the website. */
+  restricted_description: string | null;
   access_info: string | null;
   phone: string | null;
   email: string | null;
@@ -357,6 +361,8 @@ export interface UpdateHostWorkspaceEventDetailPayload {
   description: string;
   callToActionUrl: string;
   isMemberOnly: boolean;
+  /** Keeps this concert's venue unnamed on the website, whatever the venue itself is. */
+  isLocationAnonymous?: boolean;
   hostNotes: string;
 }
 
@@ -541,6 +547,8 @@ export interface TjsLocation {
   website: string | null;
   is_active: boolean;
   access_info: string | null;
+  /** The single geographical zone the location sits in, or null while none is picked. */
+  geographical_zone: GeographicalZoneOption | null;
   created_by: string | null;
   updated_by: string | null;
   created_at: string;
@@ -570,6 +578,7 @@ export interface SaveTjsLocationInput {
   website?: string | null;
   is_active: boolean;
   access_info?: string | null;
+  geographical_zone?: GeographicalZoneOption | null;
   created_by: string;
   updated_by?: string | null;
   images: LocationImageInput[];
@@ -580,13 +589,19 @@ export interface SaveTjsLocationInput {
 
 export interface TjsPrivateLocation extends TjsLocation {
   id_host: number | null;
-  /** Opts this private location into showing its address and restricted details on the website. */
-  is_address_visible: boolean;
+  /**
+   * The host does not want to be identified: the website shows public_name and the town
+   * instead of the real name, host, address, map position and photos.
+   */
+  is_anonymous: boolean;
+  /** The stand-in name shown while anonymous, e.g. "Mme O". */
+  public_name: string | null;
 }
 
 export interface SaveTjsPrivateLocationInput {
   id_host: number | null;
-  is_address_visible: boolean;
+  is_anonymous: boolean;
+  public_name?: string | null;
   name: string;
   address?: string | null;
   lat?: number | null;
@@ -603,6 +618,7 @@ export interface SaveTjsPrivateLocationInput {
   website?: string | null;
   is_active: boolean;
   access_info?: string | null;
+  geographical_zone?: GeographicalZoneOption | null;
   created_by: string;
   updated_by?: string | null;
   images: LocationImageInput[];
@@ -698,6 +714,8 @@ export interface CreateHostEventFromRequestPayload {
   locationId: string | null;
   isActive: boolean;
   isOpenToMembers: boolean;
+  /** Keeps this concert's venue unnamed on the website, whatever the venue itself is. */
+  isLocationAnonymous?: boolean;
   notes: string;
 }
 
@@ -715,6 +733,8 @@ export interface CreateStandaloneHostEventPayload {
   callToActionUrl: string;
   isPublished: boolean;
   isMemberOnly: boolean;
+  /** Keeps this concert's venue unnamed on the website, whatever the venue itself is. */
+  isLocationAnonymous?: boolean;
   artistIds: string[];
   additionalInstruments: string[];
   mediaEntries: ArtistRequestMediaEntry[];
@@ -739,6 +759,8 @@ export interface CreateHostPlusTjsEventPayload {
   callToActionUrl: string;
   isPublished: boolean;
   isMemberOnly: boolean;
+  /** Keeps this concert's venue unnamed on the website, whatever the venue itself is. */
+  isLocationAnonymous?: boolean;
   externalArtists: Array<{
     id: string;
     displayName: string;
@@ -4388,7 +4410,8 @@ export class SupabaseService {
         created_by: event.created_by ?? null,
         created_at: event.created_at,
         updated_at: event.updated_at,
-        is_member_only: Array.isArray(event.visibility_scope) && event.visibility_scope.includes('MEMBER_ONLY'),
+        is_member_only: this.isEventMemberOnly(event.visibility_scope),
+        is_location_anonymous: this.isEventLocationAnonymous(event.visibility_scope),
         proposed_dates: event.proposed_dates ?? null,
         department: event.department ?? null,
         city: event.city ?? null,
@@ -4865,6 +4888,7 @@ export class SupabaseService {
           host_id,
           selected_dates,
           notes,
+          location_id,
           host:tjs_hosts (
             id,
             public_name,
@@ -5041,6 +5065,10 @@ export class SupabaseService {
       }
     }
 
+    const anonymousLocationIds = await this.getAnonymousLocationIds(
+      ((hostAssignmentsResult.data ?? []) as any[]).map((assignment) => assignment.location_id as string | null)
+    );
+
     return eventRows
       .map((event) => {
         const eventId = event.id as string;
@@ -5067,7 +5095,12 @@ export class SupabaseService {
             ? (primaryAssignment.selected_dates as string[])
             : [],
         );
-        const scheduleLines = this.extractEventScheduleLines(notes, scheduleEntries);
+        // An anonymous venue, or a concert flagged anonymous at a public venue, keeps its
+        // address out of the listing just as it does off the event page.
+        const hidesVenue = this.isEventLocationAnonymous(event.visibility_scope)
+          || anonymousLocationIds.has((primaryAssignment?.location_id as string | null) ?? '');
+        const rawScheduleLines = this.extractEventScheduleLines(notes, scheduleEntries);
+        const scheduleLines = hidesVenue ? this.anonymizeScheduleLines(rawScheduleLines) : rawScheduleLines;
         const sortedScheduleEntries = [...scheduleEntries].sort((left, right) => {
           const leftDate = left.end_date || left.start_date || '9999-12-31';
           const rightDate = right.end_date || right.start_date || '9999-12-31';
@@ -5709,6 +5742,76 @@ export class SupabaseService {
     });
   }
 
+  /**
+   * The venue as the artist playing there, or a member, is entitled to see it: full address,
+   * contact details, access info and the restricted description, however anonymous the host is
+   * to the website. Anyone else falls back to the public view.
+   *
+   * "Member" is any signed-in member in good standing — there is no per-event booking record to
+   * check against, so entitlement cannot be narrowed to the concert they actually booked.
+   */
+  async getLocationDetailForViewer(
+    locationId: string,
+    viewerProfileId: string | null,
+    viewerIsMember = false,
+  ): Promise<PublicLocationDetail | null> {
+    const hasFullAccess = viewerIsMember
+      || (!!viewerProfileId && await this.isArtistBookedAtLocation(viewerProfileId, locationId));
+
+    if (!hasFullAccess) {
+      return this.getPublicWebsiteLocationDetail(locationId);
+    }
+
+    const publicLocation = await this.getPublicLocationById(locationId);
+    if (publicLocation) {
+      return this.mapPublicLocationDetail(
+        publicLocation,
+        false,
+        null,
+        await this.getPublicLocationUpcomingEvents(publicLocation),
+        true,
+      );
+    }
+
+    const privateLocation = await this.getPrivateLocationById(locationId);
+    if (!privateLocation) {
+      return null;
+    }
+
+    const hostNames = await this.getHostNamesByIds(privateLocation.id_host ? [privateLocation.id_host] : []);
+
+    return this.mapPublicLocationDetail(
+      privateLocation,
+      true,
+      privateLocation.id_host ? hostNames.get(privateLocation.id_host) ?? null : null,
+      await this.getPublicLocationUpcomingEvents(privateLocation),
+      true,
+    );
+  }
+
+  /** True when this profile's artist is on an event whose host assignment points at the venue. */
+  private async isArtistBookedAtLocation(profileId: string, locationId: string): Promise<boolean> {
+    const events = await this.getArtistWorkspaceEvents(profileId);
+    if (events.length === 0) {
+      return false;
+    }
+
+    const assignmentResult = await this.adminSupabase
+      .from('tjs_event_hosts')
+      .select('event_id')
+      .eq('location_id', locationId)
+      .in('event_id', events.map((event) => event.id));
+
+    if (assignmentResult.error) {
+      if (!this.isMissingSchemaError(assignmentResult.error)) {
+        console.error('isArtistBookedAtLocation error:', assignmentResult.error.message);
+      }
+      return false;
+    }
+
+    return (assignmentResult.data ?? []).length > 0;
+  }
+
   async getPublicWebsiteLocationDetail(locationId: string): Promise<PublicLocationDetail | null> {
     const publicLocation = await this.getPublicLocationById(locationId);
     if (publicLocation?.is_active && isPublicLocationComplete(publicLocation)) {
@@ -5810,8 +5913,17 @@ export class SupabaseService {
       notes,
       Array.isArray(primaryAssignment?.selected_dates) ? primaryAssignment.selected_dates : []
     );
-    const scheduleLines = this.extractEventScheduleLines(notes, scheduleEntries);
+    // Either the host is anonymous at this venue, or this one concert was marked anonymous
+    // even though the venue itself is public. Both keep the address off the event page.
+    const hidesVenue = this.isEventLocationAnonymous(event.visibility_scope)
+      || await this.isLocationAnonymousById(assignmentLocationId);
+    const rawScheduleLines = this.extractEventScheduleLines(notes, scheduleEntries);
+    const scheduleLines = hidesVenue ? this.anonymizeScheduleLines(rawScheduleLines) : rawScheduleLines;
     const scheduleItems: PublicEventScheduleItem[] = scheduleLines.map((line, index) => {
+      if (hidesVenue) {
+        return { line, location_label: null, location_id: null };
+      }
+
       const locationLabel = this.extractScheduleLineLocationLabel(line);
       const locationId = this.resolvePublicLocationIdForScheduleLine(
         line,
@@ -6565,7 +6677,7 @@ export class SupabaseService {
     const selectedEventType = eventTypeOptions.find((item) => item.id === payload.eventTypeId) ?? null;
     const selectedEventDomain = eventDomains.find((item) => item.id === payload.eventDomainId) ?? null;
     const existingNotes = (hostAssignmentResult.data?.notes as string | null | undefined) ?? '';
-    const visibilityScope = this.buildEventVisibilityScope(payload.isMemberOnly);
+    const visibilityScope = this.buildEventVisibilityScope(payload.isMemberOnly, payload.isLocationAnonymous === true);
     const timestamp = new Date().toISOString();
     const title = payload.title.trim() || scopedEvent.request_detail?.event_title || scopedEvent.title || 'Untitled Event';
 
@@ -6696,7 +6808,7 @@ export class SupabaseService {
       callToActionUrl: payload.callToActionUrl.trim() || null,
       hostNotes: payload.hostNotes,
     });
-    const visibilityScope = this.buildEventVisibilityScope(payload.isMemberOnly);
+    const visibilityScope = this.buildEventVisibilityScope(payload.isMemberOnly, payload.isLocationAnonymous === true);
     const timestamp = new Date().toISOString();
 
     if (eventResult.data.parent_event_id) {
@@ -6804,7 +6916,7 @@ export class SupabaseService {
       callToActionUrl: payload.callToActionUrl.trim() || null,
       hostNotes: payload.hostNotes,
     });
-    const visibilityScope = this.buildEventVisibilityScope(payload.isMemberOnly);
+    const visibilityScope = this.buildEventVisibilityScope(payload.isMemberOnly, payload.isLocationAnonymous === true);
     const timestamp = new Date().toISOString();
 
     if (eventResult.data.parent_event_id) {
@@ -9976,6 +10088,7 @@ export class SupabaseService {
       website: row.website ?? null,
       is_active: !!row.is_active,
       access_info: row.access_info ?? null,
+      geographical_zone: this.mapLocationZone(row),
       created_by: row.created_by ?? null,
       updated_by: row.updated_by ?? null,
       created_at: row.created_at,
@@ -9998,31 +10111,68 @@ export class SupabaseService {
     };
   }
 
+  /**
+   * The zone columns arrive denormalized (db/038_location_geographical_zone.sql) and are
+   * absent altogether on a database that has not run that migration yet, so both cases
+   * collapse to null rather than a half-filled zone.
+   */
+  private mapLocationZone(row: any): GeographicalZoneOption | null {
+    const departement = typeof row?.zone_departement === 'string' ? row.zone_departement.trim() : '';
+    const ville = typeof row?.zone_ville === 'string' ? row.zone_ville.trim() : '';
+
+    if (!departement || !ville) {
+      return null;
+    }
+
+    return {
+      id_dept: typeof row.zone_id_dept === 'number' ? row.zone_id_dept : null,
+      departement,
+      ville,
+    };
+  }
+
   private mapPrivateLocationRow(row: any): TjsPrivateLocation {
     return {
       ...this.mapLocationRow(row),
       id_host: typeof row.id_host === 'number' ? row.id_host : null,
-      // Restricted by default: a location only goes public once the host opts in.
-      is_address_visible: row.is_address_visible === true,
+      // Identified by default: hiding the host is the deliberate choice, not the fallback.
+      is_anonymous: row.is_anonymous === true,
+      public_name: row.public_name ?? null,
     };
   }
 
   /**
-   * A private location keeps its address and restricted details off the website unless the host
-   * ticked the visibility flag. Public locations are never restricted.
+   * Anonymity is a private-location choice: the host does not want website visitors to know
+   * who they are or where they live. A public location is never anonymous.
    */
   private hidesRestrictedInfo(location: TjsLocation, isPrivate: boolean): boolean {
-    return isPrivate && (location as TjsPrivateLocation).is_address_visible !== true;
+    return isPrivate && (location as TjsPrivateLocation).is_anonymous === true;
+  }
+
+  /**
+   * What an anonymous location is called in public. The host picks it ("Mme O"); the town
+   * stands in when they have not, so a visitor never sees the real name by default.
+   */
+  private publicLocationName(location: TjsLocation, isRestricted: boolean): string {
+    if (!isRestricted) {
+      return location.name;
+    }
+
+    return (location as TjsPrivateLocation).public_name?.trim()
+      || location.city?.trim()
+      || 'Private location';
   }
 
   private mapPublicLocationItem(location: TjsLocation, isPrivate: boolean, hostName: string | null): PublicLocationItem {
     const isRestricted = this.hidesRestrictedInfo(location, isPrivate);
+    // A photo of the house identifies it as surely as the address does.
+    const publicImage = isRestricted ? null : location.images[0] ?? null;
 
     return {
       id: location.id,
-      name: location.name,
-      image_url: location.images[0]?.image_url ?? null,
-      image_copyright: location.images[0]?.copyright_text ?? null,
+      name: this.publicLocationName(location, isRestricted),
+      image_url: publicImage?.image_url ?? null,
+      image_copyright: publicImage?.copyright_text ?? null,
       description: isRestricted
         ? location.public_description?.trim() || 'Location details will be available soon.'
         : location.public_description?.trim()
@@ -10039,34 +10189,42 @@ export class SupabaseService {
       amenities: location.amenities.map((amenity) => amenity.name).sort(),
       specs: location.specs.map((spec) => spec.name).sort(),
       is_private: isPrivate,
-      host_name: hostName,
+      host_name: isRestricted ? null : hostName,
     };
   }
 
+  /**
+   * `viewerHasFullAccess` is how the artist playing here and a member see past anonymity;
+   * every other caller leaves it off and gets the website's view.
+   */
   private mapPublicLocationDetail(
     location: TjsLocation,
     isPrivate: boolean,
     hostName: string | null,
     upcomingEvents: PublicLocationUpcomingEvent[],
+    viewerHasFullAccess = false,
   ): PublicLocationDetail {
-    const item = this.mapPublicLocationItem(location, isPrivate, hostName);
-    const isRestricted = this.hidesRestrictedInfo(location, isPrivate);
+    const isRestricted = !viewerHasFullAccess && this.hidesRestrictedInfo(location, isPrivate);
+    const item = viewerHasFullAccess
+      ? { ...this.mapPublicLocationItem(location, false, hostName), is_private: isPrivate }
+      : this.mapPublicLocationItem(location, isPrivate, hostName);
+    const visibleImages = isRestricted ? [] : location.images.filter((image) => !!image.image_url);
 
     return {
       ...item,
-      image_urls: location.images.map((image) => image.image_url).filter(Boolean),
-      images: location.images
-        .filter((image) => !!image.image_url)
-        .map((image) => ({
-          image_url: image.image_url,
-          copyright_text: image.copyright_text ?? null,
-        })),
+      image_urls: visibleImages.map((image) => image.image_url),
+      images: visibleImages.map((image) => ({
+        image_url: image.image_url,
+        copyright_text: image.copyright_text ?? null,
+      })),
       long_description: isRestricted
         ? location.public_description?.trim() || ''
         : location.description?.trim()
           || location.public_description?.trim()
           || location.restricted_description?.trim()
           || '',
+      // The restricted block never reaches the website, even when the host is identified.
+      restricted_description: viewerHasFullAccess ? location.restricted_description : null,
       access_info: isRestricted ? null : location.access_info,
       phone: isRestricted ? null : location.phone,
       email: isRestricted ? null : location.email,
@@ -10154,6 +10312,11 @@ export class SupabaseService {
     for (const assignment of ((assignmentsResult.data ?? []) as any[])) {
       const event = Array.isArray(assignment.event) ? assignment.event[0] : assignment.event;
       if (!event?.id || event.status !== 'APPROVED' || event.event_type !== 'EVENT_INSTANCE') {
+        continue;
+      }
+
+      // A concert marked anonymous must not be traceable to its venue, so it never lists here.
+      if (this.isEventLocationAnonymous(event.visibility_scope)) {
         continue;
       }
 
@@ -10457,16 +10620,28 @@ export class SupabaseService {
       website: location.website?.trim() || null,
       is_active: location.is_active,
       access_info: location.access_info?.trim() || null,
+      ...this.buildLocationZonePayload(location.geographical_zone),
       created_by: location.created_by,
       updated_by: isUpdate ? location.updated_by ?? location.created_by : location.updated_by ?? null,
       updated_at: new Date().toISOString(),
     };
   }
 
+  /** The picked zone, spread across the three denormalized columns both location tables share. */
+  private buildLocationZonePayload(zone: GeographicalZoneOption | null | undefined) {
+    return {
+      zone_id_dept: zone?.id_dept ?? null,
+      zone_departement: zone?.departement?.trim() || null,
+      zone_ville: zone?.ville?.trim() || null,
+    };
+  }
+
   private buildPrivateLocationPayload(location: SaveTjsPrivateLocationInput, isUpdate: boolean) {
     return {
       id_host: location.id_host,
-      is_address_visible: location.is_address_visible === true,
+      is_anonymous: location.is_anonymous === true,
+      // Only meaningful while anonymous, so it is dropped when the host is identified.
+      public_name: location.is_anonymous === true ? location.public_name?.trim() || null : null,
       name: location.name.trim(),
       address: location.address?.trim() || null,
       lat: location.lat ?? null,
@@ -10483,6 +10658,7 @@ export class SupabaseService {
       website: location.website?.trim() || null,
       is_active: location.is_active,
       access_info: location.access_info?.trim() || null,
+      ...this.buildLocationZonePayload(location.geographical_zone),
       created_by: location.created_by,
       updated_by: isUpdate ? location.updated_by ?? location.created_by : location.updated_by ?? null,
       updated_at: new Date().toISOString(),
@@ -10858,12 +11034,63 @@ export class SupabaseService {
 
   // ── Host Members ──────────────────────────────────────────────────────
 
-  private buildEventVisibilityScope(isMemberOnly: boolean): string[] {
-    return isMemberOnly ? ['TJS', 'MEMBER_ONLY'] : ['TJS'];
+  /**
+   * Two independent axes ride on the same column: MEMBER_ONLY is who may see the event at all,
+   * ANONYMOUS_LOCATION is whether its venue may be named. A public venue can host one private
+   * concert, so the second is an event-level choice rather than a location one.
+   */
+  private buildEventVisibilityScope(isMemberOnly: boolean, isLocationAnonymous = false): string[] {
+    return [
+      'TJS',
+      ...(isMemberOnly ? ['MEMBER_ONLY'] : []),
+      ...(isLocationAnonymous ? ['ANONYMOUS_LOCATION'] : []),
+    ];
   }
 
   private isEventMemberOnly(visibilityScope: unknown): boolean {
     return Array.isArray(visibilityScope) && visibilityScope.includes('MEMBER_ONLY');
+  }
+
+  private isEventLocationAnonymous(visibilityScope: unknown): boolean {
+    return Array.isArray(visibilityScope) && visibilityScope.includes('ANONYMOUS_LOCATION');
+  }
+
+  /** The venue segment of a public schedule line, dropped so the address stays unpublished. */
+  private anonymizeScheduleLines(lines: string[]): string[] {
+    return lines.map((line) => {
+      const separatorIndex = line.lastIndexOf('|');
+      return separatorIndex < 0
+        ? line
+        : `${line.slice(0, separatorIndex).trim()} | Location shared after booking`;
+    });
+  }
+
+  /** True when the venue is a private location whose host chose to stay anonymous. */
+  private async isLocationAnonymousById(locationId: string | null | undefined): Promise<boolean> {
+    return (await this.getAnonymousLocationIds([locationId])).has(locationId ?? '');
+  }
+
+  /** Which of these venues belong to a host who stays anonymous, in one round trip. */
+  private async getAnonymousLocationIds(locationIds: Array<string | null | undefined>): Promise<Set<string>> {
+    const uniqueIds = Array.from(new Set(locationIds.filter((id): id is string => !!id)));
+    if (uniqueIds.length === 0) {
+      return new Set();
+    }
+
+    const { data, error } = await this.adminSupabase
+      .from('tjs_private_locations')
+      .select('id')
+      .in('id', uniqueIds)
+      .eq('is_anonymous', true);
+
+    if (error) {
+      if (!this.isMissingSchemaError(error)) {
+        console.error('getAnonymousLocationIds error:', error.message);
+      }
+      return new Set();
+    }
+
+    return new Set(((data ?? []) as Array<{ id: string }>).map((row) => row.id));
   }
 
   /** Fetch members assigned to a host. */
@@ -11316,7 +11543,7 @@ export class SupabaseService {
         event_type: 'EVENT_INSTANCE',
         status: payload.isActive ? 'APPROVED' : 'SELECTED',
         origin_website: 'TJS',
-        visibility_scope: this.buildEventVisibilityScope(payload.isOpenToMembers),
+        visibility_scope: this.buildEventVisibilityScope(payload.isOpenToMembers, payload.isLocationAnonymous === true),
         parent_event_id: requestId,
         created_by: createdBy,
         source: 'TJS',
@@ -11481,7 +11708,7 @@ export class SupabaseService {
         event_type: 'EVENT_INSTANCE',
         status: payload.isPublished ? 'APPROVED' : 'SELECTED',
         origin_website: 'TJS',
-        visibility_scope: this.buildEventVisibilityScope(payload.isMemberOnly),
+        visibility_scope: this.buildEventVisibilityScope(payload.isMemberOnly, payload.isLocationAnonymous === true),
         parent_event_id: null,
         created_by: createdBy,
         source: 'TJS',
@@ -11690,7 +11917,7 @@ export class SupabaseService {
         event_type: 'EVENT_INSTANCE',
         status: payload.isPublished ? 'APPROVED' : 'SELECTED',
         origin_website: 'TJS',
-        visibility_scope: this.buildEventVisibilityScope(payload.isMemberOnly),
+        visibility_scope: this.buildEventVisibilityScope(payload.isMemberOnly, payload.isLocationAnonymous === true),
         parent_event_id: null,
         created_by: createdBy,
         proposed_dates: null,

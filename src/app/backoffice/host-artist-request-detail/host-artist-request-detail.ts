@@ -6,6 +6,7 @@ import {
   ArtistInstrumentOption,
   ArtistRequestDateEntry,
   ArtistRequestDetail,
+  ArtistRequestZoneEntry,
   EventEditionOption,
   EventTypeOption,
   HostWorkspaceEventDetail,
@@ -15,6 +16,7 @@ import {
 } from '../../services/supabase.service';
 import { AuthService } from '../../services/auth.service';
 import { ImageCopyrightTag } from '../../shared/image-copyright/image-copyright-tag';
+import { eventScheduleHasTime, eventScheduleTypeLabel } from '../../shared/event-schedule/event-schedule.util';
 import {
   buildScheduleLine,
   getCompleteHostProposedDates,
@@ -181,7 +183,12 @@ export class HostArtistRequestDetail implements OnInit {
     }
 
     const validProposals = this.proposalDraftDates.filter((item) => {
-      if (!item.start_date || !item.show_time || !item.location_id) {
+      if (!item.start_date || !item.location_id) {
+        return false;
+      }
+
+      // Only a concert needs a time; a residence runs over a period instead.
+      if (eventScheduleHasTime(item.mode) && !item.show_time) {
         return false;
       }
 
@@ -210,7 +217,7 @@ export class HostArtistRequestDetail implements OnInit {
       return buildScheduleLine({
         mode: item.mode === 'period' ? 'period' : 'one_day',
         dateLabel: item.mode === 'period' ? `${item.start_date} to ${item.end_date}` : item.start_date,
-        showTime: item.show_time,
+        showTime: eventScheduleHasTime(item.mode) ? item.show_time : '',
         locationLabel: selectedLocation ? this.locationLabel(selectedLocation) : 'Unknown location',
         locationId: item.location_id,
       });
@@ -309,7 +316,9 @@ export class HostArtistRequestDetail implements OnInit {
         return { lines: [], error: `Date ${index + 1} is incomplete and cannot be accepted.` };
       }
 
-      if (!selection.show_time?.trim()) {
+      // A residence carries no show time, so only a concert has one to fill in.
+      const needsShowTime = this.artistDateHasTime(date);
+      if (needsShowTime && !selection.show_time?.trim()) {
         return { lines: [], error: `Add a show time for date ${index + 1} before accepting it.` };
       }
 
@@ -326,7 +335,7 @@ export class HostArtistRequestDetail implements OnInit {
       lines.push(buildScheduleLine({
         mode: isPeriod ? 'period' : 'one_day',
         dateLabel: datePart,
-        showTime: selection.show_time,
+        showTime: needsShowTime ? selection.show_time : '',
         locationLabel: selectedLocation ? this.locationLabel(selectedLocation) : 'Unknown location',
         locationId: selection.location_id,
       }));
@@ -452,16 +461,50 @@ export class HostArtistRequestDetail implements OnInit {
     return index;
   }
 
+  trackByZone = (_: number, zone: ArtistRequestZoneEntry) => `${zone.departement}::${zone.ville}`.toLowerCase();
+
+  /** The zones the artist picked, in the same "departement - ville" shape the artist workspace uses. */
+  get requestZones(): ArtistRequestZoneEntry[] {
+    return this.request?.zones ?? [];
+  }
+
+  zoneLabel(zone: ArtistRequestZoneEntry): string {
+    return `${zone.departement} - ${zone.ville}`;
+  }
+
   locationLabel(location: TjsLocation): string {
     return location.name || location.city || location.address || 'Unnamed location';
   }
 
+  /** A residence runs across days; only a concert happens at a given hour. */
+  artistDateHasTime(date: ArtistRequestDateEntry): boolean {
+    return !date.is_residence && eventScheduleHasTime(date.request_type);
+  }
+
+  artistDateTypeLabel(date: ArtistRequestDateEntry): string {
+    return date.is_residence ? 'Residence' : eventScheduleTypeLabel(date.request_type);
+  }
+
+  scheduleHasTime(mode: string): boolean {
+    return eventScheduleHasTime(mode);
+  }
+
+  /** Switching a proposal to a residence drops whatever time was already typed. */
+  onProposalModeChange(index: number) {
+    const proposal = this.proposalDraftDates[index];
+    if (proposal && !eventScheduleHasTime(proposal.mode)) {
+      proposal.show_time = '';
+    }
+  }
+
   artistRequestedDateLabel(date: ArtistRequestDateEntry): string {
+    const time = this.artistDateHasTime(date) && date.event_time ? ` | ${date.event_time}` : '';
+
     if (date.request_type === 'period') {
-      return `${date.start_date} to ${date.end_date || 'TBD'}${date.event_time ? ` | ${date.event_time}` : ''}`;
+      return `${date.start_date} to ${date.end_date || 'TBD'}${time}`;
     }
 
-    return `${date.start_date}${date.event_time ? ` | ${date.event_time}` : ''}`;
+    return `${date.start_date}${time}`;
   }
 
   requestStatusLabel(status: string): string {

@@ -37,7 +37,8 @@ interface LocationForm {
   website: string;
   access_info: string;
   is_active: boolean;
-  is_address_visible: boolean;
+  is_anonymous: boolean;
+  public_name: string;
   images: LocationImageInput[];
   location_type_id: number | null;
   amenities: LocationLookupOption[];
@@ -263,7 +264,8 @@ export class HostManagerHostDetail implements OnInit {
       website: this.selectedPrivateLocation.website ?? '',
       access_info: this.selectedPrivateLocation.access_info ?? '',
       is_active: this.selectedPrivateLocation.is_active,
-      is_address_visible: this.selectedPrivateLocation.is_address_visible === true,
+      is_anonymous: this.selectedPrivateLocation.is_anonymous === true,
+      public_name: this.selectedPrivateLocation.public_name ?? '',
       images: this.selectedPrivateLocation.images.map((image) => ({
         image_url: image.image_url,
         copyright_text: image.copyright_text ?? '',
@@ -317,7 +319,8 @@ export class HostManagerHostDetail implements OnInit {
       email: this.form.email,
       website: this.form.website,
       is_active: this.form.is_active,
-      is_address_visible: this.form.is_address_visible,
+      is_anonymous: this.form.is_anonymous,
+      public_name: this.form.public_name,
       access_info: this.form.access_info,
       created_by: this.currentUserId,
       updated_by: this.currentUserId,
@@ -679,7 +682,8 @@ export class HostManagerHostDetail implements OnInit {
       website: '',
       access_info: '',
       is_active: false,
-      is_address_visible: false,
+      is_anonymous: false,
+      public_name: '',
       images: [],
       location_type_id: null,
       amenities: [],

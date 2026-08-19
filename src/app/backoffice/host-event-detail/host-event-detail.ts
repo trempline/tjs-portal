@@ -27,6 +27,7 @@ interface HostEventDetailForm {
   description: string;
   callToActionUrl: string;
   isMemberOnly: boolean;
+  isLocationAnonymous: boolean;
   hostNotes: string;
 }
 
@@ -89,6 +90,7 @@ export class HostEventDetail implements OnInit {
     description: '',
     callToActionUrl: '',
     isMemberOnly: false,
+    isLocationAnonymous: false,
     hostNotes: '',
   };
   scheduleForm: HostEventScheduleForm = {
@@ -869,6 +871,7 @@ export class HostEventDetail implements OnInit {
       description: this.event.request_detail?.description || this.event.description || '',
       callToActionUrl: this.event.call_to_action_url || '',
       isMemberOnly: !!this.event.is_member_only,
+      isLocationAnonymous: !!this.event.is_location_anonymous,
       hostNotes: this.extractFreeformHostNotes(this.event.host_notes),
     };
     this.eventImageCopyright = this.event.request_detail?.image_copyright

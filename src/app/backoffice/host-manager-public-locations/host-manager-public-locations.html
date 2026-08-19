@@ -107,6 +107,18 @@
       </div>
 
       <div class="space-y-2">
+        <label class="text-sm font-medium text-zinc-700">Geographical Zone</label>
+        <select [(ngModel)]="form.zone_key" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100">
+          <option value="">Select geographical zone</option>
+          <option *ngFor="let zone of zoneOptions; trackBy: trackByZone" [value]="zoneKey(zone)">{{ zoneLabel(zone) }}</option>
+        </select>
+        <p *ngIf="geographicalZones.length === 0" class="text-xs text-amber-700">
+          No geographical zone is available. Run db/033_geographical_zone.sql and check that signed-in users can read tjs_geographical_zone.
+        </p>
+        <p *ngIf="geographicalZones.length > 0" class="text-xs text-zinc-500">Pick the one zone this location belongs to.</p>
+      </div>
+
+      <div class="space-y-2">
         <label class="text-sm font-medium text-zinc-700">City</label>
         <input [(ngModel)]="form.city" type="text" class="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-sm outline-none transition-colors focus:border-red-500 focus:ring-2 focus:ring-red-100" />
       </div>
@@ -257,6 +269,7 @@
             <th class="px-5 py-3 text-left font-semibold text-zinc-600">Location</th>
             <th class="px-5 py-3 text-left font-semibold text-zinc-600">Type</th>
             <th class="px-5 py-3 text-left font-semibold text-zinc-600">City</th>
+            <th class="px-5 py-3 text-left font-semibold text-zinc-600">Zone</th>
             <th class="px-5 py-3 text-left font-semibold text-zinc-600">Capacity</th>
             <th class="px-5 py-3 text-left font-semibold text-zinc-600">Status</th>
             <th class="px-5 py-3 text-right font-semibold text-zinc-600">Actions</th>
@@ -282,6 +295,7 @@
             </td>
             <td class="px-5 py-4 text-zinc-700">{{ location.location_type?.name || '-' }}</td>
             <td class="px-5 py-4 text-zinc-700">{{ location.city || '-' }}</td>
+            <td class="px-5 py-4 text-zinc-700">{{ location.geographical_zone ? zoneLabel(location.geographical_zone) : '-' }}</td>
             <td class="px-5 py-4 text-zinc-700">{{ location.capacity || '-' }}</td>
             <td class="px-5 py-4">
               <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold" [class.bg-green-100]="location.is_active" [class.text-green-700]="location.is_active" [class.bg-zinc-200]="!location.is_active" [class.text-zinc-700]="!location.is_active">

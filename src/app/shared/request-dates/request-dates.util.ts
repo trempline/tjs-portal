@@ -1,4 +1,5 @@
 import { ArtistRequestDateEntry } from '../../services/supabase.service';
+import { eventScheduleHasTime } from '../event-schedule/event-schedule.util';
 
 export interface HostProposedDateLike {
   mode: 'one_day' | 'period' | 'day_show';
@@ -48,7 +49,7 @@ export interface CompleteHostProposedDate {
 
 export function getCompleteHostProposedDates(dates: HostProposedDateLike[]): CompleteHostProposedDate[] {
   return dates.flatMap((date) => {
-    if (!date.start_date?.trim() || !date.show_time?.trim() || !date.location_id) {
+    if (!date.start_date?.trim() || !date.location_id) {
       return [];
     }
 
@@ -57,11 +58,17 @@ export function getCompleteHostProposedDates(dates: HostProposedDateLike[]): Com
       return [];
     }
 
+    // Only a concert runs at a given hour; a residence spans days and carries no time.
+    const hasTime = eventScheduleHasTime(mode);
+    if (hasTime && !date.show_time?.trim()) {
+      return [];
+    }
+
     return [{
       mode,
       start_date: date.start_date.trim(),
       end_date: date.end_date?.trim() ?? '',
-      show_time: date.show_time.trim(),
+      show_time: hasTime ? date.show_time!.trim() : '',
       location_id: date.location_id,
     }];
   });
@@ -141,7 +148,8 @@ export function validateHostScheduleEntries(entries: HostScheduleEntryLike[]): s
       return `Schedule entry ${index + 1} requires an end date.`;
     }
 
-    if (!entry.showTime?.trim()) {
+    // A residence spans days, so it is only a concert that needs a show time.
+    if (eventScheduleHasTime(mode) && !entry.showTime?.trim()) {
       return `Schedule entry ${index + 1} requires a time.`;
     }
 

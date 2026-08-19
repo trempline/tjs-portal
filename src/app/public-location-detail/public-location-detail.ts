@@ -4,6 +4,7 @@ import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { ActivatedRoute, Router } from '@angular/router';
 import { PublicLocationDetail as PublicLocationDetailData, PublicLocationUpcomingEvent, SupabaseService } from '../services/supabase.service';
 import { SharedModule } from '../shared/shared-module';
+import { AuthService } from '../services/auth.service';
 import { ImageCopyrightTag } from '../shared/image-copyright/image-copyright-tag';
 import { formatFrenchPublicDatePart, parsePublicScheduleLine } from '../shared/date-format/date-format.util';
 
@@ -18,6 +19,7 @@ export class PublicLocationDetail implements OnInit {
   private router = inject(Router);
   private sanitizer = inject(DomSanitizer);
   private supabase = inject(SupabaseService);
+  private authService = inject(AuthService);
 
   isLoading = true;
   error = '';
@@ -34,7 +36,15 @@ export class PublicLocationDetail implements OnInit {
     }
 
     try {
-      this.location = await this.supabase.getPublicWebsiteLocationDetail(locationId);
+      // An artist playing here, or a member in good standing, sees past the host's anonymity.
+      await this.authService.waitForAuthReady();
+      const profileId = this.authService.currentProfile?.id ?? this.authService.currentUser?.id ?? null;
+
+      this.location = await this.supabase.getLocationDetailForViewer(
+        locationId,
+        profileId,
+        this.authService.hasValidMembership,
+      );
       if (!this.location) {
         this.error = 'Location not found.';
       }

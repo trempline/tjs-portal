@@ -6,6 +6,7 @@ import { WorkspaceEditButton } from '../../shared/workspace-edit/workspace-edit-
 import { ImageCopyrightTag } from '../../shared/image-copyright/image-copyright-tag';
 import { AuthService } from '../../services/auth.service';
 import {
+  GeographicalZoneOption,
   LocationImageInput,
   LocationLookupOption,
   SaveTjsLocationInput,
@@ -31,6 +32,8 @@ interface LocationForm {
   email: string;
   website: string;
   access_info: string;
+  /** "departement::ville" of the single zone picked for the location, or '' while none is. */
+  zone_key: string;
   is_active: boolean;
   images: LocationImageInput[];
   location_type_id: number | null;
@@ -63,6 +66,7 @@ export class HostManagerPublicLocations implements OnInit {
   amenityOptions: LocationLookupOption[] = [];
   specOptions: LocationLookupOption[] = [];
   typeOptions: LocationLookupOption[] = [];
+  geographicalZones: GeographicalZoneOption[] = [];
   editingLocation: TjsLocation | null = null;
   form: LocationForm = this.blankForm();
 
@@ -121,17 +125,19 @@ export class HostManagerPublicLocations implements OnInit {
     this.error = '';
 
     try {
-      const [locations, amenityOptions, specOptions, typeOptions] = await Promise.all([
+      const [locations, amenityOptions, specOptions, typeOptions, geographicalZones] = await Promise.all([
         this.supabase.getPublicLocations(this.filterOwnerId),
         this.supabase.listLocationAmenities(),
         this.supabase.listLocationSpecs(),
         this.supabase.listLocationTypes(),
+        this.supabase.listGeographicalZones(),
       ]);
 
       this.locations = locations;
       this.amenityOptions = amenityOptions;
       this.specOptions = specOptions;
       this.typeOptions = typeOptions;
+      this.geographicalZones = geographicalZones;
     } finally {
       this.isLoading = false;
     }
@@ -180,6 +186,7 @@ export class HostManagerPublicLocations implements OnInit {
       email: location.email ?? '',
       website: location.website ?? '',
       access_info: location.access_info ?? '',
+      zone_key: location.geographical_zone ? this.zoneKey(location.geographical_zone) : '',
       is_active: location.is_active,
       images: location.images.map((image) => ({
         image_url: image.image_url,
@@ -212,6 +219,12 @@ export class HostManagerPublicLocations implements OnInit {
 
     if (!this.form.name.trim()) {
       this.error = 'Location name is required.';
+      return;
+    }
+
+    const selectedZone = this.selectedZone();
+    if (!selectedZone) {
+      this.error = 'Geographical zone is required.';
       return;
     }
 
@@ -250,6 +263,7 @@ export class HostManagerPublicLocations implements OnInit {
       website: this.form.website,
       is_active: this.form.is_active,
       access_info: this.form.access_info,
+      geographical_zone: selectedZone,
       created_by: this.editingLocation?.created_by ?? this.currentUserId,
       updated_by: this.currentUserId,
       images: this.form.images.slice(0, 5),
@@ -387,6 +401,35 @@ export class HostManagerPublicLocations implements OnInit {
     return location.id;
   }
 
+  /**
+   * The dropdown list. A zone already saved on the location is appended when the reference
+   * table no longer lists it, so the select never renders blank on an existing choice.
+   */
+  get zoneOptions(): GeographicalZoneOption[] {
+    const saved = this.editingLocation?.geographical_zone;
+    if (!saved || this.geographicalZones.some((zone) => this.zoneKey(zone) === this.zoneKey(saved))) {
+      return this.geographicalZones;
+    }
+
+    return [...this.geographicalZones, saved];
+  }
+
+  /** Identity of a zone everywhere it is keyed: the pair "departement::ville", lowercased. */
+  zoneKey(zone: { departement: string; ville: string }): string {
+    return `${zone.departement}::${zone.ville}`.toLowerCase();
+  }
+
+  /** How a zone reads everywhere it is shown: "departement - ville". */
+  zoneLabel(zone: { departement: string; ville: string }): string {
+    return `${zone.departement} - ${zone.ville}`;
+  }
+
+  /**
+   * An arrow property, not a method: ngFor calls trackBy unbound, so a plain method
+   * would lose `this` and fail on zoneKey.
+   */
+  trackByZone = (_: number, zone: GeographicalZoneOption) => this.zoneKey(zone);
+
   canManageLocation(location: TjsLocation): boolean {
     return this.canManageAllLocations || (!!this.currentUserId && location.created_by === this.currentUserId);
   }
@@ -407,6 +450,24 @@ export class HostManagerPublicLocations implements OnInit {
     return this.authService.isAdmin || this.authService.isCommitteeMember || this.authService.isHostManager;
   }
 
+  /**
+   * The zone behind the dropdown selection. A zone already saved on the location is kept even
+   * when the reference list no longer offers it, so editing another field cannot silently drop it.
+   */
+  private selectedZone(): GeographicalZoneOption | null {
+    if (!this.form.zone_key) {
+      return null;
+    }
+
+    const listed = this.geographicalZones.find((zone) => this.zoneKey(zone) === this.form.zone_key);
+    if (listed) {
+      return { ...listed };
+    }
+
+    const saved = this.editingLocation?.geographical_zone;
+    return saved && this.zoneKey(saved) === this.form.zone_key ? { ...saved } : null;
+  }
+
   private blankForm(): LocationForm {
     return {
       name: '',
@@ -424,6 +485,7 @@ export class HostManagerPublicLocations implements OnInit {
       email: '',
       website: '',
       access_info: '',
+      zone_key: '',
       is_active: false,
       images: [],
       location_type_id: null,
